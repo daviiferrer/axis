@@ -1,0 +1,48 @@
+version: "3.8"
+
+services:
+  # 1. Redis - For BullMQ Job Queues
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. WAHA Plus (WhatsApp HTTP API)
+  waha:
+    image: devlikeapro/waha-plus:noweb
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - WHATSAPP_DEFAULT_ENGINE=NOWEB
+      - WAHA_LOG_LEVEL=info
+      - WAHA_PRINT_QR=true
+      - WAHA_ZIPPER=true
+      # Dashboard login (Username/Password)
+      - WAHA_DASHBOARD_USERNAME=admin
+      - WAHA_DASHBOARD_PASSWORD=admin
+      # API Key para autenticação (use no header: X-Api-Key)
+      - WHATSAPP_API_KEY=prospecao-fria-2026
+      # Webhook para o backend local
+      - WHATSAPP_HOOK_URL=http://host.docker.internal:8000/api/v1/webhook/waha
+      - WHATSAPP_HOOK_EVENTS=message,message.any,message.ack,presence.update,session.status
+    volumes:
+      - waha-sessions:/app/sessions
+      - waha-config:/app/config
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis-data:
+  waha-sessions:
+  waha-config:
