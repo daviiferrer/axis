@@ -1,0 +1,147 @@
+.pageContainer {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background-color: #F8FAFC;
+    font-family: 'Inter', sans-serif;
+}
+
+.leftPanel {
+    width: 40%;
+    height: 100%;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 3rem;
+    border-right: 1px solid #e2e8f0;
+    position: relative;
+    z-index: 2;
+    box-shadow: 10px 0 30px -10px rgba(0, 0, 0, 0.05);
+}
+
+.logoContainer {
+    margin-bottom: -1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
+.logo {
+    height: 100px;
+    width: auto;
+    object-fit: contain;
+}
+
+.rightPanel {
+    flex: 1;
+    background-color: #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    background-image:
+        linear-gradient(#e2e8f0 1px, transparent 1px),
+        linear-gradient(90deg, #e2e8f0 1px, transparent 1px);
+    background-size: 40px 40px;
+}
+
+.registerFormContainer {
+    width: 100%;
+    max-width: 360px;
+    margin: 0 auto;
+}
+
+.subtitle {
+    color: #64748b;
+    margin-bottom: 2rem;
+    text-align: center;
+    margin-top: 0;
+}
+
+/* Form Elements */
+.googleButton {
+    padding: 0.75rem 1rem !important;
+    height: auto;
+    font-size: 0.95rem;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 100% !important;
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    margin: 1.5rem 0;
+    color: #cbd5e1;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.divider::before,
+.divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background-color: #e2e8f0;
+}
+
+.divider::before {
+    margin-right: 1rem;
+}
+
+.divider::after {
+    margin-left: 1rem;
+}
+
+.formGroup {
+    margin-bottom: 1rem;
+}
+
+.label {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #334155;
+    margin-bottom: 0.5rem;
+}
+
+.input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background-color: #f8fafc;
+    font-family: inherit;
+    font-size: 0.95rem;
+    color: #0f172a;
+    transition: all 0.2s ease;
+}
+
+.input:focus {
+    outline: none;
+    border-color: #006ae1;
+    background-color: white;
+    box-shadow: 0 0 0 3px rgba(0, 106, 225, 0.1);
+}
+
+.loginLink {
+    display: block;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #64748b;
+    margin-top: 1.5rem;
+}
+
+.loginLink a {
+    color: #006ae1;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.loginLink a:hover {
+    text-decoration: underline;
+}

@@ -1,0 +1,173 @@
+.chatContainer {
+    display: flex;
+    flex: 1;
+    height: 100%;
+    /* Fill mainContent */
+    overflow: hidden;
+    /* Prevent body scroll, handle internally */
+    background-color: #fff;
+}
+
+/* --- Left Sidebar (List) --- */
+.chatSidebar {
+    width: 320px;
+    border-right: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    background-color: #fff;
+    flex-shrink: 0;
+}
+
+.chatList {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.chatItem {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #f8fafc;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.chatItem:hover,
+.chatItemActive {
+    background-color: #f1f5f9;
+}
+
+.chatItemHeader {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+}
+
+.chatItemName {
+    font-weight: 600;
+    color: #0f172a;
+    font-size: 0.9rem;
+}
+
+.chatItemTime {
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+
+.chatItemSnippet {
+    font-size: 0.85rem;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --- Center Area (Conversation) --- */
+.chatMain {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: #f8fafc;
+    background-image:
+        radial-gradient(at 0% 0%, rgba(0, 106, 225, 0.05) 0px, transparent 50%),
+        linear-gradient(#f1f5f9 1px, transparent 1px),
+        linear-gradient(90deg, #f1f5f9 1px, transparent 1px);
+    background-size: 100% 100%, 40px 40px, 40px 40px;
+    border-right: 1px solid #e2e8f0;
+    /* Separator for Right Sidebar */
+    min-width: 400px;
+}
+
+.emptyState {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #64748b;
+    gap: 1rem;
+}
+
+/* --- Right Sidebar (Context) --- */
+.chatRightSidebar {
+    width: 320px;
+    background-color: #fff;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow-y: auto;
+}
+
+.rightPanelSection {
+    padding: 1.5rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.sectionTitle {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: #94a3b8;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.infoRow {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.infoLabel {
+    color: #64748b;
+}
+
+.infoValue {
+    color: #0f172a;
+    font-weight: 500;
+    text-align: right;
+}
+
+.actionButton {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 8px;
+    background-color: #f1f5f9;
+    color: #0f172a;
+    border: 1px solid #e2e8f0;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.actionButton:hover {
+    background-color: #e2e8f0;
+}
+
+.primaryButton {
+    background-color: #0f172a;
+    color: #fff;
+    border: none;
+}
+
+.primaryButton:hover {
+    background-color: #1e293b;
+}
+
+.tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.6rem;
+    background-color: #eff6ff;
+    color: #2563eb;
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}

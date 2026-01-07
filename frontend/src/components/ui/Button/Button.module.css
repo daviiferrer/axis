@@ -1,0 +1,70 @@
+.button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: 30px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    font-family: 'Inter', sans-serif;
+    text-decoration: none;
+    /* Ensure no underline if used in Link */
+}
+
+/* Variants */
+/* Glass Variants */
+.primary {
+    background: rgba(0, 106, 225, 0.75);
+    /* Semi-transparent #006ae1 */
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow:
+        0 4px 15px rgba(0, 106, 225, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.primary:hover {
+    background: rgba(0, 106, 225, 0.9);
+    box-shadow:
+        0 8px 20px rgba(0, 106, 225, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.secondary {
+    background-color: transparent;
+    color: #006ae1;
+    border: 1px solid rgba(0, 106, 225, 0.3);
+}
+
+.secondary:hover {
+    background-color: rgba(0, 106, 225, 0.05);
+    border-color: #006ae1;
+}
+
+.ghost {
+    background-color: transparent;
+    color: #64748b;
+}
+
+.ghost:hover {
+    color: #006ae1;
+    background-color: rgba(0, 106, 225, 0.05);
+}
+
+/* Sizes (Optional, defaults to standard) */
+.sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+}
+
+.lg {
+    padding: 0.8rem 1.6rem;
+    font-size: 1.05rem;
+}

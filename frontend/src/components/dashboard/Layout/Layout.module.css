@@ -1,0 +1,27 @@
+.dashboardContainer {
+    display: flex;
+    min-height: 100vh;
+    background-color: #f8fafc;
+    background-image:
+        radial-gradient(at 0% 0%, rgba(0, 106, 225, 0.05) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(0, 106, 225, 0.05) 0px, transparent 50%),
+        linear-gradient(#f1f5f9 1px, transparent 1px),
+        linear-gradient(90deg, #f1f5f9 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+    font-family: 'Inter', sans-serif;
+}
+
+.mainContent {
+    flex: 1;
+    margin-left: 80px;
+    /* Width of Sidebar */
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.contentArea {
+    padding: 3rem;
+    overflow-y: auto;
+    flex: 1;
+}

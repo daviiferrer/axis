@@ -73,7 +73,7 @@ class WebhookController {
                                 logger.info({ phone: result.phone }, '▶️ Anti-Collision: Resuming AI trigger');
                                 // Await to ensure persistence is done? It's already awaited above. 
                                 // But we can add a small safety delay or just ensure we catch.
-                                await this.workflowEngine.triggerAiForLead(result.phone, result.body);
+                                await this.workflowEngine.triggerAiForLead(result.phone, result.body, result.referral);
                             }
                         }, cooldown + 500);
                     } else {
@@ -90,7 +90,7 @@ class WebhookController {
                         // Actually, the main race is between persistence (line 53) and this trigger. 
                         // Since line 53 is awaited, we are good.
                         // But let's verify if triggerAiForLead should be awaited to handle errors properly here.
-                        await this.workflowEngine.triggerAiForLead(result.phone, result.body);
+                        await this.workflowEngine.triggerAiForLead(result.phone, result.body, result.referral);
                     }
                 }
             }

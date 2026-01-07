@@ -1,0 +1,26 @@
+.glassCard {
+    background: rgba(255, 255, 255, 0.4);
+    /* More transparent */
+    backdrop-filter: blur(24px);
+    /* Stronger blur */
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-top: 1px solid rgba(255, 255, 255, 0.8);
+    /* Highlight top border */
+    border-radius: 24px;
+    box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.05),
+        0 10px 15px -3px rgba(0, 0, 0, 0.05),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+    /* Inner light ring for depth */
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glassCard:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 10px 20px -5px rgba(0, 0, 0, 0.04),
+        0 20px 25px -5px rgba(0, 0, 0, 0.03),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+}

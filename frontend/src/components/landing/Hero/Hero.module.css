@@ -1,0 +1,182 @@
+/* Clinical White Theme */
+.heroContainer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background-color: #F8FAFC;
+    /* Clinical White */
+    overflow: hidden;
+    position: relative;
+    font-family: 'Inter', sans-serif;
+    color: #0f172a;
+    /* Slate 900 for text */
+}
+
+/* Technical Grid */
+.gridOverlay {
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(#cbd5e1 1px, transparent 1px),
+        linear-gradient(90deg, #cbd5e1 1px, transparent 1px);
+    background-size: 40px 40px;
+    /* Fade out edges slightly */
+    mask-image: radial-gradient(circle at 50% 50%, black 50%, transparent 100%);
+    opacity: 0.4;
+    /* Make it subtle */
+    pointer-events: none;
+}
+
+.orchestrationArea {
+    display: flex;
+    gap: 4rem;
+    align-items: center;
+    z-index: 10;
+    width: 100%;
+    max-width: 1200px;
+    padding: 0 2rem;
+    justify-content: center;
+}
+
+/* Central Agent Node */
+.agentNode {
+    position: relative;
+    width: 280px;
+    height: 280px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.6);
+    /* Cut glass border */
+    border: 1px solid rgba(48, 128, 232, 0.3);
+    backdrop-filter: blur(16px);
+    /* Sapphire Shadow */
+    box-shadow:
+        0 20px 40px -10px rgba(48, 128, 232, 0.2),
+        0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+}
+
+.agentGlow {
+    position: absolute;
+    inset: -30px;
+    background: radial-gradient(circle, rgba(48, 128, 232, 0.1) 0%, transparent 70%);
+    z-index: -1;
+    filter: blur(20px);
+}
+
+.logo {
+    font-size: 3rem;
+    font-weight: 800;
+    letter-spacing: -2px;
+    margin-bottom: 0.5rem;
+    color: #0f172a;
+}
+
+.status {
+    font-family: 'Geist Mono', monospace;
+    font-size: 0.85rem;
+    color: #3080E8;
+    /* Sapphire text */
+    background: rgba(48, 128, 232, 0.08);
+    /* Light blue bg */
+    padding: 6px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(48, 128, 232, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.statusDot {
+    width: 8px;
+    height: 8px;
+    background-color: #3080E8;
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(48, 128, 232, 0.6);
+}
+
+/* Campaign Nodes Column */
+.campaignColumn {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    position: relative;
+}
+
+.campaignNode {
+    width: 260px;
+    padding: 1.15rem;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid #e2e8f0;
+    /* Subtle border */
+    backdrop-filter: blur(12px);
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.05),
+        0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+.campaignNode:hover {
+    transform: translateY(-4px);
+    border-color: #3080E8;
+    /* Active border color */
+    box-shadow:
+        0 20px 30px -5px rgba(48, 128, 232, 0.15),
+        0 10px 10px -5px rgba(48, 128, 232, 0.05);
+}
+
+.nodeHeader {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1rem;
+}
+
+.iconBox {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #3080E8;
+    border: 1px solid #e2e8f0;
+}
+
+.nodeTitle {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.nodeStats {
+    font-family: 'Geist Mono', monospace;
+    font-size: 0.75rem;
+    color: #64748b;
+    display: flex;
+    justify-content: space-between;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 0.75rem;
+}
+
+/* Connections (SVG) */
+.linesOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}

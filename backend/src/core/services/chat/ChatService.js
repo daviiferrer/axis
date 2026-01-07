@@ -166,12 +166,20 @@ class ChatService {
             logger.warn({ error: e.message }, 'Failed to ensure chat or save message for incoming message');
         }
 
+        // Extraction: Ad Referral Data (Meta Ads)
+        const referral = payload.referral || _data?.referral || null;
+
+        if (referral) {
+            logger.info({ referral }, '🎯 Ad Context Detected');
+        }
+
         return {
             chatId,
             phone: cleanPhone,
             body,
             fromMe,
-            pushName
+            pushName,
+            referral // Pass it up to the Controller/Engine
         };
     }
 

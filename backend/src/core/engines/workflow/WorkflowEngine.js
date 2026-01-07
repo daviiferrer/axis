@@ -79,7 +79,7 @@ class WorkflowEngine {
      * Triggers AI processing for a lead by phone number.
      * Called by WebhookController when a message arrives.
      */
-    async triggerAiForLead(phone, messageBody = null) {
+    async triggerAiForLead(phone, messageBody = null, referral = null) {
         // Standardize phone (remove non-digits)
         const cleanPhone = phone.replace(/\D/g, '');
 
@@ -94,11 +94,26 @@ class WorkflowEngine {
             // 1. Update Lead with latest message data (Last Inbound)
             // This is CRITICAL for LogicNode reply detection.
             if (messageBody) {
-                await this.supabase.from('campaign_leads').update({
+                const updatePayload = {
                     last_message_body: messageBody,
                     last_message_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
-                }).eq('phone', cleanPhone);
+                };
+
+                // Inject Ad Context if present (Ad Click Update)
+                if (referral) {
+                    updatePayload.ad_source_id = referral.source_id;
+                    updatePayload.ad_headline = referral.headline;
+                    updatePayload.ad_body = referral.body;
+                    updatePayload.ad_media_type = referral.media_type;
+                    updatePayload.ad_source_url = referral.source_url;
+
+                    // Also update source attribution if it was generic before
+                    updatePayload.source = 'ad_click';
+                    logger.info({ referral }, '💾 Updating Ad Context (Professional Columns) for Existing Lead');
+                }
+
+                await this.supabase.from('campaign_leads').update(updatePayload).eq('phone', cleanPhone);
             }
 
             // 2. Find lead by phone
@@ -128,6 +143,19 @@ class WorkflowEngine {
 
                 const campaignId = inboxParams?.id || null;
 
+                // Prepare Ad Context
+                let adContext = {};
+                if (referral) {
+                    adContext = {
+                        ad_source_id: referral.source_id,
+                        ad_headline: referral.headline,
+                        ad_body: referral.body,
+                        ad_media_type: referral.media_type,
+                        ad_source_url: referral.source_url
+                    };
+                    logger.info({ referral }, '💾 Persisting Ad Context (Professional Columns)');
+                }
+
                 // Create the lead
                 const { data: newLead, error: createError } = await this.supabase
                     .from('campaign_leads')
@@ -135,11 +163,12 @@ class WorkflowEngine {
                         phone: cleanPhone,
                         name: 'Novo Lead',
                         status: 'new',
-                        source: 'inbound',
+                        source: referral ? 'ad_click' : 'inbound', // Attribution
                         campaign_id: campaignId,
                         last_message_body: messageBody,
                         last_message_at: new Date().toISOString(),
-                        created_at: new Date().toISOString()
+                        created_at: new Date().toISOString(),
+                        ...adContext // Spread specialized columns directly
                     })
                     .select('*, campaigns(*)')
                     .single();
