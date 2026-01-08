@@ -41,18 +41,25 @@ export function HeroText() {
         >
             <motion.h1
                 variants={item}
-                className="text-4xl sm:text-5xl md:text-[67px] font-bold leading-[1.1] tracking-[-0.04em] mb-6 pointer-events-auto text-center md:text-left text-white"
+                className="font-[family-name:var(--font-jetbrains-mono)] text-4xl sm:text-5xl md:text-[60px] font-bold leading-[1.1] tracking-[-0.04em] mb-6 pointer-events-auto text-center md:text-left text-white"
             >
-                Seu melhor SDR trabalhando 24/7{" "}
-                <span className="text-blue-500">no WhatsApp</span>
+                Crie uma equipe de{" "}
+                <span
+                    className="text-purple-400"
+                    style={{
+                        textShadow: '0 0 15px rgba(139,92,246,0.4), 0 0 30px rgba(139,92,246,0.2)'
+                    }}
+                >especialistas digitais</span>{" "}
+                que pensam, sentem e vendem por você.
             </motion.h1>
 
             <motion.p
                 variants={item}
-                className="text-gray-400 text-lg sm:text-xl md:text-[28px] font-extralight max-w-3xl leading-relaxed pointer-events-auto mb-10 text-center md:text-left mx-auto md:mx-0"
+                className="text-gray-400 text-lg sm:text-xl md:text-[22px] font-extralight max-w-3xl leading-relaxed pointer-events-auto mb-10 text-center md:text-left mx-auto md:mx-0"
             >
-                Pare de perder leads fora do horário comercial.<br className="hidden md:inline" />
-                O Áxis agenda reuniões automaticamente para você.
+                Do SDR que qualifica leads ao Suporte que resolve objeções em segundos.<br className="hidden md:inline" />
+                Crie e gerencie múltiplos agentes com personalidades únicas e{" "}
+                <span className="text-purple-300/80">inteligência emocional</span>.
             </motion.p>
 
             {/* CTA Buttons */}
@@ -61,14 +68,14 @@ export function HeroText() {
                 className="flex flex-col sm:flex-row items-center gap-4 pointer-events-auto"
             >
                 <Link href="/auth/register">
-                    <Button className="h-12 px-8 rounded-full bg-blue-600 hover:bg-blue-500 text-white text-base font-semibold shadow-[0_0_40px_-10px_rgba(37,99,235,0.5)] hover:shadow-[0_0_60px_-10px_rgba(37,99,235,0.6)] transition-all duration-300 group">
-                        Começar grátis
+                    <Button className="h-12 px-8 rounded-full bg-[#8B5CF6] hover:bg-[#7C3AED] text-white text-base font-bold shadow-[0_0_40px_-5px_rgba(139,92,246,0.6)] hover:shadow-[0_0_60px_-5px_rgba(139,92,246,0.8)] transition-all duration-300 group ring-1 ring-white/20">
+                        Criar meu primeiro agente
                     </Button>
                 </Link>
                 <Link href="/demo">
-                    <Button variant="ghost" className="h-12 px-6 rounded-full text-gray-400 hover:text-white hover:bg-white/5 text-base font-medium transition-all">
-                        <Play className="w-4 h-4 mr-2" />
-                        Ver o SDR em ação
+                    <Button variant="ghost" className="h-12 px-6 rounded-full text-gray-200 hover:text-white hover:bg-white/10 text-base font-medium transition-all">
+                        <Play className="w-4 h-4 mr-2 fill-current" />
+                        Ver agentes em ação
                     </Button>
                 </Link>
             </motion.div>

@@ -9,11 +9,11 @@ export default function PrivacyPage() {
                 <div className="max-w-4xl mx-auto px-6 flex items-center justify-between">
                     <Link href="/">
                         <Image
-                            src="/logo.svg"
+                            src="/assets/brand/axis-logo.svg"
                             alt="AXIS Logo"
                             width={120}
                             height={40}
-                            className="h-8 w-auto opacity-90 invert"
+                            className="h-8 w-auto opacity-90"
                         />
                     </Link>
                     <Link href="/" className="text-sm text-gray-400 hover:text-white transition-colors">

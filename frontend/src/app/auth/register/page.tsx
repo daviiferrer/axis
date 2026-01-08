@@ -13,11 +13,11 @@ export default function RegisterPage() {
                 <div className="lg:hidden mb-8">
                     <Link href="/">
                         <Image
-                            src="/logo.svg"
+                            src="/assets/brand/axis-logo.svg"
                             alt="AXIS Logo"
                             width={160}
                             height={50}
-                            className="h-12 w-auto opacity-90 invert"
+                            className="h-12 w-auto opacity-90"
                         />
                     </Link>
                 </div>
@@ -95,11 +95,11 @@ export default function RegisterPage() {
                 <div className="relative z-10 px-16 max-w-2xl">
                     <Link href="/">
                         <Image
-                            src="/logo.svg"
+                            src="/assets/brand/axis-logo.svg"
                             alt="AXIS Logo"
                             width={200}
                             height={70}
-                            className="h-16 w-auto opacity-90 invert mb-8"
+                            className="h-16 w-auto opacity-90 mb-8"
                         />
                     </Link>
                     <h1 className="text-4xl font-bold leading-tight mb-4">

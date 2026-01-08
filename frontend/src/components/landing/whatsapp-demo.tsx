@@ -8,30 +8,37 @@ import { useEffect, useState, useRef } from "react";
 const NAMES = ["Mariana", "Carlos", "Fernanda", "Rafael", "Beatriz", "Gustavo", "Julia", "Lucas", "Ana", "Pedro", "Larissa", "Thiago", "Camila", "Bruno", "Patrícia", "Aline", "Felipe", "Renata", "Diego", "Carla"];
 
 const FAQ_PAIRS = [
-    { q: "Vocês integram com anúncios do Face?", a: "Sim! Falo com seus leads do Meta Ads em segundos, aumentando a conversão na hora. ⚡" },
-    { q: "E se o cliente mandar áudio?", a: "Eu ouço, transcrevo e respondo áudios de até 2 minutos com precisão humana! 🎙️" },
-    { q: "Você sabe se o lead tá irritado?", a: "Tenho análise de sentimento. Se detectar frustração, chamo um humano na hora. 🧠" },
-    { q: "O SDR humano assume quando?", a: "Quando o lead pede, quando a venda tá pronta ou se eu notar que precisa de ajuda. 🤝" },
-    { q: "Funciona de madrugada?", a: "24/7! Não deixo nenhum lead esperando, seja domingo ou feriado. 🌙" },
-    { q: "Consegue agendar reunião pra mim?", a: "Claro! Sincronizo com sua agenda e marco demos direto no chat. 📅" },
-    { q: "E se o lead parar de responder?", a: "Faço follow-ups automáticos e naturais pra tentar recuperar o interesse dele. 🎣" },
-    { q: "Dá pra mudar seu jeito de falar?", a: "100%. Posso ser formal, descontraído ou agressivo, do jeito que sua marca preferir. 🎯" },
-    { q: "Precisa de cartão pra testar?", a: "Não! Você pode testar nossa tecnologia gratuitamente por 7 dias. 🆓" },
-    { q: "Integra com HubSpot e Pipedrive?", a: "Sim, integração nativa. Tudo que acontece aqui vai pro seu CRM em tempo real. 🔄" },
-    { q: "Qual o preço pra empresas?", a: "Começa em R$ 499/mês. Se quiser, te mostro a tabela completa agora! 💰" },
-    { q: "Quantos leads atende ao mesmo tempo?", a: "Infinitos. Posso falar com 10 ou 10.000 pessoas simultaneamente sem filas. 🚀" },
-    { q: "E se bloquearem meu chip?", a: "Usamos rotação de números e aquecimento IA para minimizar risco de bloqueio. 🛡️" },
-    { q: "Você qualifica os leads antes?", a: "Sim! Só passo pro time comercial quem tem fit real com sua empresa. ✅" },
-    { q: "Treino você com meus dados?", a: "Isso! Você sobe seus PDFs e site, e eu aprendo tudo sobre seu produto em minutos. 📚" },
-    { q: "Serve pra clínica médica?", a: "Perfeito para agendar consultas, tirar dúvidas de preparo e confirmar presença. 🏥" },
-    { q: "E pra imobiliária, funciona?", a: "Sim! Faço triagem de perfil, renda e agendo visitas aos imóveis automaticamente. 🏠" },
-    { q: "Tem contrato de fidelidade?", a: "Zero fidelidade. Acreditamos na nossa entrega, você fica porque gera resultado! 🔓" },
-    { q: "Atende em outros idiomas?", a: "Falo português, inglês e espanhol fluentemente, detectando o idioma do lead. 🌎" },
-    { q: "Consigo ver as conversas depois?", a: "Tudo fica gravado no dashboard e no seu CRM pra auditoria e controle total. 📊" }
+    // SDR Agent - Lucas
+    { q: "Vocês integram com anúncios do Face?", a: "Sim! Falo com seus leads do Meta Ads em segundos, aumentando a conversão na hora. ⚡", agentRole: "SDR", agentName: "Lucas", thinking: "🧠 Detectando intent: integração_meta_ads → Confiança: 94%" },
+    { q: "Funciona de madrugada?", a: "24/7! Não deixo nenhum lead esperando, seja domingo ou feriado. 🌙", agentRole: "SDR", agentName: "Lucas", thinking: "⚡ Intent: disponibilidade → Score de qualificação: +15" },
+    { q: "Você qualifica os leads antes?", a: "Sim! Só passo pro time comercial quem tem fit real com sua empresa. ✅", agentRole: "SDR", agentName: "Lucas", thinking: "✅ Nó atual: qualification → BANT Score: calculando..." },
+    { q: "Consegue agendar reunião pra mim?", a: "Claro! Sincronizo com sua agenda e marco demos direto no chat. 📅", agentRole: "SDR", agentName: "Lucas", thinking: "📅 Detectando: intent_agendamento → Verificando slots..." },
+
+    // Support Agent - Ana
+    { q: "E se o cliente mandar áudio?", a: "Eu ouço, transcrevo e respondo áudios de até 2 minutos com precisão humana! 🎙️", agentRole: "Suporte", agentName: "Ana", thinking: "🎯 Classificando: dúvida_funcionalidade → RAG: audio_processing.md" },
+    { q: "Você sabe se o lead tá irritado?", a: "Tenho análise de sentimento. Se detectar frustração, chamo um humano na hora. 🧠", agentRole: "Suporte", agentName: "Ana", thinking: "📊 Sentimento detectado: curioso (0.72) → Resposta: explicativa" },
+    { q: "O SDR humano assume quando?", a: "Quando o lead pede, quando a venda tá pronta ou se eu notar que precisa de ajuda. 🤝", agentRole: "Suporte", agentName: "Ana", thinking: "🔄 Nó atual: handoff_rules → Próximo: explicar_gatilhos" },
+    { q: "E se bloquearem meu chip?", a: "Usamos rotação de números e aquecimento IA para minimizar risco de bloqueio. 🛡️", agentRole: "Suporte", agentName: "Ana", thinking: "⚠️ Preocupação: segurança_whatsapp → Resposta: técnica" },
+
+    // Sales Agent - Roberto
+    { q: "Qual o preço pra empresas?", a: "Começa em R$ 499/mês. Se quiser, te mostro a tabela completa agora! 💰", agentRole: "Vendas", agentName: "Roberto", thinking: "💰 Objeção detectada: preço → Guardrail: não dar desconto" },
+    { q: "Precisa de cartão pra testar?", a: "Não! Você pode testar nossa tecnologia gratuitamente por 7 dias. 🆓", agentRole: "Vendas", agentName: "Roberto", thinking: "💳 Objeção: preço/compromisso → Template: trial_gratuito" },
+    { q: "Tem contrato de fidelidade?", a: "Zero fidelidade. Acreditamos na nossa entrega, você fica porque gera resultado! 🔓", agentRole: "Vendas", agentName: "Roberto", thinking: "🔓 Objeção: lock-in → Resposta: confiança_no_produto" },
+    { q: "Quantos leads atende ao mesmo tempo?", a: "Infinitos. Posso falar com 10 ou 10.000 pessoas simultaneamente sem filas. 🚀", agentRole: "Vendas", agentName: "Roberto", thinking: "📈 Intent: escalabilidade → Destacar diferencial técnico" },
+
+    // Mixed Agents
+    { q: "Integra com HubSpot e Pipedrive?", a: "Sim, integração nativa. Tudo que acontece aqui vai pro seu CRM em tempo real. 🔄", agentRole: "Suporte", agentName: "Ana", thinking: "🔗 Intent: integração_crm → RAG: crm_integrations.md" },
+    { q: "E se o lead parar de responder?", a: "Faço follow-ups automáticos e naturais pra tentar recuperar o interesse dele. 🎣", agentRole: "SDR", agentName: "Lucas", thinking: "⏳ Intent: follow_up → Estratégia: 3-step_nurturing" },
+    { q: "Dá pra mudar seu jeito de falar?", a: "100%. Posso ser formal, descontraído ou agressivo, do jeito que sua marca preferir. 🎯", agentRole: "Suporte", agentName: "Ana", thinking: "🗣️ Intent: personalização_tom → RAG: tone_of_voice.md" },
+    { q: "Treino você com meus dados?", a: "Isso! Você sobe seus PDFs e site, e eu aprendo tudo sobre seu produto em minutos. 📚", agentRole: "Suporte", agentName: "Ana", thinking: "📚 Intent: treinamento_ia → RAG: data_ingestion.md" },
+    { q: "Serve pra clínica médica?", a: "Perfeito para agendar consultas, tirar dúvidas de preparo e confirmar presença. 🏥", agentRole: "SDR", agentName: "Lucas", thinking: "🏥 Intent: caso_uso_saude → Template: agendamento_clinica" },
+    { q: "E pra imobiliária, funciona?", a: "Sim! Faço triagem de perfil, renda e agendo visitas aos imóveis automaticamente. 🏠", agentRole: "SDR", agentName: "Lucas", thinking: "🏠 Intent: caso_uso_imobiliaria → Template: triagem_imovel" },
+    { q: "Atende em outros idiomas?", a: "Falo português, inglês e espanhol fluentemente, detectando o idioma do lead. 🌎", agentRole: "Suporte", agentName: "Ana", thinking: "🌎 Intent: multi_idioma → RAG: language_detection.md" },
+    { q: "Consigo ver as conversas depois?", a: "Tudo fica gravado no dashboard e no seu CRM pra auditoria e controle total. 📊", agentRole: "Suporte", agentName: "Ana", thinking: "📊 Intent: auditoria_conversas → RAG: dashboard_features.md" }
 ];
 
 const generateMessages = () => {
-    const msgs = [];
+    const msgs: any[] = [];
     // Generate distinct sets of conversations
     for (let i = 0; i < 100; i++) {
         const pair = FAQ_PAIRS[i % FAQ_PAIRS.length];
@@ -46,12 +53,14 @@ const generateMessages = () => {
             time: 'Agora'
         });
 
-        // Bot Message
+        // Bot Message (with agent persona)
         msgs.push({
             id: `msg-${i}-bot`,
             type: 'bot',
             text: pair.a,
-            sender: 'Áxis AI',
+            agentRole: pair.agentRole,
+            agentName: pair.agentName,
+            thinking: pair.thinking,
             time: 'Agora'
         });
     }
@@ -63,7 +72,7 @@ const ALL_MESSAGES = generateMessages();
 export function WhatsappDemo() {
     const [messages, setMessages] = useState<any[]>([]);
     const [isTyping, setIsTyping] = useState(false);
-    const scrollRef = useRef<HTMLDivElement>(null);
+    const [currentThinking, setCurrentThinking] = useState<string | null>(null);
     const indexRef = useRef(3); // Track index without re-rendering loop
 
     // Initial Load
@@ -71,26 +80,48 @@ export function WhatsappDemo() {
         setMessages(ALL_MESSAGES.slice(0, 3));
     }, []);
 
-    // Infinite Feed Logic with Typing Simulator
+    // Infinite Feed Logic with Thinking + Typing Simulator
     useEffect(() => {
         let timeout: NodeJS.Timeout;
 
         const playTurn = () => {
-            // 1. Start Typing
-            setIsTyping(true);
+            const currentIdx = indexRef.current;
+            const nextMsg = ALL_MESSAGES[currentIdx % ALL_MESSAGES.length];
 
-            // 2. Simulate Typing Duration
-            timeout = setTimeout(() => {
+            // If it's a bot message, show thinking first
+            if (nextMsg.type === 'bot' && nextMsg.thinking) {
+                setCurrentThinking(nextMsg.thinking);
+
+                // After showing thinking, start typing
+                timeout = setTimeout(() => {
+                    setCurrentThinking(null);
+                    setIsTyping(true);
+
+                    // Then add the message
+                    timeout = setTimeout(() => {
+                        setIsTyping(false);
+                        indexRef.current += 1;
+
+                        setMessages((prev) => {
+                            const newMsg = { ...nextMsg, id: `${nextMsg.id}-${Date.now()}` };
+                            const newHistory = [...prev, newMsg];
+                            if (newHistory.length > 7) {
+                                return newHistory.slice(newHistory.length - 7);
+                            }
+                            return newHistory;
+                        });
+
+                        // Next cycle
+                        timeout = setTimeout(playTurn, 1200 + Math.random() * 500);
+                    }, 600 + Math.random() * 300);
+                }, 1200 + Math.random() * 400); // Thinking duration
+            } else {
+                // Lead message - just show typing briefly then add
                 setIsTyping(false);
-
-                // 3. Add Message
-                const currentIdx = indexRef.current;
-                indexRef.current += 1; // Increment outside setter to safe-guard against Strict Mode
+                indexRef.current += 1;
 
                 setMessages((prev) => {
-                    const rawMsg = ALL_MESSAGES[currentIdx % ALL_MESSAGES.length];
-                    const newMsg = { ...rawMsg, id: `${rawMsg.id}-${Date.now()}` };
-
+                    const newMsg = { ...nextMsg, id: `${nextMsg.id}-${Date.now()}` };
                     const newHistory = [...prev, newMsg];
                     if (newHistory.length > 7) {
                         return newHistory.slice(newHistory.length - 7);
@@ -98,10 +129,9 @@ export function WhatsappDemo() {
                     return newHistory;
                 });
 
-                // 4. Wait before next cycle (Idle time)
-                timeout = setTimeout(playTurn, 1200 + Math.random() * 500);
-
-            }, 600 + Math.random() * 400); // Typing duration
+                // Short pause then next
+                timeout = setTimeout(playTurn, 800 + Math.random() * 400);
+            }
         };
 
         // Start the loop
@@ -115,10 +145,11 @@ export function WhatsappDemo() {
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="pointer-events-auto relative md:absolute md:top-1/2 md:-translate-y-1/2 md:mt-[5vh] right-0 lg:right-[5%] z-20 w-[300px] md:w-[340px] h-auto flex flex-col gap-4 font-sans"
+            className="pointer-events-auto relative md:absolute md:top-1/2 md:-translate-y-1/2 md:mt-[5vh] right-0 z-20 w-full max-w-[340px] h-auto flex flex-col gap-4 font-sans mx-auto md:mx-0"
         >
+
             {/* Floating Header */}
-            <div className="bg-gradient-to-b from-[#0F1117]/80 to-transparent backdrop-blur-md p-3 rounded-t-2xl border-t border-x border-white/10 border-b-0 flex items-center justify-between relative z-30">
+            <div className="bg-gradient-to-b from-[#0F1117]/80 to-transparent backdrop-blur-xl p-3 rounded-t-2xl border-t border-x border-white/10 border-b-0 flex items-center justify-between relative z-30">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00A884] to-[#008f6f] flex items-center justify-center shadow-lg shadow-[#00A884]/20 relative overflow-hidden">
                         <svg viewBox="0 0 24 24" fill="white" className="w-6 h-6 relative z-10">
@@ -130,8 +161,8 @@ export function WhatsappDemo() {
                             <span className="text-white font-bold text-sm">Áxis</span>
                             <span className="text-white/40 text-[11px] font-normal">Atendendo agora</span>
                         </div>
-                        <span className="text-[#00A884] text-[10px] font-medium transition-all duration-300 min-h-[15px]">
-                            {isTyping ? "digitando..." : "online"}
+                        <span className={`text-[10px] font-medium transition-all duration-300 min-h-[15px] ${currentThinking ? 'text-purple-400' : isTyping ? 'text-blue-400' : 'text-[#00A884]'}`}>
+                            {currentThinking ? "pensando..." : isTyping ? "digitando..." : "online"}
                         </span>
                     </div>
                 </div>
@@ -147,7 +178,7 @@ export function WhatsappDemo() {
             >
 
                 <AnimatePresence mode="popLayout">
-                    {messages.map((msg, index) => (
+                    {messages.map((msg) => (
                         <motion.div
                             key={msg.id}
                             initial={{ opacity: 0, y: 50, scale: 0.9 }}
@@ -158,19 +189,34 @@ export function WhatsappDemo() {
                             className={`flex flex-col max-w-[90%] z-10 ${msg.type === 'bot' ? 'self-start' : 'self-end items-end'}`}
                         >
                             <span className={`text-[10px] text-gray-400/80 mb-1 px-1 ${msg.type === 'bot' ? 'text-left' : 'text-right'}`}>
-                                {msg.sender}
+                                {msg.type === 'bot' ? `Áxis AI • ${msg.agentRole} ${msg.agentName}` : msg.sender}
                             </span>
-                            <div className={`
-                                p-3 rounded-2xl text-sm shadow-lg border relative backdrop-blur-md
-                                ${msg.type === 'bot'
-                                    ? 'bg-[#11141C]/60 text-gray-200 rounded-tl-sm border-white/5'
-                                    : 'bg-[#005C4B]/60 text-white rounded-tr-sm border-[#005C4B]/30 shadow-[#005C4B]/10'}
-                            `}>
-                                <p>{msg.text}</p>
-                                <span className="text-[9px] text-white/40 block text-right mt-1">{msg.time}</span>
+                            <div className={`p-2 relative ${msg.type === 'bot' ? 'text-gray-200 text-left' : 'text-white text-right'}`}>
+                                <p className="text-sm font-light leading-relaxed">{msg.text}</p>
                             </div>
                         </motion.div>
                     ))}
+
+                    {/* Thinking Text - Floating */}
+                    {currentThinking && (
+                        <motion.div
+                            key="thinking-text"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0, transition: { duration: 0.15 } }}
+                            className="flex items-center gap-2 self-start px-2 mt-2"
+                        >
+                            {/* Animated pulse indicator */}
+                            <div className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                            </div>
+                            <span className="text-purple-400/90 text-[11px] font-medium">
+                                Raciocinando...
+                            </span>
+                        </motion.div>
+                    )}
+
                 </AnimatePresence>
             </div>
 
