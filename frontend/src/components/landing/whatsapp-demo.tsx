@@ -191,8 +191,8 @@ export function WhatsappDemo() {
                             <span className={`text-[10px] text-gray-400/80 mb-1 px-1 ${msg.type === 'bot' ? 'text-left' : 'text-right'}`}>
                                 {msg.type === 'bot' ? `Áxis AI • ${msg.agentRole} ${msg.agentName}` : msg.sender}
                             </span>
-                            <div className={`p-2 relative ${msg.type === 'bot' ? 'text-gray-200 text-left' : 'text-white text-right'}`}>
-                                <p className="text-sm font-light leading-relaxed">{msg.text}</p>
+                            <div className={`p-3 rounded-2xl max-w-full ${msg.type === 'bot' ? 'bg-white/10 rounded-tl-sm text-gray-100 text-left' : 'bg-[#00A884]/20 rounded-tr-sm text-white/90 text-right'}`}>
+                                <p className="text-sm font-light leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                             </div>
                         </motion.div>
                     ))}
