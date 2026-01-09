@@ -115,11 +115,60 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
+}
+
+@layer utilities {
+  @keyframes ripple {
+
+    0%,
+    100% {
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    50% {
+      transform: translate(-50%, -50%) scale(0.9);
+    }
+  }
+
+  .animate-ripple {
+    animation: ripple var(--duration, 2s) ease calc(var(--i, 0) * 0.2s) infinite;
+  }
+}
+
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@keyframes equalizer {
+
+  0%,
+  100% {
+    height: 40px;
+    background-color: #db2777;
+    /* pink-600 */
+  }
+
+  50% {
+    height: 160px;
+    /* Reduced max height slightly for safety, or 100% of container */
+    background-color: #f472b6;
+    /* pink-400 */
+  }
+}
+
+.animate-equalizer {
+  animation: equalizer 1.2s ease-in-out infinite;
+  will-change: height, background-color;
 }

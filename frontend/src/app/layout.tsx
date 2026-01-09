@@ -21,7 +21,7 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="pt-BR">
-            <body className={`${inter.className} ${jetbrainsMono.variable} bg-[#080A10] text-white`}>
+            <body className={`${inter.className} ${jetbrainsMono.variable} bg-white text-gray-900 antialiased`}>
                 <ScrollToTop />
                 {children}
             </body>

@@ -1,8 +1,10 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useInView } from "framer-motion";
 import { Phone, Video, MoreVertical, CheckCheck, Plus, Mic, ArrowDown } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
+import { TextGenerateEffect } from "@/components/ui/shadcn-io/text-generate-effect";
+
 
 // Mock Data Generation
 const NAMES = ["Mariana", "Carlos", "Fernanda", "Rafael", "Beatriz", "Gustavo", "Julia", "Lucas", "Ana", "Pedro", "Larissa", "Thiago", "Camila", "Bruno", "Patrícia", "Aline", "Felipe", "Renata", "Diego", "Carla"];
@@ -75,6 +77,9 @@ export function WhatsappDemo() {
     const [currentThinking, setCurrentThinking] = useState<string | null>(null);
     const indexRef = useRef(3); // Track index without re-rendering loop
 
+    const containerRef = useRef<HTMLDivElement>(null);
+    const isInView = useInView(containerRef, { once: false, margin: "0px 0px -200px 0px" });
+
     // Initial Load
     useEffect(() => {
         setMessages(ALL_MESSAGES.slice(0, 3));
@@ -82,9 +87,13 @@ export function WhatsappDemo() {
 
     // Infinite Feed Logic with Thinking + Typing Simulator
     useEffect(() => {
+        if (!isInView) return; // Pause when not in view
+
         let timeout: NodeJS.Timeout;
 
         const playTurn = () => {
+            if (!isInView) return; // Double check inside closure
+
             const currentIdx = indexRef.current;
             const nextMsg = ALL_MESSAGES[currentIdx % ALL_MESSAGES.length];
 
@@ -138,35 +147,18 @@ export function WhatsappDemo() {
         timeout = setTimeout(playTurn, 1500);
 
         return () => clearTimeout(timeout);
-    }, []);
+    }, [isInView]);
 
     return (
         <motion.div
+            ref={containerRef}
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="pointer-events-auto relative md:absolute md:top-1/2 md:-translate-y-1/2 md:mt-[5vh] right-0 z-20 w-full max-w-[340px] h-auto flex flex-col gap-4 font-sans mx-auto md:mx-0"
+            className="pointer-events-auto relative z-20 w-full max-w-[340px] h-auto flex flex-col gap-4 font-sans"
         >
 
-            {/* Floating Header */}
-            <div className="bg-gradient-to-b from-[#0F1117]/80 to-transparent backdrop-blur-xl p-3 rounded-t-2xl border-t border-x border-white/10 border-b-0 flex items-center justify-between relative z-30">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00A884] to-[#008f6f] flex items-center justify-center shadow-lg shadow-[#00A884]/20 relative overflow-hidden">
-                        <svg viewBox="0 0 24 24" fill="white" className="w-6 h-6 relative z-10">
-                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                        </svg>
-                    </div>
-                    <div className="flex flex-col justify-center">
-                        <div className="flex items-center gap-2">
-                            <span className="text-white font-bold text-sm">Áxis</span>
-                            <span className="text-white/40 text-[11px] font-normal">Atendendo agora</span>
-                        </div>
-                        <span className={`text-[10px] font-medium transition-all duration-300 min-h-[15px] ${currentThinking ? 'text-purple-400' : isTyping ? 'text-blue-400' : 'text-[#00A884]'}`}>
-                            {currentThinking ? "pensando..." : isTyping ? "digitando..." : "online"}
-                        </span>
-                    </div>
-                </div>
-            </div>
+            {/* Floating Header Removed */}
 
             {/* Infinite Scroll Area */}
             <div
@@ -188,33 +180,37 @@ export function WhatsappDemo() {
                             layout
                             className={`flex flex-col max-w-[90%] z-10 ${msg.type === 'bot' ? 'self-start' : 'self-end items-end'}`}
                         >
-                            <span className={`text-[10px] text-gray-400/80 mb-1 px-1 ${msg.type === 'bot' ? 'text-left' : 'text-right'}`}>
+                            <span className={`text-[10px] text-gray-500 mb-1 px-1 ${msg.type === 'bot' ? 'text-left' : 'text-right'}`}>
                                 {msg.type === 'bot' ? `Áxis AI • ${msg.agentRole} ${msg.agentName}` : msg.sender}
                             </span>
-                            <div className={`p-3 rounded-2xl max-w-full ${msg.type === 'bot' ? 'bg-white/10 rounded-tl-sm text-gray-100 text-left' : 'bg-[#00A884]/20 rounded-tr-sm text-white/90 text-right'}`}>
-                                <p className="text-sm font-light leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                            <div className={`p-3 rounded-2xl max-w-full ${msg.type === 'bot' ? 'bg-gray-100 rounded-tl-sm text-gray-800 text-left' : 'bg-[#DCF8C6] rounded-tr-sm text-gray-900 text-right'}`}>
+                                <p className="text-sm font-normal leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                             </div>
                         </motion.div>
                     ))}
 
-                    {/* Thinking Text - Floating */}
+                    {/* Thinking Text - Text Generate Effect */}
                     {currentThinking && (
-                        <motion.div
-                            key="thinking-text"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0, transition: { duration: 0.15 } }}
-                            className="flex items-center gap-2 self-start px-2 mt-2"
-                        >
-                            {/* Animated pulse indicator */}
-                            <div className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                        <div className="flex flex-col gap-1 self-start px-2 mt-2 max-w-[85%]">
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className="relative flex h-1.5 w-1.5">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-500"></span>
+                                </div>
+                                <span className="text-purple-500/80 text-[10px] uppercase tracking-wider font-semibold">
+                                    Pensando
+                                </span>
                             </div>
-                            <span className="text-purple-400/90 text-[11px] font-medium">
-                                Raciocinando...
-                            </span>
-                        </motion.div>
+
+                            <div className="pl-3.5">
+                                <TextGenerateEffect
+                                    words={currentThinking}
+                                    duration={0.5}
+                                    staggerDelay={0.05}
+                                    className="text-[11px] text-gray-500 font-light leading-snug italic"
+                                />
+                            </div>
+                        </div>
                     )}
 
                 </AnimatePresence>

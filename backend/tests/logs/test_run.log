@@ -1,0 +1,1083 @@
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+ FAIL  tests/integration/CreditConsumption.test.js
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  Integration: Credit Consumption in Chat
+    × should deduct credits AND send message when balance is sufficient (Feature Flag ON) (8 ms)
+    × should FAIL to send message calling Waha if credits are insufficient (Feature Flag ON) (4 ms)
+    × should SEND message WITHOUT deducting if Feature Flag is OFF
+
+  ● Integration: Credit Consumption in Chat › should deduct credits AND send message when balance is sufficient (Feature Flag ON)
+
+    TypeError: this.supabase.from(...).select(...).eq(...).single is not a function
+
+      210 |                     .select('id')
+      211 |                     .eq('chat_id', chatId)
+    > 212 |                     .single();
+          |                      ^
+      213 |
+      214 |                 // If chat doesn't exist, ensure it does (e.g., for outbound messages to new contacts)
+      215 |                 if (!chat) {
+
+      at ChatService.single [as sendMessage] (src/core/services/chat/ChatService.js:212:22)
+      at Object.<anonymous> (tests/integration/CreditConsumption.test.js:68:9)
+
+  ● Integration: Credit Consumption in Chat › should FAIL to send message calling Waha if credits are insufficient (Feature Flag ON)
+
+    expect(received).rejects.toThrow()
+
+    Received promise resolved instead of rejected
+    Resolved to value: undefined
+
+       95 |         mockSupabase.eq.mockResolvedValueOnce({ data: [{ amount: 0 }], error: null });
+       96 |
+    >  97 |         await expect(chatService.sendMessage('session1', '5511999999999', 'Hello', userId))
+          |               ^
+       98 |             .rejects.toThrow('Insufficient credits');
+       99 |
+      100 |         // Verify NO WAHA Call
+
+      at expect (node_modules/expect/build/index.js:113:15)
+      at Object.expect (tests/integration/CreditConsumption.test.js:97:15)
+
+  ● Integration: Credit Consumption in Chat › should SEND message WITHOUT deducting if Feature Flag is OFF
+
+    TypeError: this.supabase.from(...).select(...).eq(...).single is not a function
+
+      210 |                     .select('id')
+      211 |                     .eq('chat_id', chatId)
+    > 212 |                     .single();
+          |                      ^
+      213 |
+      214 |                 // If chat doesn't exist, ensure it does (e.g., for outbound messages to new contacts)
+      215 |                 if (!chat) {
+
+      at ChatService.single [as sendMessage] (src/core/services/chat/ChatService.js:212:22)
+      at Object.<anonymous> (tests/integration/CreditConsumption.test.js:121:9)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+ FAIL  tests/unit/core/engines/nodes/AgenticNode.test.js
+  AgenticNode
+    × should build prompt with DNA and context (14 ms)
+    × should process response through guardrails (4 ms)
+
+  ● AgenticNode › should build prompt with DNA and context
+
+    TypeError: this.supabase.from(...).update is not a function
+
+      148 |         logger.info({ leadId: lead.id, oldTemp: currentTemp, newTemp: newTemperature, label: tempLabel }, '🌡️ Lead Temperature Updated');
+      149 |
+    > 150 |         await this.supabase.from('campaign_leads').update({
+          |                                                    ^
+      151 |             temperature: newTemperature,
+      152 |             last_sentiment: response.sentiment_score,
+      153 |             last_message_at: new Date().toISOString()
+
+      at AgenticNode.update [as execute] (src/core/engines/workflow/nodes/AgenticNode.js:150:52)
+      at Object.<anonymous> (tests/unit/core/engines/nodes/AgenticNode.test.js:64:9)
+
+  ● AgenticNode › should process response through guardrails
+
+    TypeError: this.supabase.from(...).update is not a function
+
+      148 |         logger.info({ leadId: lead.id, oldTemp: currentTemp, newTemp: newTemperature, label: tempLabel }, '🌡️ Lead Temperature Updated');
+      149 |
+    > 150 |         await this.supabase.from('campaign_leads').update({
+          |                                                    ^
+      151 |             temperature: newTemperature,
+      152 |             last_sentiment: response.sentiment_score,
+      153 |             last_message_at: new Date().toISOString()
+
+      at AgenticNode.update [as execute] (src/core/engines/workflow/nodes/AgenticNode.js:150:52)
+      at Object.<anonymous> (tests/unit/core/engines/nodes/AgenticNode.test.js:79:9)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.warn
+    [RBAC] Access denied for user test-user (Role: VIEWER) on CAMPAIGN:START
+
+      24 |
+      25 |         if (!allowed) {
+    > 26 |             console.warn(`[RBAC] Access denied for user ${req.user.id} (Role: ${role}) on ${resource}:${action}`);
+         |                     ^
+      27 |             return res.status(403).json({
+      28 |                 error: 'Permission Denied',
+      29 |                 message: `Your role (${role}) does not have permission to ${action} ${resource}`
+
+      at warn (src/api/middlewares/rbacMiddleware.js:26:21)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at next (node_modules/express/lib/router/route.js:149:13)
+      at Route.dispatch (node_modules/express/lib/router/route.js:119:3)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at node_modules/express/lib/router/index.js:284:15
+      at param (node_modules/express/lib/router/index.js:365:14)
+      at param (node_modules/express/lib/router/index.js:376:14)
+      at router.process_params (node_modules/express/lib/router/index.js:421:3)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at router.handle (node_modules/express/lib/router/index.js:175:3)
+      at router (node_modules/express/lib/router/index.js:47:12)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at next (tests/integration/api/campaign.test.js:35:83)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at router.handle (node_modules/express/lib/router/index.js:175:3)
+      at router (node_modules/express/lib/router/index.js:47:12)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at router.handle (node_modules/express/lib/router/index.js:175:3)
+      at router (node_modules/express/lib/router/index.js:47:12)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at jsonParser (node_modules/body-parser/lib/types/json.js:122:7)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at expressInit (node_modules/express/lib/middleware/init.js:40:5)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at query (node_modules/express/lib/middleware/query.js:45:5)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at router.handle (node_modules/express/lib/router/index.js:175:3)
+      at app.handle (node_modules/express/lib/application.js:181:10)
+      at Server.app (node_modules/express/lib/express.js:39:9)
+
+ FAIL  tests/integration/api/webhook.test.js
+  Webhook API Integration
+    × POST /api/v1/webhook should accept payload (59 ms)
+    × POST /api/v1/webhook should handle empty body (16 ms)
+
+  ● Webhook API Integration › POST /api/v1/webhook should accept payload
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      35 |             .send({ event: 'message.received', data: {} });
+      36 |
+    > 37 |         expect(res.status).toBe(200);
+         |                            ^
+      38 |         expect(res.body.received).toBe(true);
+      39 |     });
+      40 |
+
+      at Object.toBe (tests/integration/api/webhook.test.js:37:28)
+
+  ● Webhook API Integration › POST /api/v1/webhook should handle empty body
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      44 |             .send({});
+      45 |
+    > 46 |         expect(res.status).toBe(200);
+         |                            ^
+      47 |     });
+      48 | });
+      49 |
+
+      at Object.toBe (tests/integration/api/webhook.test.js:46:28)
+
+ FAIL  tests/integration/api/agent.test.js
+  Agent API Integration
+    × GET /api/v1/agents should return list (52 ms)
+    × POST /api/v1/agents should create agent (26 ms)
+
+  ● Agent API Integration › GET /api/v1/agents should return list
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      35 |             .get('/api/v1/agents')
+      36 |             .set('Authorization', 'Bearer test-token');
+    > 37 |         expect(res.status).toBe(200);
+         |                            ^
+      38 |         expect(Array.isArray(res.body)).toBe(true);
+      39 |     });
+      40 |
+
+      at Object.toBe (tests/integration/api/agent.test.js:37:28)
+
+  ● Agent API Integration › POST /api/v1/agents should create agent
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 404
+
+      44 |             .set('Authorization', 'Bearer test-token')
+      45 |             .send({ role: 'support', name: 'Bot' });
+    > 46 |         expect(res.status).toBe(201);
+         |                            ^
+      47 |         expect(res.body).toHaveProperty('role', 'support');
+      48 |     });
+      49 | });
+
+      at Object.toBe (tests/integration/api/agent.test.js:46:28)
+
+  console.warn
+    [RBAC] Access denied for user test-user (Role: VIEWER) on CAMPAIGN:UPDATE
+
+      24 |
+      25 |         if (!allowed) {
+    > 26 |             console.warn(`[RBAC] Access denied for user ${req.user.id} (Role: ${role}) on ${resource}:${action}`);
+         |                     ^
+      27 |             return res.status(403).json({
+      28 |                 error: 'Permission Denied',
+      29 |                 message: `Your role (${role}) does not have permission to ${action} ${resource}`
+
+      at warn (src/api/middlewares/rbacMiddleware.js:26:21)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at next (node_modules/express/lib/router/route.js:149:13)
+      at Route.dispatch (node_modules/express/lib/router/route.js:119:3)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at node_modules/express/lib/router/index.js:284:15
+      at param (node_modules/express/lib/router/index.js:365:14)
+      at param (node_modules/express/lib/router/index.js:376:14)
+      at router.process_params (node_modules/express/lib/router/index.js:421:3)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at router.handle (node_modules/express/lib/router/index.js:175:3)
+      at router (node_modules/express/lib/router/index.js:47:12)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at next (tests/integration/api/campaign.test.js:35:83)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at router.handle (node_modules/express/lib/router/index.js:175:3)
+      at router (node_modules/express/lib/router/index.js:47:12)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at router.handle (node_modules/express/lib/router/index.js:175:3)
+      at router (node_modules/express/lib/router/index.js:47:12)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at node_modules/body-parser/lib/read.js:137:5
+      at invokeCallback (node_modules/raw-body/index.js:238:16)
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+
+ PASS  tests/integration/api/ApifyWebhookHandler.test.js
+  ApifyWebhookHandler Integration
+    handleWebhook
+      √ should acknowledge webhook immediately (27 ms)
+      √ should download dataset and save leads on SUCCESS (13 ms)
+      √ should handle duplicates correctly (7 ms)
+      √ should update run status to failed on ACTOR.RUN.FAILED (14 ms)
+
+ FAIL  tests/integration/api/campaign.test.js
+  Campaign API Integration
+    √ GET /api/v1/campaigns should return list (42 ms)
+    × POST /api/v1/campaigns/:id/start should update status (36 ms)
+    × POST /api/v1/campaigns/:id/strategy should save strategy (42 ms)
+
+  ● Campaign API Integration › POST /api/v1/campaigns/:id/start should update status
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 403
+
+      53 |             .post('/api/v1/campaigns/camp1/start')
+      54 |             .set('Authorization', 'Bearer test-token');
+    > 55 |         expect(res.status).toBe(200);
+         |                            ^
+      56 |         expect(res.body.campaign).toHaveProperty('status', 'active');
+      57 |     });
+      58 |
+
+      at Object.toBe (tests/integration/api/campaign.test.js:55:28)
+
+  ● Campaign API Integration › POST /api/v1/campaigns/:id/strategy should save strategy
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 403
+
+      63 |             .send({ nodes: [], edges: [] });
+      64 |
+    > 65 |         expect(res.status).toBe(200);
+         |                            ^
+      66 |         expect(res.body.success).toBe(true);
+      67 |     });
+      68 | });
+
+      at Object.toBe (tests/integration/api/campaign.test.js:65:28)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+ PASS  tests/unit/core/engines/AgentGraphEngine.test.js
+  AgentGraphEngine
+    √ should define the correct state structure (11 ms)
+    √ createGraph should return a compiled graph (6 ms)
+    √ agentNode should transition to supervisor (2 ms)
+    √ supervisorNode should transition to END
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+ PASS  tests/integration/api/lead.test.js
+  Lead API Integration
+    √ POST /api/v1/leads/import should return count (142 ms)
+    √ PATCH /api/v1/leads/:id/stop should stop lead (9 ms)
+    √ POST /api/v1/leads/:id/trigger should trigger AI (8 ms)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+ PASS  tests/unit/core/engines/NodeFactory.test.js
+  NodeFactory
+    √ should return null for unknown node types (1 ms)
+    √ should return default executors (agent, delay, action) (1 ms)
+    √ should handle leadEntry as null (1 ms)
+
+ PASS  tests/unit/core/services/ai/EmotionalStateService.test.js
+  EmotionalStateService
+    getEmotionalAdjustment
+      √ should return XML-formatted context for extreme states (2 ms)
+      √ should return empty string for neutral states (1 ms)
+
+ PASS  tests/integration/api/health.test.js
+  Health API Integration
+    √ GET /api/v1/health should return 200 and healthy status (12 ms)
+
+  console.log
+    [PresenceService] ⏰ Periodic sync started (every 5m)
+
+      at PresenceService.log [as startPeriodicSync] (src/core/services/automation/PresenceService.js:107:17)
+
+  console.log
+    [PresenceService] Periodic sync stopped.
+
+      at PresenceService.log [as stopPeriodicSync] (src/core/services/automation/PresenceService.js:117:21)
+
+ PASS  tests/unit/core/services/PresenceService.test.js
+  PresenceService
+    √ syncAllLeadsPresence should fetch from DB and subscribe in WAHA (221 ms)
+    √ startPeriodicSync and stopPeriodicSync should manage intervals (57 ms)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+ PASS  tests/unit/api/controllers/WebhookController.test.js
+  WebhookController
+    handleWahaWebhook
+      √ should handle message.ack event and update status to read (22 ms)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    [WahaClient] Latency: 4848ms (jitter: -12%) for "This is a test messa..."
+
+      at WahaClient.log [as sendTextWithLatency] (src/infra/clients/WahaClient.js:201:17)
+
+ PASS  tests/integration/api/chat.test.js
+  Chat API Integration
+    √ GET /api/v1/chats/sessions should return sessions (41 ms)
+    √ POST /api/v1/chats/send should send message (68 ms)
+    √ POST /api/v1/chats/oracle-hint should return hint (32 ms)
+
+ PASS  tests/unit/infra/clients/WahaClient.test.js
+  WahaClient
+    √ should calculate different delays for jitter (verified via logs) (3 ms)
+    sendTextWithLatency
+      √ should calculate delay based on word count and set presence before sending (28 ms)
+      √ should cap delay at 15 seconds (3 ms)
+
+  console.log
+    [WahaClient] Latency: 15088ms (jitter: 1%) for "word word word word ..."
+
+      at WahaClient.log [as sendTextWithLatency] (src/infra/clients/WahaClient.js:201:17)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+ PASS  tests/unit/core/factories/LlmFactory.test.js
+  LlmFactory
+    √ should return GeminiClient by default (18 ms)
+    √ should return OpenAI client structure when specified (2 ms)
+    √ should throw if api key missing (22 ms)
+
+ PASS  tests/unit/core/services/queue/QueueService.test.js
+  QueueService
+    addJob
+      √ should add a job to the queue (8 ms)
+    addLeadJob
+      √ should add a flow job (6 ms)
+
+ PASS  tests/unit/core/engines/nodes/ClosingNode.test.js
+  ClosingNode
+    √ should update lead status and clear variable (4 ms)
+
+ PASS  tests/unit/core/services/AdsReportingService.test.js
+  AdsReportingService (CAPI)
+    √ hashPII should return SHA-256 hash (6 ms)
+    √ reportConversion should send correct payload to Facebook (14 ms)
+    √ reportConversion should NOT send if in development/test mode (without override) (15 ms)
+
+ PASS  tests/unit/core/services/guardrails/GuardrailService.test.js
+  GuardrailService
+    validateCTA
+      √ should return true if CTA link is present (1 ms)
+      √ should return true if specific CTA text is present (1 ms)
+      √ should return false if CTA is missing (8 ms)
+    injectCTA
+      √ should append missing CTA (1 ms)
+      √ should force link format if flag is true (16 ms)
+    sanitizeResponse
+      √ should remove system tags leaks (12 ms)
+      √ should replace AI self-references
+    intercept
+      √ should ignore non-closing nodes (1 ms)
+      √ should enforce CTA on closing nodes (4 ms)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+ PASS  tests/unit/core/engines/nodes/HandoffNode.test.js
+  HandoffNode
+    √ should update status and emit handoff event (3 ms)
+
+ PASS  tests/unit/core/services/CampaignTemplateService.test.js
+  CampaignTemplateService (Factory)
+    √ should initialize with GOLDEN_TRIAD_TEMPLATE (2 ms)
+    √ should have supabase client injected (1 ms)
+
+ PASS  tests/unit/core/services/AgentService.test.js
+  AgentService
+    √ listAgents should return all agents from DB (7 ms)
+    √ listAgents should handle errors (3 ms)
+    √ getAgent should return a single agent by ID (3 ms)
+
+  console.log
+    🧪 Running: listAgents success
+
+      at Object.log (tests/unit/core/services/AgentService.test.js:19:17)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    🧪 Running: listAgents error
+
+      at Object.log (tests/unit/core/services/AgentService.test.js:35:17)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    🧪 Running: getAgent success
+
+      at Object.log (tests/unit/core/services/AgentService.test.js:43:17)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+ PASS  tests/unit/api/controllers/BillingController.test.js
+  BillingController
+    createSession
+      √ should create session and return URL (2 ms)
+      √ should return 401 if no user attached to req (1 ms)
+      √ should return 500 on service error
+    handleWebhook
+      √ should handle checkout.session.completed (2 ms)
+      √ should handle subscription.updated (1 ms)
+      √ should return 400 on error (1 ms)
+
+ PASS  tests/unit/health.test.js
+  HealthService
+    √ should return healthy status when initialized (3 ms)
+    √ should include memory usage in status
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    DEBUG PROMPT: 
+    <agent_dna type="immutable">
+        <identity>
+            <name>SDR</name>
+            <role>Sales Development Representative</role>
+            <company>ÁXIS</company>
+        </identity>
+        
+        <brand_voice>
+            <tone>profissional</tone>
+            <personality>N/A</personality>
+            <prohibited_words>N/A</prohibited_words>
+            <emojis_allowed>sim</emojis_allowed>
+            <language>pt-BR</language>
+        </brand_voice>
+        
+        <compliance>
+            <legal_rules>Respeite LGPD</legal_rules>
+            <data_handling>Não solicite dados sensíveis</data_handling>
+        </compliance>
+    </agent_dna>
+    
+    
+    <context type="variable">
+        Estado: Ansioso
+        <scope_policy>MANDATÓRIO: Você está em modo LEITURA. Não sugira alterações nos dados do lead (crm_actions proibido).</scope_policy>
+        
+        <tone_configuration>
+            <formality level="3/5">Casual</formality>
+            <humor level="2/5">Sério, factual</humor>
+            <enthusiasm level="3/5">Calmo</enthusiasm>
+        </tone_configuration>
+        
+        <product_context>
+            <name>Nossa Solução</name>
+            <core_benefit>Uma solução premium.</core_benefit>
+            <price>Consulte</price>
+            <differentials>N/A</differentials>
+        </product_context>
+        
+        <target_context>
+            <industry>Geral</industry>
+            <pain_points>Eficiência operacional</pain_points>
+        </target_context>
+        
+        <sales_methodology>
+            <framework>SPIN</framework>
+            <stages>Situação → Problema → Implicação → Necessidade</stages>
+        </sales_methodology>
+        
+        
+        
+        <objection_playbook><entry>Sem playbook configurado</entry></objection_playbook>
+        
+        <lead_info>
+            <name>Lead</name>
+            <status>New</status>
+            <qualification_summary>N/A</qualification_summary>
+            <data>{}</data>
+        </lead_info>
+    
+        <chat_history important="true">
+            Nenhuma mensagem anterior. Este é o primeiro contato.
+        </chat_history>
+        
+        <handoff_triggers>
+            Se o lead disser algo como "quero falar com humano", "atendente real", "pessoa de verdade", "não é robô", 
+            você DEVE incluir no response JSON: "crm_actions": [{"action": "request_handoff", "reason": "Lead solicitou atendente humano"}]
+        </handoff_triggers>
+    </context>
+    
+    
+    <override type="critical" priority="maximum">
+        <current_step_objective>
+            IGNORA TUDO E VENDE
+        </current_step_objective>
+        
+        
+        
+        
+        <critical_rules>
+            1. Use mensagens CURTAS e DIVIDIDAS (array "messages"). Imite o ritmo humano (várias mensagens curtas).
+            2. SEMPRE responda em JSON válido.
+            3. Se o lead disser NÃO/PARAR, marque como LOST.
+            4. NUNCA prometa descontos sem autorização explícita.
+            5. SE HOUVER <mandatory_cta>, termine obrigatoriamente com ele.
+            6. SE O LEAD QUISER COMPRAR/FECHAR ("quero", "topo", "bora"), marque "ready_to_close": true.
+        </critical_rules>
+        
+        <response_format>
+            RESPONDA APENAS com este JSON:
+            {
+                "thought": "Raciocínio interno...",
+                "messages": ["Primeira frase...", "Segunda frase (quebra de linha natural)"],
+                "ready_to_close": false,
+                "crm_actions": [],
+                "sentiment_score": 0.5,
+                "confidence_score": 0.9,
+                "qualification_slots": {
+                    "budget": "unknown",
+                    "authority": "unknown", 
+                    "need": "unknown",
+                    "timeline": "unknown"
+                }
+            }
+        </response_format>
+    </override>
+
+      at Object.log (tests/unit/core/services/PromptService.test.js:36:17)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+ PASS  tests/unit/core/services/extraction/LeadTransformerService.test.js
+  LeadTransformerService
+    LinkedIn Normalization (HarvestAPI)
+      √ should correctly normalize LinkedIn profile data (16 ms)
+      √ should capitalize names correctly (4 ms)
+    Maps Normalization (Lukáš Křivka)
+      √ should correctly normalize Google Maps business data (5 ms)
+    Deduplication
+      √ should identify and remove duplicate leads by phone (5 ms)
+      √ should identify and remove duplicate leads by website (1 ms)
+      √ should filter against existing set (1 ms)
+    Utility Methods
+      √ should normalize different phone formats to E.164 (8 ms)
+      √ should returning empty string for invalid phones
+
+ PASS  tests/unit/core/services/PromptService.test.js
+  PromptService
+    √ should follow Sandwich Pattern order: DNA > Context > Override (11 ms)
+    √ should respect scope_policy READ_ONLY (1 ms)
+    √ should include guardrail instructions (1 ms)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+ PASS  tests/unit/core/engines/nodes/LogicNode.test.js
+  LogicNode
+    √ should route based on configuration (3 ms)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+ PASS  tests/unit/core/engines/WorkflowEngine.test.js
+  WorkflowEngine (Unit)
+    √ pulse should process all active campaigns (7 ms)
+    √ jumpToFlow should transition lead to named entry point (5 ms)
+    √ jumpToFlow should return false if flow name not found (2 ms)
+
+  console.log
+    DEBUG MSG: Oi João!
+
+      at Object.log (tests/unit/core/engines/nodes/BroadcastNode.test.js:41:17)
+
+ PASS  tests/unit/core/engines/nodes/BroadcastNode.test.js
+  BroadcastNode
+    √ should process spintax and replace variables (7 ms)
+    √ should insert message log into supabase (7 ms)
+
+ PASS  tests/unit/core/services/SettingsService.test.js
+  SettingsService
+    √ getSettings should return value from DB (2 ms)
+    √ updateSettings should upsert into DB (2 ms)
+
+ PASS  tests/unit/core/services/extraction/WebContentService.test.js
+  WebContentService
+    Content Cleaning and Summarization
+      √ should summarize text and remove extra whitespace (1 ms)
+      √ should compile context from multiple pages (1 ms)
+    Prompt Formatting
+      √ should format context for XML tag injection (1 ms)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+ PASS  tests/unit/core/services/HistoryService.test.js
+  HistoryService
+    √ getChatHistory should return formatted messages for Gemini (3 ms)
+    √ getFormattedHistoryForHint should return human friendly text (1 ms)
+    √ getFormattedHistoryForHint should handle empty history (2 ms)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+ PASS  tests/unit/core/services/TriggerService.test.js
+  TriggerService
+    √ handlePresenceUpdate should debounce and call triggerAiForLead (3 ms)
+    √ triggerAiForLead should fetch lead and call workflow engine (3 ms)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+  console.log
+    Minimal setup loaded successfully
+
+      at Object.<anonymous> (tests/setup_minimal.js:1:49)
+
+ PASS  tests/unit/core/services/LeadService.test.js
+  LeadService
+    √ getLead should return a lead with campaign and agent details (3 ms)
+    √ updateLeadStatus should update status and timestamps (1 ms)
+    √ transitionToNode should update current_node_id and entered_at (2 ms)
+    √ getLeadsForProcessing should filter by status and limit results (3 ms)
+
+ PASS  tests/unit/core/services/billing/BillingService.test.js
+  BillingService
+    getPlanStatus
+      √ should return plan status from company (2 ms)
+    upgradeToPremium
+      √ should upgrade user to premium (2 ms)
+
+ PASS  tests/unit/core/services/CacheService.test.js
+  CacheService
+    √ lidMapping should store and retrieve data (2 ms)
+    √ clearLidCache should clear all mappings (1 ms)
+
+ PASS  tests/unit/core/services/CampaignService.test.js
+  CampaignService
+    √ getCampaign should return a single campaign with agents (3 ms)
+    √ updateCampaignStatus should update status and return campaign (3 ms)
+    √ getCampaignStats should calculate stats from leads (2 ms)
+
+Summary of all failing tests
+ FAIL  tests/integration/CreditConsumption.test.js
+  ● [1mIntegration: Credit Consumption in Chat › should deduct credits AND send message when balance is sufficient (Feature Flag ON)[22m
+
+    TypeError: this.supabase.from(...).select(...).eq(...).single is not a function
+
+      210 |[39m                     .select('id')
+      211 |                     .eq('chat_id'[39m, chatId)
+    >2m 212 |                     .9msingle();
+[2m          |                      ^
+      213 |
+      214 |m                 // If chat doesn't exist, ensure it does (e.g., for outbound messages to new contacts)
+     m 215 |                 if (!chat) {
+
+      at ChatService.single [as sendMessage] (src/core/services/chat/ChatService.js:212:22)
+      at Object.<anonymous> ([36mtests/integration/CreditConsumption.test.js:68:9)
+
+  ● Integration: Credit Consumption in Chat › should FAIL to send message calling Waha if credits are insufficient (Feature Flag ON)
+
+    expect(received).rejects.toThrow()
+
+    Received promise resolved instead of rejected
+    Resolved to value: undefined[39m
+
+       95 |         mockSupabase.eq.mockResolvedValueOnce({ data: [{ amount3m: 0 }], error: [36mnull });
+       96 |
+    >0m  97 |         await expect(chatService.sendMessage('session1', '5511999999999',[39m 'Hello', userId))
+[2m          |               ^m
+       98 |             .rejects.toThrow('Insufficient credits');
+       99 |
+      100 |         // Verify NO WAHA Call
+
+      [2mat expect (node_modules/expect/build/index.js:113:15)
+      at Object.expect (tests/integration/CreditConsumption.test.js:97:15)
+
+  ● Integration: Credit Consumption in Chat › should SEND message WITHOUT deducting if Feature Flag is OFF
+
+    TypeError: this.supabase.from(...).select(...).eq(...).single is not a function
+
+      210 |                     .select('id')
+      211 |                     .eq('chat_id', chatId)
+    > 212 |                     .single();
+          |                      ^
+     0m 213 |
+      214 |                 // If chat doesn't exist, ensure it does (e.g., for outbound messages to new contacts)
+      215 |                 if (!chat) {
+
+      mat ChatService.single [as sendMessage] (src/core/services/chat/ChatService.js:212:22)[22m
+      at Object.<anonymous> (tests/integration/CreditConsumption.test.js:121:9)
+
+ FAIL  tests/unit/core/engines/nodes/AgenticNode.test.js
+  ● AgenticNode › should build prompt with DNA and context
+
+    TypeError: this.supabase.from(...).update is not a function
+
+      148 |         logger.info({ leadId: lead.id, oldTemp3m: currentTemp, newTemp: newTemperature, label: tempLabel }, '��️ Lead Temperature Updated');
+      149 |
+    >[2m 150 |         await this.supabase.[36mfrom('campaign_leads').update({
+          |                                                    m^
+      151 |             temperature: newTemperature,[22m
+      152 |m             last_sentiment: response.sentiment_score,
+      153 |             last_message_at: new Date().toISOString()
+
+      at AgenticNode.update [as execute] (src/core/engines/workflow/nodes/AgenticNode.js:150:52)2m
+      at Object.<anonymous> (tests/unit/core/engines/nodes/AgenticNode.test.js:64:9)
+
+  ● AgenticNode › should process response through guardrails
+
+    TypeError: this.supabase.from(...).update is not a function
+
+      148 |         logger.info({ leadId: lead.id, oldTemp: currentTemp, newTemp: newTemperature,[39m label: tempLabel }, '��️ Lead Temperature Updated');
+      149 |
+    >9m 150 |         await this.supabase.from('campaign_leads').mupdate({
+          |                                                    ^
+      151 |             temperature:9m newTemperature,
+      152 |             last_sentiment: response.sentiment_score,
+      153 |             last_message_at: new Date().toISOString()
+
+      at AgenticNode.update [as execute] (src/core/engines/workflow/nodes/AgenticNode.js:150:52)
+      at Object.<anonymous> (tests/unit/core/engines/nodes/AgenticNode.test.js[39m:79:9)
+
+ FAIL  tests/integration/api/webhook.test.js
+  ● Webhook API Integration › POST /api/v1/webhook should accept payload
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      35 |             .send({ event: 'message.received', data: {} })[33m;
+      36 |
+    > 37 |         expect(res.status).toBe(200);
+         |[39m                            ^
+      38 |         expect(res.body.received).toBe(true9m);
+      39 |     });
+      40 |
+
+      mat Object.toBe ([36mtests/integration/api/webhook.test.js:37:28)
+
+  ● Webhook API Integration › POST /api/v1/webhook should handle empty body9m
+
+    expect(receivedm).toBe(expected) // Object.is equality
+
+    Expected: [32m200
+    Received: 404
+[22m
+      44 |             .send({})[33m;
+      45 |
+    >[39m 46 |         expect(res.status).toBe(200[39m);
+         |                            ^
+      47 |     });
+      48 | });
+      49 |[39m
+
+      at Object.toBe (tests/integration/api/webhook.test.js:46:28)
+
+ FAIL  tests/integration/api/agent.test.js
+  ● Agent API Integration › GET /api/v1/agents should return list
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      35 |             .get('/api/v1/agents')
+      36 |             .set('Authorization', 'Bearer test-token');[22m
+    >m 37 |         expect(res.status).toBe(200);
+         |                            ^
+      38 |         expect(Array.isArray(res.body)).toBe(true);
+      39 |     });
+      40 |
+
+      at Object.toBe (tests/integration/api/agent.test.js:37:28)
+
+  ● [22mAgent API Integration › POST /api/v1/agents should create agent
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 404
+
+[2m      44 |             .set[39m('Authorization', 'Bearer test-token')
+      45 |9m             .send({ role: 'support',m name: 'Bot' });2m
+    >[39m 46 |         expect(res.status).toBe(201);
+         |                            ^
+      47 |[39m         expect(res.body).toHaveProperty('role', 'support');
+      48 |     });
+      49 |[39m });
+
+      at Object.toBe (tests/integration/api/agent.test.js:46:28)
+
+ FAIL  tests/integration/api/campaign.test.js
+  ● Campaign API Integration › POST /api/v1/campaigns/:id/start should update status
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 403
+
+      53 |             .post('/api/v1/campaigns/camp1/start')
+      54 |             .set('Authorization', 'Bearer test-token');
+    > 55 |         expect(res.status).toBe(200);
+         |                            ^
+      56 |         expect(res.body.campaign).toHaveProperty('status', 'active');
+      57 |     });
+      58 |
+
+      at Object.toBe ([36mtests/integration/api/campaign.test.js:55:28)
+
+  ● Campaign API Integration › POST /api/v1/campaigns/:id/strategy should save strategy
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 403
+
+      63 |             .send({ nodes: [],[39m edges: [] });
+      64 |
+    > 65 |         expect(res.status).toBe(200);
+         |                            ^
+      66 |         expect(res.body.success).toBe(true);
+      67 |     });
+      68 | });
+
+      at Object.toBe (tests/integration/api/campaign.test.js:65:28)
+
+
+Test Suites: 5 failed, 1 skipped, 33 passed, 38 of 39 total
+Tests:       11 failed, 1 skipped, 97 passed, 109 total
+Snapshots:   0 total
+Time:        3.041 s
+Ran all test suites.

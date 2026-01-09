@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft, Calendar, CheckCircle2, Play } from "lucide-react";
 
+import { Ripple } from "@/components/ui/shadcn-io/ripple";
+
 export function HeroText() {
     // Animation variants for children
     const container = {
@@ -19,15 +21,14 @@ export function HeroText() {
     };
 
     const item = {
-        hidden: { opacity: 0, y: 20, filter: "blur(10px)" },
+        hidden: { opacity: 0, y: 20, filter: "blur(4px)", willChange: "opacity, transform" },
         show: {
             opacity: 1,
             y: 0,
             filter: "blur(0px)",
             transition: {
-                type: "spring",
-                damping: 20,
-                stiffness: 100
+                ease: "easeOut",
+                duration: 0.5
             }
         }
     };
@@ -37,43 +38,52 @@ export function HeroText() {
             variants={container}
             initial="hidden"
             animate="show"
-            className="w-full max-w-2xl md:max-w-[55vw] lg:max-w-[50vw] md:mt-[5vh] z-30 relative pointer-events-none md:absolute md:top-1/2 md:-translate-y-1/2 flex flex-col justify-center items-center md:items-start mx-auto md:mx-0"
+            className="w-full max-w-4xl flex flex-col justify-center items-center md:items-start mx-auto md:mx-0"
         >
-            <motion.h1
-                variants={item}
-                className="font-[family-name:var(--font-jetbrains-mono)] text-4xl sm:text-5xl md:text-[60px] font-bold leading-[1.1] tracking-[-0.04em] mb-6 pointer-events-auto text-center md:text-left text-white"
-            >
-                Crie uma equipe de{" "}
-                <span
-                    className="text-purple-400"
-                    style={{
-                        textShadow: '0 0 15px rgba(139,92,246,0.4), 0 0 30px rgba(139,92,246,0.2)'
-                    }}
-                >especialistas digitais</span>{" "}
-                que pensam, sentem e vendem por você.
-            </motion.h1>
+            <motion.div variants={item} className="relative">
+                <Ripple
+                    mainCircleSize={300}
+                    mainCircleOpacity={0.15}
+                    numCircles={6}
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-0 pointer-events-none"
+                    style={{ maskImage: 'none', WebkitMaskImage: 'none' }}
+                />
+
+                <h1
+                    className="relative z-10 font-[family-name:var(--font-jetbrains-mono)] text-4xl sm:text-5xl md:text-[60px] font-extrabold leading-[1.1] tracking-[-0.04em] mb-6 pointer-events-auto text-center md:text-left text-gray-900"
+                >
+                    Crie uma equipe de{" "}
+                    <span
+                        className="text-blue-600"
+                        style={{
+                            textShadow: '0 0 20px rgba(37,99,235,0.2)'
+                        }}
+                    >especialistas digitais</span>{" "}
+                    que pensam, sentem e vendem por você
+                </h1>
+            </motion.div>
 
             <motion.p
                 variants={item}
-                className="text-gray-400 text-lg sm:text-xl md:text-[22px] font-extralight max-w-3xl leading-relaxed pointer-events-auto mb-10 text-center md:text-left mx-auto md:mx-0"
+                className="text-gray-600 text-lg sm:text-xl md:text-[22px] font-extralight max-w-3xl leading-relaxed pointer-events-auto mb-10 text-center md:text-left mx-auto md:mx-0"
             >
                 Do SDR que qualifica leads ao Suporte que resolve objeções em segundos.<br className="hidden md:inline" />
                 Crie e gerencie múltiplos agentes com personalidades únicas e{" "}
-                <span className="text-purple-300/80">inteligência emocional</span>.
+                <span className="text-blue-600/80 font-medium">inteligência emocional</span>.
             </motion.p>
 
             {/* CTA Buttons */}
             <motion.div
                 variants={item}
-                className="flex flex-col sm:flex-row items-center gap-4 pointer-events-auto"
+                className="flex flex-col sm:flex-row items-center gap-4 pointer-events-auto relative z-50"
             >
                 <Link href="/auth/register">
-                    <Button className="h-12 px-8 rounded-full bg-[#8B5CF6] hover:bg-[#7C3AED] text-white text-base font-bold shadow-[0_0_40px_-5px_rgba(139,92,246,0.6)] hover:shadow-[0_0_60px_-5px_rgba(139,92,246,0.8)] transition-all duration-300 group ring-1 ring-white/20">
+                    <Button className="h-12 px-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-base font-bold shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 transition-all duration-300 group">
                         Criar meu primeiro agente
                     </Button>
                 </Link>
                 <Link href="/demo">
-                    <Button variant="ghost" className="h-12 px-6 rounded-full text-gray-200 hover:text-white hover:bg-white/10 text-base font-medium transition-all">
+                    <Button variant="ghost" className="h-12 px-6 rounded-full text-gray-600 hover:text-gray-900 hover:bg-gray-100/50 text-base font-medium transition-all">
                         <Play className="w-4 h-4 mr-2 fill-current" />
                         Ver agentes em ação
                     </Button>
