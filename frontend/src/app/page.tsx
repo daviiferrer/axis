@@ -52,10 +52,10 @@ export default function Home() {
 
                 {/* Violet Glow - Bottom Right Corner - Reduced opacity for blend */}
                 <div
-                    className="absolute bottom-0 right-0 w-[500px] h-[500px] md:w-[1000px] md:h-[1000px] pointer-events-none z-5"
+                    className="absolute bottom-0 right-0 w-[500px] h-[500px] md:w-[1000px] md:h-[1000px] pointer-events-none z-5 will-change-transform"
                     style={{
                         background: 'radial-gradient(ellipse 60% 60% at 100% 100%, rgba(139, 92, 246, 0.1) 0%, rgba(139, 92, 246, 0.05) 35%, rgba(139, 92, 246, 0.01) 60%, transparent 80%)',
-                        filter: 'blur(100px)'
+                        filter: 'blur(60px)'
                     }}
                 />
             </section>
@@ -67,7 +67,7 @@ export default function Home() {
                     className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px] pointer-events-none -z-10"
                     style={{
                         background: 'radial-gradient(circle, rgba(255, 0, 0, 0.05) 0%, transparent 60%)',
-                        filter: 'blur(120px)'
+                        filter: 'blur(60px)'
                     }}
                 />
 
@@ -83,7 +83,7 @@ export default function Home() {
                     className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[1000px] pointer-events-none -z-10"
                     style={{
                         background: 'radial-gradient(circle, rgba(16, 185, 129, 0.05) 0%, transparent 60%)',
-                        filter: 'blur(120px)'
+                        filter: 'blur(60px)'
                     }}
                 />
                 {/* Visual Fade Mask */}

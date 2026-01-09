@@ -10,33 +10,197 @@ import { TextGenerateEffect } from "@/components/ui/shadcn-io/text-generate-effe
 const NAMES = ["Mariana", "Carlos", "Fernanda", "Rafael", "Beatriz", "Gustavo", "Julia", "Lucas", "Ana", "Pedro", "Larissa", "Thiago", "Camila", "Bruno", "Patrícia", "Aline", "Felipe", "Renata", "Diego", "Carla"];
 
 const FAQ_PAIRS = [
-    // SDR Agent - Lucas
-    { q: "Vocês integram com anúncios do Face?", a: "Sim! Falo com seus leads do Meta Ads em segundos, aumentando a conversão na hora. ⚡", agentRole: "SDR", agentName: "Lucas", thinking: "🧠 Detectando intent: integração_meta_ads → Confiança: 94%" },
-    { q: "Funciona de madrugada?", a: "24/7! Não deixo nenhum lead esperando, seja domingo ou feriado. 🌙", agentRole: "SDR", agentName: "Lucas", thinking: "⚡ Intent: disponibilidade → Score de qualificação: +15" },
-    { q: "Você qualifica os leads antes?", a: "Sim! Só passo pro time comercial quem tem fit real com sua empresa. ✅", agentRole: "SDR", agentName: "Lucas", thinking: "✅ Nó atual: qualification → BANT Score: calculando..." },
-    { q: "Consegue agendar reunião pra mim?", a: "Claro! Sincronizo com sua agenda e marco demos direto no chat. 📅", agentRole: "SDR", agentName: "Lucas", thinking: "📅 Detectando: intent_agendamento → Verificando slots..." },
+    // --- NÍVEL 1: SEGURANÇA & INFRAESTRUTURA (O Medo do Banimento) ---
+    {
+        q: "mano, mas e se o zap bloquear meu numero? ja perdi um chip assim",
+        a: "Relaxa! A AXIS usa a API Oficial da Meta (Cloud API). Zero gambiarra, zero risco de banimento. Seu número tá blindado. �️",
+        agentRole: "Consultor",
+        agentName: "Roberto",
+        thinking: [
+            "⚠️ Risco detectado: banimento_whatsapp",
+            "🛡️ Consultando Infra: API Oficial Meta (Verified)",
+            "✅ Protocolo de Segurança: Blindagem Ativa"
+        ]
+    },
+    {
+        q: "precisa deixar celular ligado com qr code?",
+        a: "Esquece isso! Somos nuvem pura. Seu celular pode tá desligado, sem bateria ou no fundo do mar, a AXIS continua vendendo. ☁️",
+        agentRole: "Tech Lead",
+        agentName: "Ana",
+        thinking: [
+            "🔌 Analisando arquitetura: Cloud vs Local",
+            "⚡ Status do Servidor: 99.9% Uptime",
+            "✅ Resposta: Independência de hardware"
+        ]
+    },
 
-    // Support Agent - Ana
-    { q: "E se o cliente mandar áudio?", a: "Eu ouço, transcrevo e respondo áudios de até 2 minutos com precisão humana! 🎙️", agentRole: "Suporte", agentName: "Ana", thinking: "🎯 Classificando: dúvida_funcionalidade → RAG: audio_processing.md" },
-    { q: "Você sabe se o lead tá irritado?", a: "Tenho análise de sentimento. Se detectar frustração, chamo um humano na hora. 🧠", agentRole: "Suporte", agentName: "Ana", thinking: "📊 Sentimento detectado: curioso (0.72) → Resposta: explicativa" },
-    { q: "O SDR humano assume quando?", a: "Quando o lead pede, quando a venda tá pronta ou se eu notar que precisa de ajuda. 🤝", agentRole: "Suporte", agentName: "Ana", thinking: "🔄 Nó atual: handoff_rules → Próximo: explicar_gatilhos" },
-    { q: "E se bloquearem meu chip?", a: "Usamos rotação de números e aquecimento IA para minimizar risco de bloqueio. 🛡️", agentRole: "Suporte", agentName: "Ana", thinking: "⚠️ Preocupação: segurança_whatsapp → Resposta: técnica" },
+    // --- NÍVEL 2: VENDAS & ROI (Técnica SPIN) ---
+    {
+        q: "mas achei meio caro... tem ferramenta de 50 reais por ai",
+        a: "Tem sim, mas quanto custa perder 1 cliente de 5k pq o bot barato travou? A AXIS se paga com UMA venda recuperada. 📉",
+        agentRole: "Vendas",
+        agentName: "Roberto",
+        thinking: [
+            "� Objeção de Preço: Comparativo de Mercado",
+            "� Calculando Custo de Oportunidade (Churn)",
+            "✅ Reenquadramento: Investimento vs Custo"
+        ]
+    },
+    {
+        q: "vcs garantem q vou vender mais?",
+        a: "Olha, lead que é respondido em < 1 min converte 391% mais. A gente garante que ninguém fica no vácuo. O resto é com seu produto! �",
+        agentRole: "Vendas",
+        agentName: "Roberto",
+        thinking: [
+            "� Analisando métricas de Speed-to-Lead...",
+            "� Benchmark Harvard: < 1 min = +391% Conversão",
+            "✅ Argumento Baseado em Dados"
+        ]
+    },
 
-    // Sales Agent - Roberto
-    { q: "Qual o preço pra empresas?", a: "Começa em R$ 499/mês. Se quiser, te mostro a tabela completa agora! 💰", agentRole: "Vendas", agentName: "Roberto", thinking: "💰 Objeção detectada: preço → Guardrail: não dar desconto" },
-    { q: "Precisa de cartão pra testar?", a: "Não! Você pode testar nossa tecnologia gratuitamente por 7 dias. 🆓", agentRole: "Vendas", agentName: "Roberto", thinking: "💳 Objeção: preço/compromisso → Template: trial_gratuito" },
-    { q: "Tem contrato de fidelidade?", a: "Zero fidelidade. Acreditamos na nossa entrega, você fica porque gera resultado! 🔓", agentRole: "Vendas", agentName: "Roberto", thinking: "🔓 Objeção: lock-in → Resposta: confiança_no_produto" },
-    { q: "Quantos leads atende ao mesmo tempo?", a: "Infinitos. Posso falar com 10 ou 10.000 pessoas simultaneamente sem filas. 🚀", agentRole: "Vendas", agentName: "Roberto", thinking: "📈 Intent: escalabilidade → Destacar diferencial técnico" },
+    // --- NÍVEL 3: HUMANIZAÇÃO & EMPATIA (Quebrando a Robotização) ---
+    {
+        q: "e se o cliente mandar audio de 3 minutos chorando as pitanga?",
+        a: "Eu ouço tudo! Transcrevo o áudio, entendo que ele tá frustrado (análise de sentimento) e respondo com empatia total. 🎧",
+        agentRole: "Suporte",
+        agentName: "Ana",
+        thinking: [
+            "🎤 Processando Áudio: Whisper V3 (OpenAI)",
+            "🧠 Análise de Sentimento: Frustração Detectada",
+            "✅ Ação: Resposta Empática e Acolhedora"
+        ]
+    },
+    {
+        q: "ele entende giria? tipo 'manda o pix'",
+        a: "Entende sim! 'Manda o pix', 'qual a facada', 'tá salgado'... O modelo de linguagem pega o contexto e não trava igual robô antigo. 🧠",
+        agentRole: "Tech Lead",
+        agentName: "Ana",
+        thinking: [
+            "🗣️ Detectando Gírias Regionais (PT-BR)...",
+            "� Interpretando Intenção: Solicitação de Pagamento",
+            "✅ Resposta Contextualizada: Chave PIX"
+        ]
+    },
 
-    // Mixed Agents
-    { q: "Integra com HubSpot e Pipedrive?", a: "Sim, integração nativa. Tudo que acontece aqui vai pro seu CRM em tempo real. 🔄", agentRole: "Suporte", agentName: "Ana", thinking: "🔗 Intent: integração_crm → RAG: crm_integrations.md" },
-    { q: "E se o lead parar de responder?", a: "Faço follow-ups automáticos e naturais pra tentar recuperar o interesse dele. 🎣", agentRole: "SDR", agentName: "Lucas", thinking: "⏳ Intent: follow_up → Estratégia: 3-step_nurturing" },
-    { q: "Dá pra mudar seu jeito de falar?", a: "100%. Posso ser formal, descontraído ou agressivo, do jeito que sua marca preferir. 🎯", agentRole: "Suporte", agentName: "Ana", thinking: "🗣️ Intent: personalização_tom → RAG: tone_of_voice.md" },
-    { q: "Treino você com meus dados?", a: "Isso! Você sobe seus PDFs e site, e eu aprendo tudo sobre seu produto em minutos. 📚", agentRole: "Suporte", agentName: "Ana", thinking: "📚 Intent: treinamento_ia → RAG: data_ingestion.md" },
-    { q: "Serve pra clínica médica?", a: "Perfeito para agendar consultas, tirar dúvidas de preparo e confirmar presença. 🏥", agentRole: "SDR", agentName: "Lucas", thinking: "🏥 Intent: caso_uso_saude → Template: agendamento_clinica" },
-    { q: "E pra imobiliária, funciona?", a: "Sim! Faço triagem de perfil, renda e agendo visitas aos imóveis automaticamente. 🏠", agentRole: "SDR", agentName: "Lucas", thinking: "🏠 Intent: caso_uso_imobiliaria → Template: triagem_imovel" },
-    { q: "Atende em outros idiomas?", a: "Falo português, inglês e espanhol fluentemente, detectando o idioma do lead. 🌎", agentRole: "Suporte", agentName: "Ana", thinking: "🌎 Intent: multi_idioma → RAG: language_detection.md" },
-    { q: "Consigo ver as conversas depois?", a: "Tudo fica gravado no dashboard e no seu CRM pra auditoria e controle total. 📊", agentRole: "Suporte", agentName: "Ana", thinking: "📊 Intent: auditoria_conversas → RAG: dashboard_features.md" }
+    // --- NÍVEL 4: VERTICAL SAÚDE (Clínicas e Consultórios) ---
+    {
+        q: "serve pra clinica? a recepcionista ta ficando doida",
+        a: "Salva vidas em clínica! Confirmo consultas, mando preparo de exames e tiro dúvidas repetitivas. A recepcionista vai te agradecer. 🏥",
+        agentRole: "Especialista",
+        agentName: "Sofia",
+        thinking: [
+            "🏥 Identificando Nicho: Saúde/Clínica",
+            "📉 Dor Principal: Sobrecarga Administrativa",
+            "✅ Solução: Automação de Agendamento e Triagem"
+        ]
+    },
+    {
+        q: "e se o paciente não aparecer?",
+        a: "Eu mando lembrete 24h antes pedindo confirmação. Se ele cancelar, já ofereço o horário vago pra lista de espera na hora! ♻️",
+        agentRole: "Especialista",
+        agentName: "Sofia",
+        thinking: [
+            "📉 Problema: No-Show (Absenteísmo)",
+            "� Estratégia: Confirmação Ativa + Lista de Espera",
+            "✅ Resultado: Otimização de Agenda"
+        ]
+    },
+
+    // --- NÍVEL 5: VERTICAL IMOBILIÁRIA (Corretores e Lançamentos) ---
+    {
+        q: "sou corretor, o lead pergunta o preço e some",
+        a: "Clássico. Eu faço a triagem antes: pergunto orçamento, região e urgência. Só passo pro seu whats pessoal quem quer comprar mesmo. 🏠",
+        agentRole: "Especialista",
+        agentName: "Pedro",
+        thinking: [
+            "🏠 Identificando Nicho: Mercado Imobiliário",
+            "❄️ Problema: Leads Frios/Desqualificados",
+            "✅ Solução: Funil de Qualificação Automático"
+        ]
+    },
+    {
+        q: "consegue agendar visita no stand?",
+        a: "Consigo! Vejo sua agenda no Google Calendar, ofereço os horários livres e mando a localização do stand pro cliente. �",
+        agentRole: "Especialista",
+        agentName: "Pedro",
+        thinking: [
+            "📅 Integração: Google Calendar API",
+            "📍 Ação: Enviar Localização (Google Maps)",
+            "✅ Confirmação de Visita Automática"
+        ]
+    },
+
+    // --- NÍVEL 6: VERTICAL E-COMMERCE (Varejo e Lojas) ---
+    {
+        q: "tenho loja no shopify, ele recupera carrinho?",
+        a: "Integro nativo! O cliente abandonou? Eu chamo no zap: 'Oi Ju, vi que esqueceu o tênis... quer um cupom de 5% pra fechar agora?'. �",
+        agentRole: "Vendas",
+        agentName: "Lucas",
+        thinking: [
+            "� Integração: Shopify Webhooks",
+            "⚡ Gatilho: Carrinho Abandonado (> 15min)",
+            "✅ Ação: Oferta de Retenção Personalizada"
+        ]
+    },
+    {
+        q: "vcs mandam codigo de rastreio?",
+        a: "Mando sim! Assim que o pedido sai, eu aviso o cliente. Isso diminui em 90% as perguntas de 'cadê meu pedido' no suporte. �",
+        agentRole: "Suporte",
+        agentName: "Ana",
+        thinking: [
+            "📦 Integração: ERP/Logística",
+            "� Dor: Ticket de Suporte (WISMO)",
+            "✅ Solução: Notificação Proativa de Status"
+        ]
+    },
+
+    // --- NÍVEL 7: SUPORTE TÉCNICO & FUNCIONALIDADES (O "Tira-Teima") ---
+    {
+        q: "blz, mas é dificil configurar? sou pessimo com pc",
+        a: "Zero código. Você sobe seus PDFs/Site, eu leio tudo e aprendo sozinho. Em 10 minutos seu agente tá pronto. ⏱️",
+        agentRole: "Onboarding",
+        agentName: "Ana",
+        thinking: [
+            "⚙️ Objeção: Complexidade Técnica",
+            "� Recurso: RAG (Ingestão de Documentos)",
+            "✅ Promessa: Setup em < 10 minutos"
+        ]
+    },
+    {
+        q: "posso intervir na conversa se precisar?",
+        a: "Sempre! O painel da AXIS mostra tudo em tempo real. Você pode assumir a conversa (human takeover) com um clique. handshake",
+        agentRole: "Suporte",
+        agentName: "Ana",
+        thinking: [
+            "🤝 Funcionalidade: Human Handoff",
+            "� Monitoramento: Real-time Dashboard",
+            "✅ Controle: Transição Bot-Humano Trasparente"
+        ]
+    },
+    {
+        q: "dá pra integrar com meu CRM?",
+        a: "Dá sim! RD Station, HubSpot, Pipedrive... O que você usa? A gente joga o lead lá dentro qualificado automaticamente. 🔄",
+        agentRole: "Tech Lead",
+        agentName: "Ana",
+        thinking: [
+            "🔄 Integração: Webhooks/API Rest",
+            "🗂️ Destino: CRM (RD/HubSpot/Pipedrive)",
+            "✅ Ação: Sincronização de Dados de Lead"
+        ]
+    },
+
+    // --- NÍVEL 8: FECHAMENTO (O "Agora ou Nunca") ---
+    {
+        q: "posso testar antes de pagar?",
+        a: "Deve! Liberei 7 dias grátis pra você. Clica no botão ali em cima e cria seu primeiro agente agora sem cartão. 🆓",
+        agentRole: "Vendas",
+        agentName: "Roberto",
+        thinking: [
+            "✅ Fechamento: Trial Gratuito (7 dias)",
+            "💳 Risco: Zero (Sem Cartão de Crédito)",
+            "🚀 CTA: Inscrição Imediata"
+        ]
+    }
 ];
 
 const generateMessages = () => {
@@ -99,34 +263,50 @@ export function WhatsappDemo() {
 
             // If it's a bot message, show thinking first
             if (nextMsg.type === 'bot' && nextMsg.thinking) {
-                setCurrentThinking(nextMsg.thinking);
+                // Determine thinking steps (support both array and string for safety, though we updated data)
+                const thinkingSteps = Array.isArray(nextMsg.thinking) ? nextMsg.thinking : [nextMsg.thinking];
+                let stepIndex = 0;
 
-                // After showing thinking, start typing
-                timeout = setTimeout(() => {
-                    setCurrentThinking(null);
-                    setIsTyping(true);
+                const playNextThinkingStep = () => {
+                    if (stepIndex < thinkingSteps.length) {
+                        setCurrentThinking(thinkingSteps[stepIndex]);
+                        stepIndex++;
+                        // Use a slightly longer delay to read the text (e.g. 1000ms)
+                        // User asked for "0.5s", but we add a bit of buffer for the animation duration
+                        timeout = setTimeout(playNextThinkingStep, 1500);
+                    } else {
+                        // Finished thinking
+                        setCurrentThinking(null);
 
-                    // Then add the message
-                    timeout = setTimeout(() => {
-                        setIsTyping(false);
-                        indexRef.current += 1;
+                        // Start Typing
+                        setIsTyping(true);
 
-                        setMessages((prev) => {
-                            const newMsg = { ...nextMsg, id: `${nextMsg.id}-${Date.now()}` };
-                            const newHistory = [...prev, newMsg];
-                            if (newHistory.length > 7) {
-                                return newHistory.slice(newHistory.length - 7);
-                            }
-                            return newHistory;
-                        });
+                        // Then add the message
+                        timeout = setTimeout(() => {
+                            setIsTyping(false);
+                            indexRef.current += 1;
 
-                        // Next cycle
-                        timeout = setTimeout(playTurn, 1200 + Math.random() * 500);
-                    }, 600 + Math.random() * 300);
-                }, 1200 + Math.random() * 400); // Thinking duration
+                            setMessages((prev) => {
+                                const newMsg = { ...nextMsg, id: `${nextMsg.id}-${Date.now()}` };
+                                const newHistory = [...prev, newMsg];
+                                if (newHistory.length > 7) {
+                                    return newHistory.slice(newHistory.length - 7);
+                                }
+                                return newHistory;
+                            });
+
+                            // Next cycle
+                            timeout = setTimeout(playTurn, 1200 + Math.random() * 500);
+                        }, 600 + Math.random() * 300); // Typing duration
+                    }
+                };
+
+                // Start the thinking sequence
+                playNextThinkingStep();
+
             } else {
                 // Lead message - just show typing briefly then add
-                setIsTyping(false);
+                setIsTyping(false); // Leads "type" instantly for this demo speed
                 indexRef.current += 1;
 
                 setMessages((prev) => {
@@ -162,7 +342,7 @@ export function WhatsappDemo() {
 
             {/* Infinite Scroll Area */}
             <div
-                className="flex flex-col gap-3 relative h-[325px] overflow-hidden justify-end pb-2"
+                className="flex flex-col gap-3 relative h-[400px] overflow-hidden justify-end pb-2"
                 style={{
                     maskImage: 'linear-gradient(to bottom, transparent 0%, black 25%, black 100%)',
                     WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 25%, black 100%)'
@@ -183,7 +363,7 @@ export function WhatsappDemo() {
                             <span className={`text-[10px] text-gray-500 mb-1 px-1 ${msg.type === 'bot' ? 'text-left' : 'text-right'}`}>
                                 {msg.type === 'bot' ? `Áxis AI • ${msg.agentRole} ${msg.agentName}` : msg.sender}
                             </span>
-                            <div className={`p-3 rounded-2xl max-w-full ${msg.type === 'bot' ? 'bg-gray-100 rounded-tl-sm text-gray-800 text-left' : 'bg-[#DCF8C6] rounded-tr-sm text-gray-900 text-right'}`}>
+                            <div className={`p-3 rounded-2xl max-w-full ${msg.type === 'bot' ? 'bg-gray-100 rounded-tl-sm text-gray-800 text-left' : 'bg-[#155dfc]/10 rounded-tr-sm text-gray-900 text-right'}`}>
                                 <p className="text-sm font-normal leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                             </div>
                         </motion.div>
@@ -204,9 +384,10 @@ export function WhatsappDemo() {
 
                             <div className="pl-3.5">
                                 <TextGenerateEffect
+                                    key={currentThinking}
                                     words={currentThinking}
-                                    duration={0.5}
-                                    staggerDelay={0.05}
+                                    duration={0.3}
+                                    staggerDelay={0.02}
                                     className="text-[11px] text-gray-500 font-light leading-snug italic"
                                 />
                             </div>

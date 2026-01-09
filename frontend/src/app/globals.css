@@ -150,25 +150,3 @@
     text-wrap: balance;
   }
 }
-
-@keyframes equalizer {
-
-  0%,
-  100% {
-    height: 40px;
-    background-color: #db2777;
-    /* pink-600 */
-  }
-
-  50% {
-    height: 160px;
-    /* Reduced max height slightly for safety, or 100% of container */
-    background-color: #f472b6;
-    /* pink-400 */
-  }
-}
-
-.animate-equalizer {
-  animation: equalizer 1.2s ease-in-out infinite;
-  will-change: height, background-color;
-}

@@ -56,12 +56,13 @@ function VisualDNAShowcase() {
 
             <div className="relative w-full max-w-md md:ml-[50px] space-y-8">
                 {/* The Waveform - Abstract representation */}
-                <div className="flex items-center gap-2 h-32 ml-4">
+                <div className="flex items-center gap-2 h-32 ml-4 will-change-transform">
                     {[...Array(12)].map((_, i) => (
                         <motion.div
                             key={i}
-                            className="w-3 bg-gradient-to-t from-purple-500 to-pink-400 rounded-full shadow-[0_0_20px_rgba(168,85,247,0.4)]"
-                            animate={{ height: ["20%", "70%", "30%", "80%", "20%"] }}
+                            className="w-3 bg-gradient-to-t from-purple-500 to-pink-400 rounded-full shadow-[0_0_20px_rgba(168,85,247,0.4)] origin-bottom"
+                            animate={{ scaleY: [0.2, 0.7, 0.3, 0.8, 0.2] }}
+                            style={{ height: '100%' }} // Fixed height container, animate scale
                             transition={{ duration: 1, repeat: Infinity, repeatType: "mirror", delay: i * 0.1 }}
                         />
                     ))}

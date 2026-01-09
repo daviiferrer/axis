@@ -35,7 +35,7 @@ export function ProblemSection() {
                         className="relative flex flex-col items-center text-center space-y-6 md:mt-0"
                     >
                         {/* Organic Shape */}
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-cyan-100 rounded-full blur-[80px] -z-10 mix-blend-multiply" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-cyan-100 rounded-full blur-[60px] -z-10 will-change-transform" />
 
                         {/* Metric */}
                         <div className="text-[100px] leading-none font-bold text-transparent bg-clip-text bg-gradient-to-b from-cyan-400 to-blue-600 tracking-tighter opacity-20">
@@ -62,7 +62,7 @@ export function ProblemSection() {
                         className="relative flex flex-col items-center text-center space-y-6 md:mt-24" // Staggered
                     >
                         {/* Organic Shape */}
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-red-100 rounded-full blur-[80px] -z-10 mix-blend-multiply" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-red-100 rounded-full blur-[60px] -z-10 will-change-transform" />
 
                         {/* Metric */}
                         <div className="text-[100px] leading-none font-bold text-transparent bg-clip-text bg-gradient-to-b from-red-400 to-red-600 tracking-tighter opacity-20">
@@ -90,7 +90,7 @@ export function ProblemSection() {
                         className="relative flex flex-col items-center text-center space-y-6 md:mt-8"
                     >
                         {/* Organic Shape */}
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-pink-100 rounded-full blur-[80px] -z-10 mix-blend-multiply" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-pink-100 rounded-full blur-[60px] -z-10 will-change-transform" />
 
                         {/* Metric */}
                         <div className="text-[100px] pt-4 leading-none font-bold text-transparent bg-clip-text bg-gradient-to-b from-pink-400 to-purple-600 tracking-tighter opacity-20">
