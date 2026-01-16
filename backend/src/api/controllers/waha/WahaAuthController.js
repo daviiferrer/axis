@@ -5,10 +5,14 @@ class WahaAuthController {
 
     async getQR(req, res) {
         try {
-            const result = await this.waha.getQR(req.params.session);
-            // Assuming getQR returns base64 or object, adjust based on WahaClient
+            // Correct method name is getAuthQR in WahaClient
+            const result = await this.waha.getAuthQR(req.params.session);
             res.json(result);
         } catch (error) {
+            console.error('[WahaAuthController] getQR error:', error.message);
+            if (error.response) {
+                return res.status(error.response.status || 500).json({ error: error.message, details: error.response.data });
+            }
             res.status(500).json({ error: error.message });
         }
     }

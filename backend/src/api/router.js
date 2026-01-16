@@ -37,9 +37,14 @@ function createRouter(controllers) {
     v1Router.use('/health', require('./routes/v1/system/health.routes')(healthController));
     v1Router.use('/billing', require('./routes/v1/billing/billing.routes')(billingController, authMiddleware));
     v1Router.use('/apify', require('./routes/v1/apify/apify.routes')(apifyController, apifyWebhookHandler));
+    v1Router.use('/company', authMiddleware, require('./routes/v1/system/company.routes')(controllers.companyController));
 
     // WAHA Routes (Domain Driven)
-    v1Router.use('/waha', require('./routes/v1/waha/index')(controllers));
+    // Public Observability (Health Check)
+    v1Router.use('/waha/observability', require('./routes/v1/waha/observability.routes')(controllers.wahaObservabilityController));
+
+    // Protected WAHA Routes
+    v1Router.use('/waha', authMiddleware, require('./routes/v1/waha/index')(controllers));
 
     // Admin Routes (v1)
     v1Router.use('/admin', require('./routes/v1/system/AdminRoutes')(adminController));

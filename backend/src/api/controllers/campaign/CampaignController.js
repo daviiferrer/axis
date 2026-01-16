@@ -16,6 +16,20 @@ class CampaignController {
         }
     }
 
+    async createCampaign(req, res) {
+        try {
+            const userId = req.user?.id;
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const campaignData = req.body;
+            const newCampaign = await this.campaignService.createCampaign(userId, campaignData);
+
+            res.status(201).json({ success: true, campaign: newCampaign });
+        } catch (error) {
+            res.status(400).json({ error: error.message });
+        }
+    }
+
     // NOTE: Risk Middleware is applied at the Route level (router.js), not here directly usually.
     // However, if we want to enforce it inside the controller, we can, but middleware is cleaner.
     // I will assume the user wants me to wire it up in router.js mostly, but for now I'll adding a check here or update router.js.
@@ -34,40 +48,51 @@ class CampaignController {
     // If I MUST modify the controller, I'd inject the middleware logic.
     // Let's modify `backend/src/api/router.js`.
 
-    async pauseCampaign(req, res) {
+    async updateStatus(req, res) {
         try {
             const { id } = req.params;
-            const updated = await this.campaignService.updateCampaignStatus(id, 'paused');
+            const { status } = req.body;
+            // Validate status enum
+            if (!['draft', 'active', 'paused', 'archived'].includes(status)) {
+                return res.status(400).json({ error: 'Invalid status' });
+            }
+
+            const updated = await this.campaignService.updateCampaignStatus(id, status);
             res.json({ success: true, campaign: updated });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
     }
 
-    async saveStrategy(req, res) {
+    async getFlow(req, res) {
         try {
             const { id } = req.params;
-            const { nodes, edges } = req.body;
-
-            const updated = await this.campaignService.updateStrategy(id, { nodes, edges });
-            res.json({ success: true, campaign: updated });
+            const flow = await this.campaignService.getFlow(id);
+            res.json(flow);
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
     }
 
-    async updateMode(req, res) {
+    async saveFlow(req, res) {
         try {
             const { id } = req.params;
-            const { mode } = req.body;
-            const userId = req.user?.id;
+            const flowData = req.body; // Expecting { nodes: [], edges: [], viewport: {} }
 
-            if (!userId) return res.status(401).json({ error: 'Não autorizado' });
-
-            const updated = await this.campaignService.updateCampaignMode(id, mode, userId);
-            res.json({ success: true, campaign: updated });
+            const result = await this.campaignService.saveFlow(id, flowData);
+            res.json({ success: true, flow: result });
         } catch (error) {
-            res.status(400).json({ error: error.message });
+            res.status(500).json({ error: error.message });
+        }
+    }
+
+    async publishFlow(req, res) {
+        try {
+            const { id } = req.params;
+            const result = await this.campaignService.publishFlow(id);
+            res.json({ success: true, flow: result });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
         }
     }
 }

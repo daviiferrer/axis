@@ -31,7 +31,9 @@ module.exports = (controllers) => {
     router.use('/chatting', chattingRoutes(controllers.wahaChattingController));
     router.use('/presence', presenceRoutes(controllers.wahaPresenceController));
     router.use('/media', mediaRoutes(controllers.wahaMediaController));
-    router.use('/observability', observabilityRoutes(controllers.wahaObservabilityController));
+    router.use('/media', mediaRoutes(controllers.wahaMediaController));
+    // router.use('/observability', observabilityRoutes(controllers.wahaObservabilityController)); // Moved to public router in api/router.js
+    router.use('/screenshot', screenshotRoutes(controllers.wahaScreenshotController));
     router.use('/screenshot', screenshotRoutes(controllers.wahaScreenshotController));
 
     return router;

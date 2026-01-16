@@ -19,6 +19,8 @@ class WahaClient {
                 requestCode: '/api/code'
             },
             chatting: {
+                getChats: '/api/getChats',
+                getMessages: '/api/messages',
                 sendText: '/api/sendText',
                 sendImage: '/api/sendImage',
                 sendFile: '/api/sendFile',
@@ -66,11 +68,29 @@ class WahaClient {
         return `${this.baseUrl}${path}`;
     }
 
-    // --- Session Methods ---
     async getSessions(all = false) {
-        const url = this.#getUrl(`${this.#endpoints.sessions}?all=${all}`);
-        const response = await this.http.get(url, { headers: await this.#getHeaders() });
-        return response.data;
+        try {
+            const url = this.#getUrl(`${this.#endpoints.sessions}?all=${all}`);
+            const response = await this.http.get(url, { headers: await this.#getHeaders() });
+            return response.data;
+        } catch (error) {
+            this.#handleError(error);
+        }
+    }
+
+    #handleError(error) {
+        if (error.response) {
+            // The request was made and the server responded with a status code
+            // that falls out of the range of 2xx
+            const msg = error.response.data?.error || error.response.data?.message || JSON.stringify(error.response.data);
+            throw new Error(`WAHA API Error (${error.response.status}): ${msg}`);
+        } else if (error.request) {
+            // The request was made but no response was received
+            throw new Error(`WAHA Connection Error: No response from ${this.baseUrl}. Is the Docker container running? (Code: ${error.code})`);
+        } else {
+            // Something happened in setting up the request that triggered an Error
+            throw new Error(`WAHA Client Error: ${error.message}`);
+        }
     }
 
     async getSession(session) {
@@ -137,12 +157,38 @@ class WahaClient {
     // --- Auth Methods ---
     // --- Auth Methods ---
     async getAuthQR(session) {
-        // WAHA usually returns QR buffer on /api/screenshot?session=xyz if using standard execution
-        // Or specific auth endpoints.
-        // Mapping to screenshot as per requested "GET /:session/auth/qr" flow usually implying visualization
+        // WAHA usually returns QR buffer on /api/screenshot?session=xyz 
+        // We requested format=json but some versions might return binary anyway.
+        // To be safe, we request arraybuffer and parse manually.
         const url = this.#getUrl(`${this.#endpoints.screenshot}?session=${session}&format=json`);
-        const response = await this.http.get(url, { headers: await this.#getHeaders() });
-        return response.data;
+
+        try {
+            const response = await this.http.get(url, {
+                headers: await this.#getHeaders(),
+                responseType: 'arraybuffer'
+            });
+
+            // Try to parse as JSON first
+            try {
+                const text = Buffer.from(response.data).toString('utf-8');
+                const json = JSON.parse(text);
+                return json; // It was JSON, likely { data: 'base64...' }
+            } catch (e) {
+                // Not JSON, likely binary image (PNG)
+                // Convert binary to base64
+                const base64 = Buffer.from(response.data).toString('base64');
+                // Return in the format frontend expects (Waha standard)
+                return { data: base64, mimetype: 'image/png' };
+            }
+        } catch (error) {
+            // If 404/500, handle error normally (convert buffer to string for error message)
+            if (error.response && error.response.data instanceof Buffer) {
+                try {
+                    error.response.data = JSON.parse(error.response.data.toString());
+                } catch (ignore) { }
+            }
+            this.#handleError(error);
+        }
     }
 
     async requestPairingCode(session, phoneNumber) {
@@ -180,6 +226,24 @@ class WahaClient {
     }
 
     // --- Chatting Methods ---
+    async getChats(session) {
+        const url = this.#getUrl(`${this.#endpoints.chatting.getChats}?session=${session}`);
+        console.log('[WahaClient] Requesting chats from:', url);
+        try {
+            const response = await this.http.get(url, { headers: await this.#getHeaders() });
+            return response.data;
+        } catch (error) {
+            console.error('[WahaClient] getChats raw error:', error.response?.status, error.response?.data || error.message);
+            throw error; // Let #handleError or controller catch it
+        }
+    }
+
+    async getMessages(session, chatId, limit = 50) {
+        const url = this.#getUrl(`${this.#endpoints.chatting.getMessages}?session=${session}&chatId=${chatId}&limit=${limit}&downloadMedia=true`);
+        const response = await this.http.get(url, { headers: await this.#getHeaders() });
+        return response.data;
+    }
+
     async sendText(session, chatId, text) {
         const url = this.#getUrl(this.#endpoints.chatting.sendText);
         const response = await this.http.post(url, { session, chatId, text }, { headers: await this.#getHeaders() });

@@ -4,6 +4,9 @@ module.exports = (chattingController) => {
     const router = express.Router();
 
     // Text
+    router.get('/chats', (req, res) => chattingController.getChats(req, res));
+    router.get('/messages', (req, res) => chattingController.getMessages(req, res));
+
     router.post('/sendText', (req, res) => chattingController.sendText(req, res));
     router.get('/sendText', (req, res) => chattingController.sendText(req, res)); // Requested GET support
 

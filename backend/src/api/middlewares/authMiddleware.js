@@ -26,7 +26,7 @@ const createAuthMiddleware = (supabase) => async (req, res, next) => {
         // Fetch user profile
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
-            .select('role, company_id')
+            .select('role, company_id, is_super_admin')
             .eq('id', user.id)
             .single();
 

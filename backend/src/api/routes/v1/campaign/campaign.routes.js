@@ -6,14 +6,15 @@ function createCampaignRouter(campaignController, authMiddleware, riskMiddleware
     const router = express.Router();
 
     router.get('/', rbac(Resources.CAMPAIGN, Actions.READ), (req, res) => campaignController.listCampaigns(req, res));
+    router.post('/', rbac(Resources.CAMPAIGN, Actions.CREATE), (req, res) => campaignController.createCampaign(req, res));
 
-    // High Risk Actions - Protected by Hardwall
-    router.post('/:id/start', rbac(Resources.CAMPAIGN, Actions.START), riskMiddleware, (req, res) => campaignController.startCampaign(req, res));
-    router.post('/:id/pause', rbac(Resources.CAMPAIGN, Actions.PAUSE), (req, res) => campaignController.pauseCampaign(req, res));
-    router.post('/:id/strategy', rbac(Resources.CAMPAIGN, Actions.UPDATE), (req, res) => campaignController.saveStrategy(req, res));
+    // Unified Status Management
+    router.patch('/:id/status', rbac(Resources.CAMPAIGN, Actions.UPDATE), riskMiddleware, (req, res) => campaignController.updateStatus(req, res));
 
-    // Changing mode (e.g. to Autonomous) is also high risk
-    router.patch('/:id/mode', rbac(Resources.CAMPAIGN, Actions.UPDATE), riskMiddleware, (req, res) => campaignController.updateMode(req, res));
+    // Flow Builder Endpoints
+    router.get('/:id/flow', rbac(Resources.CAMPAIGN, Actions.READ), (req, res) => campaignController.getFlow(req, res));
+    router.put('/:id/flow', rbac(Resources.CAMPAIGN, Actions.UPDATE), (req, res) => campaignController.saveFlow(req, res));
+    router.post('/:id/publish', rbac(Resources.CAMPAIGN, Actions.UPDATE), riskMiddleware, (req, res) => campaignController.publishFlow(req, res));
 
     return router;
 }

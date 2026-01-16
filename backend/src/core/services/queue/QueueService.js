@@ -26,9 +26,15 @@ class QueueService {
      */
     async initialize() {
         try {
+            // Enhanced IORedis config for resilience
             this.connection = new IORedis(this.redisUrl, {
                 maxRetriesPerRequest: null,
-                enableReadyCheck: false
+                enableReadyCheck: false,
+                retryStrategy: (times) => {
+                    // Exponential backoff with cap at 60s to avoid log spam
+                    const delay = Math.min(times * 1000, 60000);
+                    return delay;
+                }
             });
 
             this.connection.on('connect', () => {
@@ -37,20 +43,28 @@ class QueueService {
             });
 
             this.connection.on('error', (err) => {
-                logger.error({ error: err.message }, 'Redis connection error');
+                // Log but don't crash
+                logger.warn({ error: err.message }, '⚠️ Redis connection warning (Queues will be disabled)');
                 this.isConnected = false;
             });
 
-            // Initialize queues
-            this.queues.aiGeneration = new Queue('ai-generation', { connection: this.connection });
-            this.queues.whatsappSend = new Queue('whatsapp-send', { connection: this.connection });
-            this.queues.leadProcessing = new Queue('lead-processing', { connection: this.connection });
-            this.queues.scrapeRequests = new Queue('scrape-requests', { connection: this.connection });
+            // Initialize queues safely
+            const safeQueueInit = (name) => {
+                const q = new Queue(name, { connection: this.connection });
+                q.on('error', (err) => logger.warn(`Queue ${name} error: ${err.message}`));
+                return q;
+            };
 
-            // Initialize FlowProducer for parent-child job relationships
+            this.queues.aiGeneration = safeQueueInit('ai-generation');
+            this.queues.whatsappSend = safeQueueInit('whatsapp-send');
+            this.queues.leadProcessing = safeQueueInit('lead-processing');
+            this.queues.scrapeRequests = safeQueueInit('scrape-requests');
+
+            // Initialize FlowProducer safely
             this.flowProducer = new FlowProducer({ connection: this.connection });
+            this.flowProducer.on('error', (err) => logger.warn(`FlowProducer error: ${err.message}`));
 
-            logger.info('✅ QueueService initialized');
+            logger.info('✅ QueueService initialized (Lazy mode)');
             return true;
         } catch (error) {
             logger.error({ error: error.message }, 'Failed to initialize QueueService');
@@ -111,7 +125,7 @@ class QueueService {
                     leadId: lead.id,
                     phone: lead.phone,
                     campaignId: campaign.id,
-                    sessionName: campaign.session_name
+                    sessionName: campaign.session_id
                 },
                 opts: {
                     jobId: `send-${lead.id}-${Date.now()}`,

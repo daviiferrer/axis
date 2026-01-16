@@ -1,9 +1,84 @@
 class WahaChattingController {
-    constructor(wahaClient) {
+    constructor(wahaClient, supabase) {
         this.waha = wahaClient;
+        this.supabase = supabase;
     }
 
     // Main entry point for text messages - uses human latency
+    async getChats(req, res) {
+        try {
+            const { session } = req.query;
+
+            // Fix: Fetch from Database, not WAHA API
+            const { data: chats, error } = await this.supabase
+                .from('chats')
+                .select('*, messages!inner(body, created_at)')
+                .eq('session_name', session)
+                .order('last_message_at', { ascending: false });
+
+            if (error) throw error;
+
+            // Format to match expected frontend structure (WahaChat interface)
+            const formattedChats = chats.map(chat => ({
+                id: chat.chat_id,
+                name: chat.name || chat.phone,
+                image: chat.profile_pic_url, // Assuming this column exists or logic adds it
+                unreadCount: 0, // Not tracked in DB yet
+                lastMessage: {
+                    body: chat.messages?.[0]?.body || '',
+                    timestamp: new Date(chat.last_message_at).getTime() / 1000
+                },
+                status: chat.status // 'active', 'archived', etc.
+            }));
+
+            res.json(formattedChats);
+        } catch (error) {
+            console.error('[WahaChattingController] getChats error:', error);
+            res.status(500).json({ error: error.message });
+        }
+    }
+
+    async getMessages(req, res) {
+        try {
+            const { session, chatId, limit } = req.query;
+            const limitNum = parseInt(limit) || 50;
+
+            // Resolve internal ID from chat_id (JID)
+            const { data: chat } = await this.supabase
+                .from('chats')
+                .select('id')
+                .eq('chat_id', chatId)
+                .single();
+
+            if (!chat) return res.json([]);
+
+            const { data: messages, error } = await this.supabase
+                .from('messages')
+                .select('*')
+                .eq('chat_id', chat.id)
+                .order('created_at', { ascending: false })
+                .limit(limitNum);
+
+            if (error) throw error;
+
+            // Format to match WahaMessage interface
+            const formattedMessages = messages.reverse().map(msg => ({
+                id: msg.message_id,
+                from: msg.from_me ? 'me' : chatId,
+                to: msg.from_me ? chatId : 'me',
+                body: msg.body,
+                timestamp: new Date(msg.created_at).getTime() / 1000,
+                fromMe: msg.from_me,
+                hasMedia: false, // TODO: Enhance schema for media
+                _data: {}
+            }));
+
+            res.json(formattedMessages);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    }
+
     async sendText(req, res) {
         try {
             const { session, chatId, text } = req.body;

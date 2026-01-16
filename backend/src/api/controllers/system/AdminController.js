@@ -39,17 +39,21 @@ class AdminController {
             const { data: { users }, error } = await this.supabase.auth.admin.listUsers();
             if (error) throw error;
 
-            const { data: profiles } = await this.supabase.from('profiles').select('id, role');
-            const profileMap = new Map(profiles?.map(p => [p.id, p.role]));
+            const { data: profiles } = await this.supabase.from('profiles').select('id, role, is_super_admin');
+            const profileMap = new Map(profiles?.map(p => [p.id, p]));
 
-            const userList = users.map(u => ({
-                id: u.id,
-                email: u.email,
-                created_at: u.created_at,
-                last_sign_in_at: u.last_sign_in_at,
-                banned: !!u.banned_until,
-                role: profileMap.get(u.id) || 'user'
-            }));
+            const userList = users.map(u => {
+                const profile = profileMap.get(u.id);
+                return {
+                    id: u.id,
+                    email: u.email,
+                    created_at: u.created_at,
+                    last_sign_in_at: u.last_sign_in_at,
+                    banned: !!u.banned_until,
+                    role: profile?.role || 'user',
+                    is_super_admin: profile?.is_super_admin || false
+                };
+            });
 
             res.json(userList);
         } catch (error) {

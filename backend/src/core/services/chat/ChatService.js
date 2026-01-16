@@ -200,7 +200,24 @@ class ChatService {
 
         try {
             // 2. Send via WAHA
-            const sentMessage = await this.wahaClient.sendText(session, chatId, text);
+            let sentMessage;
+            if (session === 'SIMULATOR') {
+                const messageId = `true_${chatId}_${Date.now()}_SIM`;
+                sentMessage = {
+                    id: {
+                        _serialized: messageId,
+                        id: messageId,
+                        fromMe: true,
+                        remote: chatId
+                    },
+                    timestamp: Math.floor(Date.now() / 1000),
+                    body: text
+                };
+                // Simulate latency
+                await new Promise(r => setTimeout(r, 500));
+            } else {
+                sentMessage = await this.wahaClient.sendText(session, chatId, text);
+            }
 
             // 3. Save to DB
             if (sentMessage && sentMessage.id) {

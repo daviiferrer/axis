@@ -17,7 +17,8 @@ const rbac = (resource, action) => (req, res, next) => {
 
         // 1. Resolve Role
         // Priority: Profile (DB) > App Metadata > User Metadata > Default
-        const role = req.user.profile?.role || req.user.app_metadata?.role || req.user.user_metadata?.role || 'VIEWER';
+        const rawRole = req.user.profile?.role || req.user.app_metadata?.role || req.user.user_metadata?.role || 'VIEWER';
+        const role = rawRole.toUpperCase();
 
         // 2. Check Permission
         const allowed = hasPermission(role, resource, action);

@@ -38,7 +38,7 @@ class AgentNode {
 
         // 1. Ensure Chat/JID exists
         const chatId = this.getChatId(_lead.phone);
-        const chat = await this.chatService.ensureChat(chatId, _campaign.session_name, _campaign.user_id, {
+        const chat = await this.chatService.ensureChat(chatId, _campaign.session_id, _campaign.user_id, {
             lead_id: _lead.id,
             campaign_id: _campaign.id,
             name: _lead.name
@@ -150,7 +150,7 @@ class AgentNode {
             // 2a. Voice Note Support
             if (isFirst && aiResponse.audio_base64) {
                 console.log(`[AgentNode] Sending AI-generated Voice Note for lead ${lead.id}`);
-                await this.wahaClient.sendVoiceBase64(campaign.session_name, chatId, aiResponse.audio_base64);
+                await this.wahaClient.sendVoiceBase64(campaign.session_id, chatId, aiResponse.audio_base64);
                 await this.logMessage(lead, chatId, '[AUDIO_VOICE_NOTE]', true);
                 continue;
             }
@@ -165,18 +165,18 @@ class AgentNode {
             console.log(`[AgentNode] Human Physics: Waiting ${delay}ms before sending chunk ${i + 1}/${messagesToSend.length} (Simulation=${isSimulation})`);
 
             if (delay > 1000 && !isSimulation) {
-                // await this.wahaClient.sendTypingState(campaign.session_name, chatId, true);
+                // await this.wahaClient.sendTypingState(campaign.session_id, chatId, true);
             }
 
             await new Promise(resolve => setTimeout(resolve, delay));
 
             let sentId = `sim_${Date.now()}`;
             if (!isSimulation) {
-                console.log(`[AgentNode] Sending to WAHA: Session=${campaign.session_name}, Chat=${chatId}, Body=${msgText.substring(0, 30)}...`);
-                const sent = await this.wahaClient.sendText(campaign.session_name, chatId, msgText);
+                console.log(`[AgentNode] Sending to WAHA: Session=${campaign.session_id}, Chat=${chatId}, Body=${msgText.substring(0, 30)}...`);
+                const sent = await this.wahaClient.sendText(campaign.session_id, chatId, msgText);
                 sentId = sent?.id;
             } else {
-                console.log(`[AgentNode] SIMULATION MODE: Skipping real send for Session=${campaign.session_name}`);
+                console.log(`[AgentNode] SIMULATION MODE: Skipping real send for Session=${campaign.session_id}`);
             }
 
             // 2c. Log Message

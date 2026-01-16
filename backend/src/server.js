@@ -74,17 +74,7 @@ async function bootstrap() {
     });
 
     // 1. Initialize DB Client
-    const sbUrl = process.env.SUPABASE_URL;
-    const sbKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
-
-    if (!sbUrl || !sbKey) {
-        throw new Error(`Missing Supabase Credentials. URL: ${sbUrl}, Key: ${sbKey ? 'FOUND' : 'MISSING'}`);
-    }
-
-    // Explicitly using strict auth options if needed, but keeping simple for now
-    const supabase = createClient(sbUrl, sbKey, {
-        auth: { persistSession: false }
-    });
+    const supabase = require('./infra/database/supabase');
 
     // DEBUG: Verify client structure
     console.log(`[Server] Supabase client created.`);
@@ -225,14 +215,17 @@ async function bootstrap() {
         // Expose for Router Injection if needed
 
         // WAHA Domain Controllers
-        wahaSessionController: new (require('./api/controllers/waha/WahaSessionController'))(wahaClient),
+        wahaSessionController: new (require('./api/controllers/waha/WahaSessionController'))(wahaClient, supabase),
         wahaAuthController: new (require('./api/controllers/waha/WahaAuthController'))(wahaClient),
         wahaProfileController: new (require('./api/controllers/waha/WahaProfileController'))(wahaClient),
-        wahaChattingController: new (require('./api/controllers/waha/WahaChattingController'))(wahaClient),
+        wahaChattingController: new (require('./api/controllers/waha/WahaChattingController'))(wahaClient, supabase),
         wahaPresenceController: new (require('./api/controllers/waha/WahaPresenceController'))(wahaClient),
         wahaMediaController: new (require('./api/controllers/waha/WahaMediaController'))(wahaClient),
         wahaObservabilityController: new (require('./api/controllers/waha/WahaObservabilityController'))(wahaClient),
-        wahaScreenshotController: new (require('./api/controllers/waha/WahaScreenshotController'))(wahaClient)
+        wahaScreenshotController: new (require('./api/controllers/waha/WahaScreenshotController'))(wahaClient),
+
+        // System Controllers
+        companyController: new (require('./api/controllers/system/CompanyController'))(new (require('./core/services/system/CompanyService'))(supabase))
     };
 
     // 7. Middlewares

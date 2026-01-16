@@ -37,7 +37,7 @@ class PresenceService {
                 .select(`
                     phone,
                     campaign_id,
-                    campaigns!inner(session_name)
+                    campaigns!inner(session_id)
                 `)
                 .not('phone', 'is', null);
 
@@ -51,7 +51,7 @@ class PresenceService {
             const leadsWithSession = leads
                 .map(l => ({
                     jid: this.toJid(l.phone),
-                    session: l.campaigns?.session_name
+                    session: l.campaigns?.session_id
                 }))
                 .filter(l => l.jid && l.session);
 
