@@ -4,9 +4,9 @@ const ApifyProvider = require('./providers/ApifyProvider');
 const logger = require('../../../shared/Logger').createModuleLogger('scraper-orchestrator');
 
 class ScraperOrchestrator {
-    constructor() {
+    constructor(settingsService) {
         this.providers = [
-            new ApifyProvider()
+            new ApifyProvider(settingsService)
             // new ZenRowsProvider() // Future fallback
         ];
 
@@ -71,5 +71,4 @@ class ScraperOrchestrator {
     }
 }
 
-// Singleton instance
-module.exports = new ScraperOrchestrator();
+module.exports = ScraperOrchestrator;

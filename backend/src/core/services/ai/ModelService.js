@@ -80,7 +80,7 @@ class ModelService {
         const model = agent?.model;
 
         if (!model) {
-            const defaultModel = process.env.DEFAULT_GEMINI_MODEL || 'gemini-1.5-flash';
+            const defaultModel = 'gemini-1.5-flash'; // Hard fallback only if DB/Agent fails, but no ENV system config.
             logger.warn(`[ModelService] AVISO: Modelo não configurado na campanha ${campaign?.id}. Usando fallback: ${defaultModel}`);
             return defaultModel;
         }

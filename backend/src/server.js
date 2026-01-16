@@ -12,6 +12,12 @@ const rootEnv = dotenv.config({ path: rootEnvPath });
 if (rootEnv.error) console.warn(`⚠️ [Server] Could not load root .env at ${rootEnvPath}`);
 else console.log(`✅ [Server] Loaded root .env from ${rootEnvPath}`);
 
+console.log('--- ENV DEBUG ---');
+console.log(`SUPABASE_URL: ${process.env.SUPABASE_URL}`);
+console.log(`SUPABASE_SERVICE_KEY: ${process.env.SUPABASE_SERVICE_KEY ? process.env.SUPABASE_SERVICE_KEY.substring(0, 10) + '...' : 'MISSING'}`);
+console.log(`SUPABASE_KEY (Anon): ${process.env.SUPABASE_KEY ? process.env.SUPABASE_KEY.substring(0, 10) + '...' : 'MISSING'}`);
+console.log('-----------------');
+
 // Fallback for any other .env files (e.g., default .env in current dir)
 dotenv.config();
 
@@ -93,217 +99,242 @@ async function bootstrap() {
     const systemSettings = await settingsService.getSettings();
 
     if (!systemSettings) {
-        console.warn('⚠️ [Server] No system settings found. Using ENV/Defaults.');
-    } else {
-        console.log('✅ [Server] System settings loaded.');
-    }
+        if (!systemSettings) {
+            console.warn('⚠️ [Server] WARNING: No system settings found in DB. Using defaults/env where possible. Admin Panel may be needed to configure system.');
+            // process.exit(1); // User wants to access Admin Panel to fix things, so don't crash.
+            if (systemSettings) {
+                console.log('✅ [Server] System settings loaded.');
 
-    const wahaUrl = systemSettings?.waha_url || process.env.WAHA_URL || 'http://localhost:3000';
-    const geminiKey = systemSettings?.gemini_key || process.env.GEMINI_API_KEY;
+                // --- DYNAMIC ENVIRONMENT INJECTION ---
+                const isProd = systemSettings.active_env === 'prod';
+                console.log(`🌍 [Server] Running in ${isProd ? 'PRODUCTION' : 'DEVELOPMENT'} mode (Database-Configured)`);
 
-    if (!geminiKey) {
-        console.warn('⚠️ [Server] Gemini API Key is missing in both DB and ENV.');
-    }
+                // Inject into process.env so the rest of the app doesn't need refactoring
+                if (isProd) {
+                    if (systemSettings.frontend_url) process.env.FRONTEND_URL = systemSettings.frontend_url;
+                    if (systemSettings.backend_url) process.env.BACKEND_URL = systemSettings.backend_url;
+                } else {
+                    // Dev Fallbacks
+                    process.env.FRONTEND_URL = systemSettings.frontend_url_dev || 'http://localhost:5000'; // Default dev port (frontend runs on 5000 in this repo?) NOTE: Usually frontend is 3000, backend 8000. Checking logs...
+                    process.env.BACKEND_URL = systemSettings.backend_url_dev || 'http://localhost:8000';
+                }
+                // -------------------------------------
+            }
 
-    // 4. Wrap Infrastructure
-    // WahaClient expects { wahaUrl } in first arg
-    const wahaClient = new WahaClient({ wahaUrl });
+            const wahaUrl = systemSettings?.waha_url || 'http://localhost:3000';
+            const geminiKey = systemSettings?.gemini_api_key;
 
-    // GeminiClient with centralized model configuration
-    const defaultGeminiModel = systemSettings?.default_gemini_model || process.env.DEFAULT_GEMINI_MODEL;
-    const geminiClient = new GeminiClient(geminiKey, { defaultModel: defaultGeminiModel });
-    const ragClient = new RagClient(supabase, geminiClient);
+            if (!geminiKey) {
+                console.warn('⚠️ [Server] Gemini API Key is missing in DB (system_settings). AI features may fail.');
+            } else {
+                console.log('✅ [Server] Gemini API Key loaded from Database.');
+            }
 
-    // 3. Initialize Shared
-    socketService.initialize(io);
+            // 4. Wrap Infrastructure
+            // WahaClient expects { wahaUrl } in first arg
+            const wahaClient = new WahaClient({ wahaUrl });
 
-    // 4. Initialize Core Services (settingsService already initialized)
-    // Initialize Queue Service & Workers
-    const QueueService = require('./core/services/queue/QueueService');
-    const queueService = new QueueService(process.env.REDIS_URL, supabase);
-    await queueService.initialize();
+            // GeminiClient configuration
+            // Default model is NOT set globally. Must be provided per request or agent config.
+            const geminiClient = new GeminiClient(geminiKey, { defaultModel: undefined });
+            const ragClient = new RagClient(supabase, geminiClient);
 
-    // Register Scrape Worker
-    const scrapeWorker = require('./workers/ScrapeWorker');
-    queueService.registerWorker('scrape-requests', scrapeWorker);
+            // 3. Initialize Shared
+            socketService.initialize(io);
 
-    const cacheService = new CacheService();
-    const BillingService = require('./core/services/billing/BillingService');
-    const billingService = new BillingService(supabase);
+            // 4. Initialize Core Services (settingsService already initialized)
+            // Initialize Queue Service & Workers
+            const QueueService = require('./core/services/queue/QueueService');
+            const queueService = new QueueService(process.env.REDIS_URL, supabase);
+            await queueService.initialize();
 
-    const historyService = new HistoryService(supabase);
-    const chatService = new ChatService(supabase, billingService, wahaClient, settingsService);
-    const leadService = new LeadService(supabase);
-    const campaignService = new CampaignService(supabase);
-    const promptService = new PromptService(supabase, ragClient, historyService);
-    const healthService = new HealthService();
+            // Register Scrape Worker
+            // Register Scrape Worker
+            // Initialize Orchestrator with Settings
+            const ScraperOrchestrator = require('./core/services/extraction/ScraperOrchestrator');
+            const scraperOrchestrator = new ScraperOrchestrator(settingsService);
 
-    const WebContentService = require('./core/services/extraction/WebContentService');
-    const webContentService = new WebContentService(supabase, queueService);
+            const createScrapeWorker = require('./workers/ScrapeWorker');
+            const scrapeWorker = createScrapeWorker(scraperOrchestrator);
+            queueService.registerWorker('scrape-requests', scrapeWorker);
 
-    const JidNormalizationService = require('./core/services/waha/JidNormalizationService');
-    const jidService = new JidNormalizationService(wahaClient, supabase);
+            const cacheService = new CacheService();
+            const BillingService = require('./core/services/billing/BillingService');
+            const billingService = new BillingService(supabase);
 
-    const presenceService = new PresenceService(supabase, wahaClient);
-    const triggerService = new TriggerService(geminiClient, socketService);
-    const AgentService = require('./core/services/agents/AgentService');
-    const agentService = new AgentService(supabase);
+            const historyService = new HistoryService(supabase);
+            const chatService = new ChatService(supabase, billingService, wahaClient, settingsService);
+            const leadService = new LeadService(supabase);
+            const campaignService = new CampaignService(supabase);
+            const promptService = new PromptService(supabase, ragClient, historyService);
+            const healthService = new HealthService();
 
-    const AnalyticsService = require('./core/services/analytics/AnalyticsService');
-    const analyticsService = new AnalyticsService(supabase);
+            const WebContentService = require('./core/services/extraction/WebContentService');
+            const webContentService = new WebContentService(supabase, queueService);
 
-    const GuardrailService = require('./core/services/guardrails/GuardrailService');
-    const guardrailService = new GuardrailService(supabase);
+            const JidNormalizationService = require('./core/services/waha/JidNormalizationService');
+            const jidService = new JidNormalizationService(wahaClient, supabase);
 
-    // ModelService - Centralizado para busca de modelo
-    const ModelService = require('./core/services/ai/ModelService');
-    const modelService = new ModelService(supabase);
+            const presenceService = new PresenceService(supabase, wahaClient);
+            const triggerService = new TriggerService(geminiClient, socketService);
+            const AgentService = require('./core/services/agents/AgentService');
+            const agentService = new AgentService(supabase);
 
-    const emotionalStateService = new EmotionalStateService(supabase);
+            const AnalyticsService = require('./core/services/analytics/AnalyticsService');
+            const analyticsService = new AnalyticsService(supabase);
 
-    // 5. Initialize Engines
-    const dependencies = {
-        supabase,
-        wahaClient,
-        geminiClient,
-        promptService,
-        historyService,
-        leadService,
-        campaignService,
-        chatService,
-        analyticsService,
-        billingService,
-        cacheService,
-        guardrailService,
-        modelService, // Serviço centralizado de modelo
-        emotionalStateService, // Missing dependency fix
-        agentService,
-        jidService,
-        campaignSocket: socketService
-    };
+            const GuardrailService = require('./core/services/guardrails/GuardrailService');
+            const guardrailService = new GuardrailService(supabase);
 
-    const nodeFactory = new NodeFactory(dependencies);
-    const workflowEngine = new WorkflowEngine({
-        nodeFactory,
-        leadService,
-        campaignService,
-        supabase,
-        campaignSocket: socketService,
-        queueService // INJECTED: Fixes sync processing issue
-    });
-    const agentGraphEngine = new AgentGraphEngine(geminiClient);
+            // ModelService - Centralizado para busca de modelo
+            const ModelService = require('./core/services/ai/ModelService');
+            const modelService = new ModelService(supabase);
 
-    // 6. Initialize All Controllers
-    const controllers = {
-        settingsController: new SettingsController(settingsService, wahaClient),
-        analyticsController: new AnalyticsController(analyticsService),
-        adminController: new AdminController(supabase, wahaClient),
-        campaignController: new CampaignController(campaignService, supabase),
-        oracleController: new OracleController(geminiClient, historyService, modelService),
-        leadController: new LeadController(workflowEngine, leadService),
-        apifyController: new ApifyController(supabase),
-        apifyWebhookHandler: new ApifyWebhookHandler(supabase, triggerService),
-        webhookController: new WebhookController(chatService, workflowEngine, socketService, wahaClient, supabase, jidService),
-        agentController: new AgentController(agentService, geminiClient, agentGraphEngine),
-        prospectController: new ProspectController(null, leadService, supabase),
-        chatController: new ChatController(chatService, wahaClient, historyService, geminiClient, modelService),
-        healthController: new HealthController(healthService),
-        billingController: new (require('./api/controllers/billing/BillingController'))(billingService),
-        workflowEngine: workflowEngine,
-        chatService: chatService,
-        wahaClient: wahaClient,
-        // Expose for Router Injection if needed
+            const emotionalStateService = new EmotionalStateService(supabase);
 
-        // WAHA Domain Controllers
-        wahaSessionController: new (require('./api/controllers/waha/WahaSessionController'))(wahaClient, supabase),
-        wahaAuthController: new (require('./api/controllers/waha/WahaAuthController'))(wahaClient),
-        wahaProfileController: new (require('./api/controllers/waha/WahaProfileController'))(wahaClient),
-        wahaChattingController: new (require('./api/controllers/waha/WahaChattingController'))(wahaClient, supabase),
-        wahaPresenceController: new (require('./api/controllers/waha/WahaPresenceController'))(wahaClient),
-        wahaMediaController: new (require('./api/controllers/waha/WahaMediaController'))(wahaClient),
-        wahaObservabilityController: new (require('./api/controllers/waha/WahaObservabilityController'))(wahaClient),
-        wahaScreenshotController: new (require('./api/controllers/waha/WahaScreenshotController'))(wahaClient),
+            // 5. Initialize Engines
+            const dependencies = {
+                supabase,
+                wahaClient,
+                geminiClient,
+                promptService,
+                historyService,
+                leadService,
+                campaignService,
+                chatService,
+                analyticsService,
+                billingService,
+                cacheService,
+                guardrailService,
+                modelService, // Serviço centralizado de modelo
+                emotionalStateService, // Missing dependency fix
+                agentService,
+                jidService,
+                campaignSocket: socketService
+            };
 
-        // System Controllers
-        companyController: new (require('./api/controllers/system/CompanyController'))(new (require('./core/services/system/CompanyService'))(supabase))
-    };
+            const nodeFactory = new NodeFactory(dependencies);
+            const workflowEngine = new WorkflowEngine({
+                nodeFactory,
+                leadService,
+                campaignService,
+                supabase,
+                campaignSocket: socketService,
+                queueService // INJECTED: Fixes sync processing issue
+            });
+            const agentGraphEngine = new AgentGraphEngine(geminiClient);
 
-    // 7. Middlewares
-    app.use(cors());
-    app.use(express.json());
+            // 6. Initialize All Controllers
+            const controllers = {
+                settingsController: new SettingsController(settingsService, wahaClient),
+                analyticsController: new AnalyticsController(analyticsService),
+                adminController: new AdminController(supabase, wahaClient),
+                campaignController: new CampaignController(campaignService, supabase),
+                oracleController: new OracleController(geminiClient, historyService, modelService),
+                leadController: new LeadController(workflowEngine, leadService),
+                apifyController: new ApifyController(supabase, settingsService),
+                apifyWebhookHandler: new ApifyWebhookHandler(supabase, triggerService),
+                webhookController: new WebhookController(chatService, workflowEngine, socketService, wahaClient, supabase, jidService),
+                agentController: new AgentController(agentService, geminiClient, agentGraphEngine),
+                prospectController: new ProspectController(null, leadService, supabase),
+                chatController: new ChatController(chatService, wahaClient, historyService, geminiClient, modelService),
+                healthController: new HealthController(healthService),
+                billingController: new (require('./api/controllers/billing/BillingController'))(billingService),
+                workflowEngine: workflowEngine,
+                chatService: chatService,
+                wahaClient: wahaClient,
+                // Expose for Router Injection if needed
 
-    const createAuthMiddleware = require('./api/middlewares/authMiddleware');
-    const authMiddleware = createAuthMiddleware(supabase);
+                // WAHA Domain Controllers
+                wahaSessionController: new (require('./api/controllers/waha/WahaSessionController'))(wahaClient, supabase),
+                wahaAuthController: new (require('./api/controllers/waha/WahaAuthController'))(wahaClient),
+                wahaProfileController: new (require('./api/controllers/waha/WahaProfileController'))(wahaClient),
+                wahaChattingController: new (require('./api/controllers/waha/WahaChattingController'))(wahaClient, supabase),
+                wahaPresenceController: new (require('./api/controllers/waha/WahaPresenceController'))(wahaClient),
+                wahaMediaController: new (require('./api/controllers/waha/WahaMediaController'))(wahaClient),
+                wahaObservabilityController: new (require('./api/controllers/waha/WahaObservabilityController'))(wahaClient),
+                wahaScreenshotController: new (require('./api/controllers/waha/WahaScreenshotController'))(wahaClient),
 
-    const createRiskMiddleware = require('./api/middlewares/riskMiddleware');
-    const riskMiddleware = createRiskMiddleware(supabase);
+                // System Controllers
+                companyController: new (require('./api/controllers/system/CompanyController'))(new (require('./core/services/system/CompanyService'))(supabase))
+            };
 
-    // 7.5 Trace Context Middleware (Observability)
-    const traceMiddleware = require('./api/middleware/traceMiddleware');
-    app.use(traceMiddleware);
+            // 7. Middlewares
+            app.use(cors());
+            app.use(express.json());
 
-    // Add authMiddleware to controllers/dependencies object to pass to router
-    controllers.authMiddleware = authMiddleware;
-    controllers.riskMiddleware = riskMiddleware;
+            const createAuthMiddleware = require('./api/middlewares/authMiddleware');
+            const authMiddleware = createAuthMiddleware(supabase);
 
-    // 8. Routes
-    const router = createRouter(controllers);
-    app.use('/api', router);
+            const createRiskMiddleware = require('./api/middlewares/riskMiddleware');
+            const riskMiddleware = createRiskMiddleware(supabase);
 
-    // 9. Global Error Middleware (Safety Net)
-    app.use((err, req, res, next) => {
-        console.error('🔥 [Global Error Handler]', err);
-        const statusCode = err.statusCode || 500;
-        res.status(statusCode).json({
-            error: true,
-            message: err.message || 'Internal Server Error',
-            code: err.code || 'INTERNAL_ERROR',
-            // Omit stack trace in production for security
-            stack: process.env.NODE_ENV === 'production' ? undefined : err.stack
-        });
-    });
+            // 7.5 Trace Context Middleware (Observability)
+            const traceMiddleware = require('./api/middleware/traceMiddleware');
+            app.use(traceMiddleware);
 
-    // 10. Startup Logic
-    presenceService.startPeriodicSync(300000); // 5 min
+            // Add authMiddleware to controllers/dependencies object to pass to router
+            controllers.authMiddleware = authMiddleware;
+            controllers.riskMiddleware = riskMiddleware;
 
-    const PORT = process.env.PORT || 3001;
-    server.listen(PORT, () => {
-        console.log(`
+            // 8. Routes
+            const router = createRouter(controllers);
+            app.use('/api', router);
+
+            // 9. Global Error Middleware (Safety Net)
+            app.use((err, req, res, next) => {
+                console.error('🔥 [Global Error Handler]', err);
+                const statusCode = err.statusCode || 500;
+                res.status(statusCode).json({
+                    error: true,
+                    message: err.message || 'Internal Server Error',
+                    code: err.code || 'INTERNAL_ERROR',
+                    // Omit stack trace in production for security
+                    stack: process.env.NODE_ENV === 'production' ? undefined : err.stack
+                });
+            });
+
+            // 10. Startup Logic
+            presenceService.startPeriodicSync(300000); // 5 min
+
+            const PORT = process.env.PORT || 3001;
+            server.listen(PORT, () => {
+                console.log(`
 🚀 ÁXIS SERVER STARTED IN MODULAR MODE
 📍 Port: ${PORT}
 🛠️  WAHA: ${wahaUrl}
 🧠  Gemini: ${process.env.GEMINI_API_KEY ? 'CONNECTED' : 'MISSING'}
         `);
-    });
+            });
 
-    // Handle Graceful Shutdown
-    const shutdown = async () => {
-        console.log('🛑 SIGTERM/SIGINT received. Shutting down...');
+            // Handle Graceful Shutdown
+            const shutdown = async () => {
+                console.log('🛑 SIGTERM/SIGINT received. Shutting down...');
 
-        // Stop periodic tasks
-        presenceService.stopPeriodicSync();
+                // Stop periodic tasks
+                presenceService.stopPeriodicSync();
 
-        // Close Queue connections
-        await queueService.shutdown();
+                // Close Queue connections
+                await queueService.shutdown();
 
-        // Close Server
-        server.close(() => {
-            console.log('✅ HTTP Server closed.');
-            process.exit(0);
-        });
+                // Close Server
+                server.close(() => {
+                    console.log('✅ HTTP Server closed.');
+                    process.exit(0);
+                });
 
-        // Force close if hangs
-        setTimeout(() => {
-            console.error('⚠️ Could not close connections in time, forcefully shutting down');
+                // Force close if hangs
+                setTimeout(() => {
+                    console.error('⚠️ Could not close connections in time, forcefully shutting down');
+                    process.exit(1);
+                }, 10000);
+            };
+
+            process.on('SIGTERM', shutdown);
+            process.on('SIGINT', shutdown);
+        }
+
+        bootstrap().catch(err => {
+            console.error('CRITICAL: Server failed to bootstrap:', err);
             process.exit(1);
-        }, 10000);
-    };
-
-    process.on('SIGTERM', shutdown);
-    process.on('SIGINT', shutdown);
-}
-
-bootstrap().catch(err => {
-    console.error('CRITICAL: Server failed to bootstrap:', err);
-    process.exit(1);
-});
+        });

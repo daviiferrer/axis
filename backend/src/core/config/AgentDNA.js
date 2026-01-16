@@ -45,6 +45,30 @@ const DeviceProfile = {
     MOBILE: 'MOBILE'
 };
 
+// --- 7. Identity & Roles (Source of Truth) ---
+const Identity = {
+    Role: {
+        SDR: 'Sales Development Representative',
+        SUPPORT: 'Customer Support Specialist',
+        EXECUTIVE: 'Account Executive',
+        ONBOARDING: 'Onboarding Specialist',
+        CONSULTANT: 'Technical Consultant'
+    }
+};
+
+// --- 8. Sales & Qualification ---
+const SalesMethodology = {
+    Framework: { SPIN: 'SPIN', BANT: 'BANT', GPCT: 'GPCT', MEDDIC: 'MEDDIC' },
+    QualificationSlots: {
+        NEED: 'need',
+        BUDGET: 'budget',
+        AUTHORITY: 'authority',
+        TIMELINE: 'timeline',
+        SOLUTION: 'solution',
+        TIMING: 'timing'
+    }
+};
+
 // ------------------------------------------------------------------
 // TRANSLATION LAYER: Abstract ENUMs -> Concrete Engine Physics
 // ------------------------------------------------------------------
@@ -140,6 +164,7 @@ function resolveDNA(dnaConfig) {
 
 module.exports = {
     Big5, PAD, Linguistics, Chronemics, Control, DeviceProfile,
+    Identity, SalesMethodology,
     resolveDNA,
     PAD_INTERPRETATION: _PAD_INTERPRETATION,
     EMOTIONAL_INSTRUCTIONS: _EMOTIONAL_INSTRUCTIONS,

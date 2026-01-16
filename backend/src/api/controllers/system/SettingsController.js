@@ -7,6 +7,19 @@ class SettingsController {
         this.wahaClient = wahaClient;
     }
 
+    async getSettings(req, res) {
+        try {
+            const { userId } = req.query; // Or from auth middleware // TODO: standardized auth access
+            // Logic: Get global settings, or user specific if needed.
+            // For Super Admin, we usually want the global one row.
+            const settings = await this.settingsService.getSettings(userId);
+            res.json(settings || {});
+        } catch (error) {
+            console.error('[SettingsController] Get Error:', error);
+            res.status(500).json({ error: 'Failed to fetch settings' });
+        }
+    }
+
     async saveSettings(req, res) {
         try {
             const { userId, settings } = req.body;

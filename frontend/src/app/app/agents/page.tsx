@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Search, Bot, Plus } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -8,45 +8,33 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-
-// Type definition (move to service later)
-export interface Agent {
-    id: string
-    name: string
-    description: string
-    status: 'active' | 'inactive' | 'draft'
-    type: 'chat_flow' | 'autonomous'
-    updatedAt: string
-}
-
-// Mock data
-const MOCK_AGENTS: Agent[] = [
-    {
-        id: '1',
-        name: 'Atendente Nível 1',
-        description: 'Triagem inicial de clientes e respostas frequentes.',
-        status: 'active',
-        type: 'chat_flow',
-        updatedAt: '2024-03-10T10:00:00Z'
-    },
-    {
-        id: '2',
-        name: 'Agente de Vendas',
-        description: 'Fluxo focado em conversão e agendamento de reuniões.',
-        status: 'draft',
-        type: 'autonomous',
-        updatedAt: '2024-03-12T15:30:00Z'
-    }
-]
+import { agentService, Agent } from "@/services/agentService"
+import { toast } from "sonner"
 
 export default function AgentsPage() {
-    const [agents, setAgents] = useState<Agent[]>(MOCK_AGENTS)
-    const [isLoading, setIsLoading] = useState(false)
+    const [agents, setAgents] = useState<Agent[]>([])
+    const [isLoading, setIsLoading] = useState(true)
     const [search, setSearch] = useState("")
+
+    useEffect(() => {
+        loadAgents();
+    }, []);
+
+    const loadAgents = async () => {
+        try {
+            const data = await agentService.list();
+            setAgents(data);
+        } catch (error) {
+            console.error("Failed to load agents", error);
+            toast.error("Erro ao carregar agentes");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const filteredAgents = agents.filter(a =>
         a.name.toLowerCase().includes(search.toLowerCase()) ||
-        a.description.toLowerCase().includes(search.toLowerCase())
+        (a.description || '').toLowerCase().includes(search.toLowerCase())
     )
 
     return (
@@ -121,18 +109,18 @@ export default function AgentsPage() {
                                     {agent.name}
                                 </CardTitle>
                                 <CardDescription className="line-clamp-2 min-h-[40px]">
-                                    {agent.description}
+                                    {agent.description || 'Sem descrição'}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div className="text-xs text-muted-foreground">
-                                    Atualizado em {new Date(agent.updatedAt).toLocaleDateString('pt-BR')}
+                                    Atualizado em {agent.updated_at ? new Date(agent.updated_at).toLocaleDateString('pt-BR') : '-'}
                                 </div>
                             </CardContent>
                             <CardFooter>
                                 <Button asChild variant="secondary" className="w-full font-medium group-hover:bg-blue-50 group-hover:text-blue-700 transition-colors">
                                     <Link href={`/app/agents/${agent.id}`}>
-                                        Editar Fluxo
+                                        Editar Agente
                                     </Link>
                                 </Button>
                             </CardFooter>

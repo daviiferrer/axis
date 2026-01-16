@@ -3,15 +3,21 @@ const { ApifyClient } = require('apify-client');
 const logger = require('../../../../shared/Logger').createModuleLogger('apify-provider');
 
 class ApifyProvider extends ScraperProvider {
-    constructor() {
+    constructor(settingsService) {
         super('Apify');
-        this.client = new ApifyClient({ token: process.env.APIFY_TOKEN });
+        this.settingsService = settingsService;
         this.CONTENT_CRAWLER_ACTOR = 'apify/website-content-crawler';
         this.MAX_PAGES = 5;
     }
 
     async scrape(url, options = {}) {
         logger.info({ url }, 'Starting scraping via Apify');
+
+        // Fetch API Key System-Wide (or User specific if userId provided in opts)
+        const token = await this.settingsService.getProviderKey(options.userId || null, 'apify'); // Assuming 'apify' key mapping exists
+        if (!token) throw new Error('Apify Token not configured in System Settings');
+
+        this.client = new ApifyClient({ token }); // Create client on demand or cache it
 
         try {
             // Run crawler

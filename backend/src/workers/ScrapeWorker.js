@@ -1,15 +1,4 @@
-const scraperOrchestrator = require('../core/services/extraction/ScraperOrchestrator');
-const socketService = require('../shared/SocketService');
-const logger = require('../shared/Logger').createModuleLogger('scrape-worker');
-
-/**
- * Scrape Worker Processor
- * 
- * Handles jobs from the 'scrape-requests' queue.
- * - Executes scraping via Orchestrator
- * - Emits real-time progress events via SocketService
- */
-module.exports = async (job) => {
+module.exports = (scraperOrchestrator) => async (job) => {
     const { url, leadId, campaignId, userId } = job.data;
 
     logger.info({ jobId: job.id, url }, 'Worker started processing scrape job');

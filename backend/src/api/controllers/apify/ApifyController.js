@@ -35,9 +35,15 @@ const ACTOR_CATALOG = {
 };
 
 class ApifyController {
-    constructor(supabase) {
-        this.client = new ApifyClient({ token: process.env.APIFY_TOKEN });
+    constructor(supabase, settingsService) {
         this.supabase = supabase;
+        this.settingsService = settingsService;
+    }
+
+    async getClient(userId) {
+        const token = await this.settingsService.getProviderKey(userId, 'apify');
+        if (!token) throw new Error('Apify API Token not configured');
+        return new ApifyClient({ token });
     }
 
     /**
@@ -69,8 +75,11 @@ class ApifyController {
 
             logger.info({ actorKey, actorId: actor.id, campaignId }, 'Starting extraction');
 
+            // Get dynamic client
+            const client = await this.getClient(req.user?.id);
+
             // Start the actor run
-            const run = await this.client.actor(actor.id).start(input, {
+            const run = await client.actor(actor.id).start(input, {
                 webhooks: webhookUrl ? [{
                     eventTypes: ['ACTOR.RUN.SUCCEEDED', 'ACTOR.RUN.FAILED'],
                     requestUrl: webhookUrl

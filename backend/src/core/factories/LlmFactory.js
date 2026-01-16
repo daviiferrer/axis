@@ -41,7 +41,7 @@ class LlmFactory {
 
         // Get default model from settings
         const settings = await this.settingsService.getSettings(userId);
-        const defaultModel = settings?.default_gemini_model || process.env.DEFAULT_GEMINI_MODEL;
+        const defaultModel = settings?.default_gemini_model || 'gemini-1.5-flash';
 
         // Create client based on provider
         const client = await this.#createClient(provider, apiKey, { defaultModel });

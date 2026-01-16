@@ -82,7 +82,9 @@ class SettingsService {
             'gemini': 'gemini_api_key',
             'openai': 'openai_api_key',
             'anthropic': 'anthropic_api_key',
-            'claude': 'anthropic_api_key'
+            'claude': 'anthropic_api_key',
+            'apify': 'apify_token',
+            'meta': 'meta_capi_token'
         };
         return keyMap[provider?.toLowerCase()] || 'gemini_api_key';
     }

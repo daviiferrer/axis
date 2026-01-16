@@ -41,7 +41,8 @@ export function SimulatorDialog({ isOpen, onOpenChange }: SimulatorDialogProps) 
         setIsSending(true);
 
         try {
-            await devService.simulateMessage(phoneNumber, text);
+            // Use Direct Webhook trigger
+            await devService.simulateWebhook(phoneNumber, text);
             await mutate(); // Refresh messages immediately
         } catch (error) {
             console.error('Failed to send message:', error);
