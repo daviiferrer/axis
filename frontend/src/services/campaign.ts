@@ -29,6 +29,7 @@ export interface Campaign {
     session_id?: string;
     created_at: string;
     updated_at: string;
+    type: 'inbound' | 'outbound';
     stats?: {
         sent: number;
         responded: number;
@@ -57,7 +58,7 @@ export const campaignService = {
         return response.data;
     },
 
-    createCampaign: async (data: { name: string; description?: string; session_id?: string }) => {
+    createCampaign: async (data: { name: string; description?: string; session_id?: string; type?: string }) => {
         const response = await api.post('/', data);
         return response.data.campaign; // Assuming backend returns { success: true, campaign: ... }
     },

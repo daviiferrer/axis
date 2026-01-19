@@ -222,7 +222,7 @@ class AgentNode {
     async handleHandoff(lead, campaign, reason) {
         console.warn(`[AgentNode] Handoff required for lead ${lead.id}: ${reason}`);
 
-        await this.supabase.from('campaign_leads').update({
+        await this.supabase.from('leads').update({
             status: 'manual_intervention',
             updated_at: new Date().toISOString()
         }).eq('id', lead.id);

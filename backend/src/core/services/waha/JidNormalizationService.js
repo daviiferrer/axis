@@ -85,7 +85,7 @@ class JidNormalizationService {
 
     async findInDb(phone) {
         let { data: contact } = await this.supabase
-            .from('campaign_leads')
+            .from('leads')
             .select('phone')
             .eq('phone', phone)
             .limit(1)
@@ -96,11 +96,11 @@ class JidNormalizationService {
         if (phone.startsWith('55')) {
             if (phone.length === 13) {
                 const legacy = phone.slice(0, 4) + phone.slice(5);
-                ({ data: contact } = await this.supabase.from('campaign_leads').select('phone').eq('phone', legacy).maybeSingle());
+                ({ data: contact } = await this.supabase.from('leads').select('phone').eq('phone', legacy).maybeSingle());
                 if (contact) return `${contact.phone}@s.whatsapp.net`;
             } else if (phone.length === 12) {
                 const modern = phone.slice(0, 4) + '9' + phone.slice(4);
-                ({ data: contact } = await this.supabase.from('campaign_leads').select('phone').eq('phone', modern).maybeSingle());
+                ({ data: contact } = await this.supabase.from('leads').select('phone').eq('phone', modern).maybeSingle());
                 if (contact) return `${contact.phone}@s.whatsapp.net`;
             }
         }

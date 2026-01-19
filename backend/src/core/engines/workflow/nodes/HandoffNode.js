@@ -25,7 +25,7 @@ class HandoffNode {
             }
 
             // Transfer Lead to New Campaign
-            const { error } = await this.supabase.from('campaign_leads').update({
+            const { error } = await this.supabase.from('leads').update({
                 campaign_id: targetCampaignId,
                 current_node_id: null, // Reset to allow entry node pickup
                 status: 'new',         // Reset status to new for processing
@@ -81,7 +81,7 @@ class HandoffNode {
             }
 
             // 2. Update status
-            await this.supabase.from('campaign_leads').update({
+            await this.supabase.from('leads').update({
                 status: 'manual_intervention',
                 updated_at: new Date().toISOString(),
                 node_variables: { last_handoff_summary: summary } // Persist summary

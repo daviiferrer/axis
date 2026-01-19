@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { AppSidebar } from "@/components/app-sidebar"
+import { OnboardingModal } from "@/components/app/OnboardingModal"
 
 export default function AppLayout({
     children,
@@ -44,6 +45,9 @@ export default function AppLayout({
                     {children}
                 </div>
             </main>
+
+            {/* GLOBAL ONBOARDING MODAL */}
+            <OnboardingModal />
         </div>
     )
 }

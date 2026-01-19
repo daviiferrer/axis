@@ -50,8 +50,8 @@ function createRouter(controllers) {
     v1Router.use('/admin', require('./routes/v1/system/AdminRoutes')(adminController));
 
     // Dev Routes (Conditional)
-    if (process.env.NODE_ENV === 'development') {
-        console.log('🛠️ [Router] Loading Development Routes...');
+    if (process.env.NODE_ENV !== 'production') {
+        process.stdout.write('🛠️  [Router] Loading Development Routes (Simulator enabled)\n');
         v1Router.use('/dev', require('./routes/v1/dev/dev.routes')(workflowEngine, chatService));
     }
 

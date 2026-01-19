@@ -46,6 +46,7 @@ class CampaignService {
                 name: campaignData.name,
                 description: campaignData.description,
                 session_id: campaignData.session_id,
+                type: campaignData.type || 'inbound', // Default to inbound
                 status: 'draft'
             })
             .select()
@@ -196,7 +197,7 @@ class CampaignService {
         // Logic to calculate stats (leads, responses, conversions)
         // This is a placeholder for actual complex query or RPC
         const { data: leads } = await this.supabase
-            .from('campaign_leads')
+            .from('leads')
             .select('status')
             .eq('campaign_id', campaignId);
 

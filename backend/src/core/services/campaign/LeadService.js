@@ -8,7 +8,7 @@ class LeadService {
 
     async getLead(leadId) {
         const { data, error } = await this.supabase
-            .from('campaign_leads')
+            .from('leads')
             .select('*, campaigns(*, agents(*))')
             .eq('id', leadId)
             .single();
@@ -23,7 +23,7 @@ class LeadService {
 
     async updateLead(leadId, updates) {
         const { data, error } = await this.supabase
-            .from('campaign_leads')
+            .from('leads')
             .update({ ...updates, updated_at: new Date().toISOString() })
             .eq('id', leadId)
             .select()
@@ -35,7 +35,7 @@ class LeadService {
 
     async transitionToNode(leadId, nodeId, campaignId = null) {
         const { data, error } = await this.supabase
-            .from('campaign_leads')
+            .from('leads')
             .update({
                 current_node_id: nodeId,
                 node_state: { entered_at: new Date().toISOString() }
@@ -50,7 +50,7 @@ class LeadService {
 
     async markNodeExecuted(leadId, nodeState) {
         const { data, error } = await this.supabase
-            .from('campaign_leads')
+            .from('leads')
             .update({
                 node_state: { ...nodeState, executed: true }
             })
@@ -67,7 +67,7 @@ class LeadService {
 
         // Leads that don't have a scheduled_at OR where scheduled_at <= now
         const { data, error } = await this.supabase
-            .from('campaign_leads')
+            .from('leads')
             .select('*')
             .eq('campaign_id', campaignId)
             .in('status', ['new', 'pending', 'contacted', 'prospecting', 'negotiating'])
@@ -94,7 +94,7 @@ class LeadService {
         if (sentimentScore < 0.3) score -= 20;
 
         const { data, error } = await this.supabase
-            .from('campaign_leads')
+            .from('leads')
             .update({
                 score: score,
                 updated_at: new Date().toISOString()
@@ -127,7 +127,7 @@ class LeadService {
         }));
 
         const { data, error } = await this.supabase
-            .from('campaign_leads')
+            .from('leads')
             .insert(payload) // Changed to insert to avoid non-existent constraint error
             .select();
 

@@ -355,7 +355,7 @@ export default function ChatsPage() {
 
                 {/* Search & Header */}
                 <div className="p-4 pb-2 bg-white z-10">
-                    <h2 className="font-mono font-bold text-lg mb-4 text-gray-900 tracking-tight">Conversas</h2>
+                    <h2 className="text-2xl font-bold tracking-tight text-gray-900 mb-4 font-inter">Conversas</h2>
 
                     {/* Status Tabs */}
                     <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1 scrollbar-hide">

@@ -26,7 +26,7 @@ class AdsReportingService {
         try {
             // 1. Fetch Lead & Campaign Ad Data
             const { data: lead, error } = await this.supabase
-                .from('campaign_leads')
+                .from('leads')
                 .select('*, campaigns(*)')
                 .eq('id', leadId)
                 .single();

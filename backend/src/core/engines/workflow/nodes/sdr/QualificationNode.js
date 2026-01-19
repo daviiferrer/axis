@@ -45,7 +45,7 @@ class QualificationNode extends AgentNode {
         try {
             // Get current custom_fields
             const { data: lead } = await this.supabase
-                .from('campaign_leads')
+                .from('leads')
                 .select('custom_fields')
                 .eq('id', leadId)
                 .single();
@@ -68,7 +68,7 @@ class QualificationNode extends AgentNode {
             };
 
             await this.supabase
-                .from('campaign_leads')
+                .from('leads')
                 .update({ custom_fields: updatedFields })
                 .eq('id', leadId);
 

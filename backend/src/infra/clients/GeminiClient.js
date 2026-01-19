@@ -13,8 +13,10 @@ const SpintaxService = require('../../core/services/content/SpintaxService');
  */
 class GeminiClient {
     constructor(apiKey) {
-        if (!apiKey) throw new Error("Gemini API Key is required for GeminiClient.");
-        this.genAI = new GoogleGenerativeAI(apiKey);
+        if (!apiKey) {
+            logger.warn("⚠️ GeminiClient initialized without API Key. AI features will fail until configured.");
+        }
+        this.genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
         this.apiKey = apiKey;
 
         // Circuit Breaker configuration
@@ -56,10 +58,16 @@ class GeminiClient {
     }
 
     /**
-     * Valida que um modelo foi fornecido. NÃO há fallback.
+     * Valida que o cliente está pronto e o modelo foi fornecido.
      * O modelo deve vir da tabela `agents.model` no banco de dados.
      */
     _validateModel(modelName, methodName) {
+        if (!this.genAI) {
+            const error = `[GeminiClient.${methodName}] ERRO: API Key não configurada. Configure no Painel Admin.`;
+            logger.error(error);
+            throw new Error(error);
+        }
+
         if (!modelName) {
             const error = `[GeminiClient.${methodName}] ERRO: Modelo não especificado. O modelo DEVE vir da tabela 'agents' no banco de dados.`;
             logger.error(error);

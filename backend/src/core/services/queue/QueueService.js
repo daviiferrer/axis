@@ -80,7 +80,7 @@ class QueueService {
         if (!this.supabase) return true; // Safety bypass if not injected
 
         const { data, error } = await this.supabase
-            .from('campaign_leads')
+            .from('leads')
             .select('last_user_message_at')
             .eq('id', leadId)
             .single();

@@ -43,7 +43,7 @@ class TriggerService {
         try {
             // Find lead and campaign
             const { data: lead, error } = await this.supabase
-                .from('campaign_leads')
+                .from('leads')
                 .select('*, campaigns(*, agents(*))')
                 .or(`phone.eq.${phone},phone.ilike.%${phone.slice(-8)}`)
                 .eq('campaigns.session_name', sessionName)
@@ -121,7 +121,7 @@ class TriggerService {
             }));
 
             const { error: insertError } = await this.supabase
-                .from('campaign_leads')
+                .from('leads')
                 .insert(campaignLeads);
 
             if (insertError) {

@@ -33,7 +33,7 @@ class PresenceService {
 
         try {
             const { data: leads, error } = await this.supabase
-                .from('campaign_leads')
+                .from('leads')
                 .select(`
                     phone,
                     campaign_id,

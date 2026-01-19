@@ -1,7 +1,37 @@
+const { createClient } = require('@supabase/supabase-js');
+
 class WahaSessionController {
     constructor(wahaClient, supabase) {
         this.waha = wahaClient;
         this.supabase = supabase;
+    }
+
+    /**
+     * Creates a Supabase client scoped to the user's request if authorization header is present.
+     * This ensures RLS policies are respected and allows the user to insert/update their own data.
+     */
+    _getRequestClient(req) {
+        const authHeader = req.headers.authorization;
+        // If we have an auth header, we create a new client that passes this header.
+        // This makes Supabase treat the request as "authenticated" = RLS works.
+        if (authHeader) {
+            const sbUrl = process.env.SUPABASE_URL;
+            const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
+            return createClient(sbUrl, sbKey, {
+                global: {
+                    headers: {
+                        Authorization: authHeader
+                    }
+                },
+                auth: {
+                    persistSession: false,
+                    autoRefreshToken: false,
+                    detectSessionInUrl: false
+                }
+            });
+        }
+        // Fallback to the injected client (which might be the server/admin one or generic anon)
+        return this.supabase;
     }
 
     async getSessions(req, res) {
@@ -16,8 +46,9 @@ class WahaSessionController {
                 // AuthMiddleware attaches profile to req.user.profile
                 const companyId = req.user.profile?.company_id;
                 const userId = req.user.id;
+                const supabase = this._getRequestClient(req);
 
-                let query = this.supabase
+                let query = supabase
                     .from('sessions')
                     .select('session_name');
 
@@ -42,13 +73,12 @@ class WahaSessionController {
                 // Filter
                 const filtered = wahaSessions.filter(s => allowedNames.has(s.name));
 
-                // Passive Sync: Update DB status for all fetched sessions ensuring consistency
-                // This handles cases where Waha changed state without a direct API call (e.g. crash, restart, scan complete)
                 if (filtered.length > 0) {
                     process.nextTick(async () => {
                         try {
+                            const supabase = this._getRequestClient(req);
                             for (const s of filtered) {
-                                await this.supabase
+                                await supabase
                                     .from('sessions')
                                     .update({ status: s.status, updated_at: new Date() })
                                     .eq('session_name', s.name);
@@ -103,7 +133,8 @@ class WahaSessionController {
             // If no name provided (or default), try to use Company Name
             if ((!sessionName || sessionName === 'default') && this.supabase && req.user?.profile?.company_id) {
                 try {
-                    const { data: company, error } = await this.supabase
+                    const supabase = this._getRequestClient(req);
+                    const { data: company, error } = await supabase
                         .from('companies')
                         .select('name')
                         .eq('id', req.user.profile.company_id)
@@ -144,25 +175,27 @@ class WahaSessionController {
 
             // 2. Persist in Supabase (Upsert/Check)
             if (this.supabase) {
+                const supabase = this._getRequestClient(req);
                 const userId = req.user?.id;
                 // AuthMiddleware attaches profile to req.user.profile
                 const companyId = req.user.profile?.company_id;
 
                 // Check if it already exists to avoid 500 on duplicate
-                const { data: existing } = await this.supabase
+                const { data: existing } = await supabase
                     .from('sessions')
                     .select('id')
                     .eq('session_name', sessionName)
                     .single();
 
                 if (!existing) {
-                    const { error } = await this.supabase
+                    const { error } = await supabase
                         .from('sessions')
                         .insert({
                             session_name: sessionName,
                             status: 'STOPPED', // Default WAHA state usually
                             created_by: userId,
-                            company_id: companyId
+                            company_id: companyId,
+                            user_id: userId
                         });
 
                     if (error) {
@@ -188,7 +221,8 @@ class WahaSessionController {
 
             // Sync status if present
             if (this.supabase && req.body.status) {
-                await this.supabase
+                const supabase = this._getRequestClient(req);
+                await supabase
                     .from('sessions')
                     .update({ status: req.body.status, updated_at: new Date() })
                     .eq('session_name', req.params.session);
@@ -201,10 +235,11 @@ class WahaSessionController {
     }
 
     // --- Helper for DB Sync ---
-    async _updateDbStatus(sessionName, status) {
-        if (!this.supabase || !sessionName) return;
+    async _updateDbStatus(sessionName, status, client = null) {
+        const db = client || this.supabase;
+        if (!db || !sessionName) return;
         try {
-            await this.supabase
+            await db
                 .from('sessions')
                 .update({ status: status, updated_at: new Date() })
                 .eq('session_name', sessionName);
@@ -220,7 +255,8 @@ class WahaSessionController {
 
             // Sync: Remove from DB
             if (this.supabase) {
-                await this.supabase.from('sessions').delete().eq('session_name', session);
+                const supabase = this._getRequestClient(req);
+                await supabase.from('sessions').delete().eq('session_name', session);
             }
 
             res.json(result);
@@ -232,11 +268,29 @@ class WahaSessionController {
     async startSession(req, res) {
         try {
             const { session } = req.params;
+            console.log(`🚀 [WahaSession] Attempting to start/recover session: ${session}`);
+
+            // 1. Check current status in WAHA
+            try {
+                const current = await this.waha.getSession(session);
+                if (current.status === 'FAILED' || current.status === 'STOPPED') {
+                    console.log(`🛠️ [WahaSession] Session ${session} is ${current.status}. Forcing recovery (Stop -> Start)...`);
+                    await this.waha.stopSession(session).catch(() => { });
+                }
+            } catch (e) {
+                console.warn(`⚠️ [WahaSession] Could not check status before start: ${e.message}`);
+            }
+
             const result = await this.waha.startSession(session);
-            // Sync: WAHA usually returns { name: '...', status: 'STARTING' | 'WORKING' }
-            await this._updateDbStatus(session, result.status || 'STARTING');
+
+            // Sync status to DB
+            const supabase = this._getRequestClient(req);
+            await this._updateDbStatus(session, result.status || 'STARTING', supabase);
+
+            console.log(`✅ [WahaSession] Start command sent for ${session}. New status: ${result.status}`);
             res.json(result);
         } catch (error) {
+            console.error(`❌ [WahaSession] Start FAILED for ${session}:`, error.message);
             res.status(500).json({ error: error.message });
         }
     }
@@ -246,7 +300,8 @@ class WahaSessionController {
             const { session } = req.params;
             const result = await this.waha.stopSession(session);
             // Sync: usually returns { name: '...', status: 'STOPPED' }
-            await this._updateDbStatus(session, result.status || 'STOPPED');
+            const supabase = this._getRequestClient(req);
+            await this._updateDbStatus(session, result.status || 'STOPPED', supabase);
             res.json(result);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -258,7 +313,8 @@ class WahaSessionController {
             const { session } = req.params;
             const result = await this.waha.logoutSession(session);
             // Sync: usually returns { name: '...', status: 'LOGGED_OUT' } or similar?
-            await this._updateDbStatus(session, result.status || 'LOGGED_OUT');
+            const supabase = this._getRequestClient(req);
+            await this._updateDbStatus(session, result.status || 'LOGGED_OUT', supabase);
             res.json(result);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -270,7 +326,8 @@ class WahaSessionController {
             const { session } = req.params;
             const result = await this.waha.restartSession(session);
             // Sync: usually returns { name: '...', status: 'STARTING' }
-            await this._updateDbStatus(session, result.status || 'STARTING');
+            const supabase = this._getRequestClient(req);
+            await this._updateDbStatus(session, result.status || 'STARTING', supabase);
             res.json(result);
         } catch (error) {
             res.status(500).json({ error: error.message });

@@ -82,7 +82,7 @@ class WebhookController {
                         // Updating all active leads for this phone is safer for collision avoidance.
                         const numericPhone = result.phone.replace(/\D/g, '');
                         await this.supabase
-                            .from('campaign_leads')
+                            .from('leads')
                             .update({ last_user_message_at: new Date().toISOString() })
                             .eq('phone', numericPhone);
 

@@ -11,16 +11,16 @@ class AnalyticsService {
                 { count: leadsToday },
                 { count: pendingHuman }
             ] = await Promise.all([
-                this.supabase.from('campaign_leads').select('*', { count: 'exact', head: true }),
-                this.supabase.from('campaign_leads').select('*', { count: 'exact', head: true })
+                this.supabase.from('leads').select('*', { count: 'exact', head: true }),
+                this.supabase.from('leads').select('*', { count: 'exact', head: true })
                     .gte('created_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
-                this.supabase.from('campaign_leads').select('*', { count: 'exact', head: true })
+                this.supabase.from('leads').select('*', { count: 'exact', head: true })
                     .in('status', ['transbordo', 'pending_human', 'manual_intervention'])
             ]);
 
             // 2. Conversion Data
             const { count: convertedCount } = await this.supabase
-                .from('campaign_leads')
+                .from('leads')
                 .select('*', { count: 'exact', head: true })
                 .in('status', ['converted', 'scheduled', 'won']);
 
@@ -46,8 +46,8 @@ class AnalyticsService {
 
                 const countLeadsByCampaigns = async (ids) => {
                     if (ids.length === 0) return { total: 0, responded: 0 };
-                    const { count: total } = await this.supabase.from('campaign_leads').select('*', { count: 'exact', head: true }).in('campaign_id', ids);
-                    const { count: responded } = await this.supabase.from('campaign_leads').select('*', { count: 'exact', head: true }).in('campaign_id', ids).neq('status', 'new');
+                    const { count: total } = await this.supabase.from('leads').select('*', { count: 'exact', head: true }).in('campaign_id', ids);
+                    const { count: responded } = await this.supabase.from('leads').select('*', { count: 'exact', head: true }).in('campaign_id', ids).neq('status', 'new');
                     return { total, responded };
                 };
 
@@ -94,7 +94,7 @@ class AnalyticsService {
             // We fetch all leads to calculate values locally to ensure safety if column missing
             // Ideally we use database SUM() but 'deal_value' might not exist yet.
             const { data: commercialLeads } = await this.supabase
-                .from('campaign_leads')
+                .from('leads')
                 .select('status, deal_value'); // Optimize: fetch only needed columns
 
             let totalRevenue = 0;

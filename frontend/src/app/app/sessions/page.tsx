@@ -211,7 +211,7 @@ export default function SessionsPage() {
             {/* Simple Clean Header */}
             <header className="h-16 px-8 flex items-center justify-between border-b border-gray-200 sticky top-0 bg-white z-10">
                 <div className="flex items-center gap-3">
-                    <h1 className="font-mono font-bold text-lg text-gray-900 tracking-tight">Sessões do WhatsApp</h1>
+                    <h1 className="text-2xl font-bold tracking-tight text-gray-900 font-inter">Sessões do WhatsApp</h1>
                 </div>
 
                 <div className="flex items-center gap-2">

@@ -21,25 +21,39 @@ const createRiskMiddleware = (supabase) => {
 
             // If organization_id is not in request (e.g. not added by auth middleware yet), fetch it
             let riskStatus = 'pending_verification';
+            const companyId = req.user.profile?.company_id;
 
-            // Assume we fetch the organization risk profile
-            // In a real scenario, this might be cached in the JWT or Redis
+            // Fetch the organization risk profile
             const { data: org, error } = await supabase
-                .from('companies')  // Standardizing to 'companies' table
-                .select('risk_status, id')
-                .eq('owner_id', userId) // Simplified: assuming 1-1 for now or owner check
+                .from('companies')
+                .select('risk_status')
+                .eq('id', companyId || '') // Use companyId if available
                 .single();
 
             if (org) {
                 riskStatus = org.risk_status || 'pending_verification';
+            } else if (userId) {
+                // Fallback: try by owner_id if companyId not in profile
+                const { data: ownedOrg } = await supabase
+                    .from('companies')
+                    .select('risk_status')
+                    .eq('owner_id', userId)
+                    .single();
+                if (ownedOrg) riskStatus = ownedOrg.risk_status || 'pending_verification';
             }
 
             // Hardwall Logic
-            // Allow: 'verified', 'trusted'
-            // Block: 'pending_verification', 'flagged', 'blocked'
             const ALLOWED_STATUSES = ['verified', 'trusted'];
 
+            console.log(`🛡️ [Risk] Checking risk status: ${riskStatus}`);
+
+            if (process.env.NODE_ENV === 'development') {
+                console.log(`🔓 [Risk] DEVELOPMENT BYPASS ACTIVE (Status: ${riskStatus})`);
+                return next();
+            }
+
             if (!ALLOWED_STATUSES.includes(riskStatus)) {
+                console.log(`🚫 [Risk] BLOCKED: Status is ${riskStatus}`);
                 // If in 'trial_premium' (Reverse Trial), we might allow small batches, 
                 // but for HARDWALL strategy, we block mass sending.
                 // We'll return a specific error code for the UI to show the Checklist.

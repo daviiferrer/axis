@@ -113,12 +113,12 @@ class WorkflowEngine {
                     logger.info({ referral }, '💾 Updating Ad Context (Professional Columns) for Existing Lead');
                 }
 
-                await this.supabase.from('campaign_leads').update(updatePayload).eq('phone', cleanPhone);
+                await this.supabase.from('leads').update(updatePayload).eq('phone', cleanPhone);
             }
 
             // 2. Find lead by phone
             let { data: leads, error: findError } = await this.supabase
-                .from('campaign_leads')
+                .from('leads')
                 .select('*, campaigns(*, agents(*))')
                 .eq('phone', cleanPhone)
                 .limit(1);
@@ -158,7 +158,7 @@ class WorkflowEngine {
 
                 // Create the lead
                 const { data: newLead, error: createError } = await this.supabase
-                    .from('campaign_leads')
+                    .from('leads')
                     .insert({
                         phone: cleanPhone,
                         name: 'Novo Lead',
@@ -228,7 +228,7 @@ class WorkflowEngine {
 
             // Update lead presence in DB (optional, for analytics)
             const { data: lead } = await this.supabase
-                .from('campaign_leads')
+                .from('leads')
                 .select('id, name, campaign_id')
                 .eq('phone', phone)
                 .single();
@@ -271,14 +271,24 @@ class WorkflowEngine {
                 if (!currentNodeId) {
                     const entryNode = graph.nodes.find(n => n.type === 'leadEntry');
                     if (entryNode) {
-                        // CHECK SOURCE PERMISSION
-                        const allowedSources = entryNode.data?.allowedSources || ['imported', 'inbound']; // Default allow all
-                        const leadSource = lead.source || 'imported'; // Default legacy to imported
+                        // --- STRICT TYPE ENFORCEMENT (Professional SaaS) ---
+                        const leadSource = lead.source || 'imported';
+                        const campaignType = fullCampaign.type || 'inbound'; // Default to inbound if missing
+
+                        // 1. Inbound Campaigns (Ads) should NOT process Cold Leads (Apify) automatically
+                        if (campaignType === 'inbound' && (leadSource === 'imported' || leadSource === 'apify')) {
+                            logger.warn({ leadId: lead.id, source: leadSource, campaignType }, '⛔ Strict Block: Cold Lead in Inbound Campaign');
+                            break;
+                        }
+
+                        // 2. Outbound Campaigns (Cold) usually expect Imported leads
+                        // (We allow Inbound in Outbound if they reply, but initial entry might differ)
+
+                        // 3. Node-Level Logic (Legacy)
+                        const allowedSources = entryNode.data?.allowedSources || ['imported', 'inbound', 'ad_click', 'apify'];
 
                         if (!allowedSources.includes(leadSource)) {
-                            logger.warn({ leadId: lead.id, source: leadSource }, '⛔ Lead Entry rejected due to source filter');
-                            // We shouldn't process this lead further in this flow.
-                            // Maybe mark as 'rejected' or just stop.
+                            logger.warn({ leadId: lead.id, source: leadSource }, '⛔ Lead Entry rejected due to node source filter');
                             break;
                         }
 
@@ -320,7 +330,7 @@ class WorkflowEngine {
                 if (result.nodeState) {
                     const mergedState = { ...(lead.node_state || {}), ...result.nodeState };
                     await this.supabase
-                        .from('campaign_leads')
+                        .from('leads')
                         .update({ node_state: mergedState })
                         .eq('id', lead.id);
                     lead.node_state = mergedState;
@@ -418,7 +428,7 @@ class WorkflowEngine {
             logger.info({ leadId, jobId: job.id }, '🧠 Processing AI generation job');
 
             const { data: lead } = await this.supabase
-                .from('campaign_leads')
+                .from('leads')
                 .select('*, campaigns(*)')
                 .eq('id', leadId)
                 .single();
@@ -580,7 +590,7 @@ class WorkflowEngine {
 
         // Fetch full lead
         const { data: lead } = await this.supabase
-            .from('campaign_leads')
+            .from('leads')
             .select('*')
             .eq('id', instance.lead_id)
             .single();

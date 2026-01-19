@@ -147,7 +147,7 @@ class AgenticNode extends AgentNode {
         const tempLabel = newTemperature > 0.7 ? '🔥 HOT' : newTemperature > 0.4 ? '🌡️ WARM' : '❄️ COLD';
         logger.info({ leadId: lead.id, oldTemp: currentTemp, newTemp: newTemperature, label: tempLabel }, '🌡️ Lead Temperature Updated');
 
-        await this.supabase.from('campaign_leads').update({
+        await this.supabase.from('leads').update({
             temperature: newTemperature,
             last_sentiment: response.sentiment_score,
             last_message_at: new Date().toISOString()
@@ -158,7 +158,7 @@ class AgenticNode extends AgentNode {
             for (const action of response.crm_actions) {
                 if (action.action === 'request_handoff') {
                     logger.info({ leadId: lead.id, reason: action.reason }, '🚫️ HANDOFF REQUESTED - Pausing AI');
-                    await this.supabase.from('campaign_leads').update({
+                    await this.supabase.from('leads').update({
                         status: 'handoff_requested',
                         custom_fields: { ...lead.custom_fields, handoff_reason: action.reason }
                     }).eq('id', lead.id);

@@ -65,7 +65,11 @@ class WahaClient {
     }
 
     #getUrl(path) {
-        return `${this.baseUrl}${path}`;
+        const url = `${this.baseUrl}${path}`;
+        if (process.env.NODE_ENV === 'development') {
+            console.log(`📡 [WAHA Client] ${url}`);
+        }
+        return url;
     }
 
     async getSessions(all = false) {
