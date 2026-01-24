@@ -5,9 +5,9 @@
 const logger = require('../../../../shared/Logger').createModuleLogger('broadcast-node');
 
 class BroadcastNode {
-    constructor({ wahaClient, supabase }) {
+    constructor({ wahaClient, supabaseClient }) {
         this.wahaClient = wahaClient;
-        this.supabase = supabase;
+        this.supabase = supabaseClient;
     }
 
     async execute(lead, campaign, nodeConfig) {

@@ -64,13 +64,24 @@ class CampaignController {
         }
     }
 
+    async deleteCampaign(req, res) {
+        try {
+            const { id } = req.params;
+            await this.campaignService.deleteCampaign(id);
+            res.json({ success: true });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    }
+
     async getFlow(req, res) {
         try {
             const { id } = req.params;
             const flow = await this.campaignService.getFlow(id);
             res.json(flow);
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            console.error('[CampaignController] getFlow Error:', error);
+            res.status(500).json({ error: error.message, stack: error.stack });
         }
     }
 
@@ -82,7 +93,8 @@ class CampaignController {
             const result = await this.campaignService.saveFlow(id, flowData);
             res.json({ success: true, flow: result });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            console.error('[CampaignController] saveFlow Error:', error);
+            res.status(500).json({ error: error.message, stack: error.stack });
         }
     }
 

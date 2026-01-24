@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -13,6 +13,7 @@ interface AuthContextType {
     signUpWithEmail: (email: string, password: string, name: string) => Promise<{ error: any }>
     signInWithGoogle: () => Promise<{ error: any }>
     signOut: () => Promise<void>
+    refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -23,6 +24,7 @@ const AuthContext = createContext<AuthContextType>({
     signUpWithEmail: async () => ({ error: null }),
     signInWithGoogle: async () => ({ error: null }),
     signOut: async () => { },
+    refreshProfile: async () => { },
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -31,54 +33,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true)
     const router = useRouter()
 
-    useEffect(() => {
-        const fetchUserWithProfile = async (session: Session | null) => {
-            if (session?.user) {
-                try {
-                    // Fetch extra profile data
-                    const { data: profile, error: profileError } = await supabase
-                        .from('profiles')
-                        .select('company_id, is_super_admin')
-                        .eq('id', session.user.id)
+    const fetchUserWithProfile = useCallback(async (currentSession: Session | null) => {
+        if (currentSession?.user) {
+            try {
+                // Fetch extra profile data
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('company_id, role')
+                    .eq('id', currentSession.user.id)
+                    .maybeSingle()
+
+                if (profileError) {
+                    console.error('[AuthContext] Error fetching profile:', profileError.message)
+                }
+
+                let companyId = profile?.company_id
+
+                // Fallback: Check if user owns a company directly
+                if (!companyId) {
+                    const { data: ownedCompany } = await supabase
+                        .from('companies')
+                        .select('id')
+                        .eq('owner_id', currentSession.user.id)
                         .maybeSingle()
 
-                    if (profileError) {
-                        console.error('[AuthContext] Error fetching profile:', profileError.message)
+                    if (ownedCompany) {
+                        companyId = ownedCompany.id
                     }
-
-                    let companyId = profile?.company_id
-
-                    // Fallback: Check if user owns a company directly
-                    if (!companyId) {
-                        const { data: ownedCompany } = await supabase
-                            .from('companies')
-                            .select('id')
-                            .eq('owner_id', session.user.id)
-                            .maybeSingle()
-
-                        if (ownedCompany) {
-                            companyId = ownedCompany.id
-                        }
-                    }
-
-                    // Construct final user object with profile data
-                    const userWithProfile = {
-                        ...session.user,
-                        company_id: companyId,
-                        is_super_admin: profile?.is_super_admin || false
-                    }
-
-                    setUser(userWithProfile as User & { company_id?: string, is_super_admin?: boolean })
-                } catch (error) {
-                    console.error('[AuthContext] Unexpected error fetching profile:', error)
-                    setUser(session.user)
                 }
-            } else {
-                setUser(null)
-            }
-            setLoading(false)
-        }
 
+                // Construct final user object with profile data
+                const userWithProfile = {
+                    ...currentSession.user,
+                    company_id: companyId,
+                    role: profile?.role || 'owner'
+                }
+
+                setUser(userWithProfile as User & { company_id?: string, role: string })
+            } catch (error) {
+                console.error('[AuthContext] Unexpected error fetching profile:', error)
+                setUser(currentSession.user)
+            }
+        } else {
+            setUser(null)
+        }
+        setLoading(false)
+    }, [])
+
+    const refreshProfile = async () => {
+        const { data: { session: currentSession } } = await supabase.auth.getSession()
+        if (currentSession) {
+            await fetchUserWithProfile(currentSession)
+        }
+    }
+
+    useEffect(() => {
         // 1. Initial Session Check
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session)
@@ -95,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => {
             subscription.unsubscribe()
         }
-    }, [])
+    }, [fetchUserWithProfile])
 
     const signInWithEmail = async (email: string, password: string) => {
         const { error } = await supabase.auth.signInWithPassword({
@@ -113,18 +122,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { error } = await supabase.auth.signUp({
             email,
             password,
-            options: {
-                data: {
-                    full_name: name,
-                },
-            },
         })
         return { error }
     }
 
     const signOut = async () => {
         await supabase.auth.signOut()
+        setUser(null)
+        setSession(null)
+
+        // Nuclear cleanup to fix persistent session issues
+        if (typeof window !== 'undefined') {
+            localStorage.clear();
+            sessionStorage.clear();
+            // Also explicitly clear cookie if any? Supabase-js uses storage.
+        }
+
         router.push('/auth/login')
+        window.location.reload();
     }
 
     const signInWithGoogle = async () => {
@@ -138,7 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     return (
-        <AuthContext.Provider value={{ user, session, loading, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut }}>
+        <AuthContext.Provider value={{ user, session, loading, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, refreshProfile }}>
             {children}
         </AuthContext.Provider>
     )

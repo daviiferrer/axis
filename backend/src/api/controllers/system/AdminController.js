@@ -2,8 +2,8 @@
  * AdminController - Handles administrative operations.
  */
 class AdminController {
-    constructor(supabaseClient, wahaClient) {
-        this.supabase = supabaseClient;
+    constructor(supabaseAdmin, wahaClient) {
+        this.supabase = supabaseAdmin;
         this.wahaClient = wahaClient;
     }
 
@@ -39,7 +39,7 @@ class AdminController {
             const { data: { users }, error } = await this.supabase.auth.admin.listUsers();
             if (error) throw error;
 
-            const { data: profiles } = await this.supabase.from('profiles').select('id, role, is_super_admin');
+            const { data: profiles } = await this.supabase.from('profiles').select('id, role');
             const profileMap = new Map(profiles?.map(p => [p.id, p]));
 
             const userList = users.map(u => {
@@ -50,12 +50,35 @@ class AdminController {
                     created_at: u.created_at,
                     last_sign_in_at: u.last_sign_in_at,
                     banned: !!u.banned_until,
-                    role: profile?.role || 'user',
-                    is_super_admin: profile?.is_super_admin || false
+                    role: profile?.role || 'owner' // Default to owner/customer if missing profile
                 };
             });
 
             res.json(userList);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    }
+
+    async updateUserRole(req, res) {
+        try {
+            const { id } = req.params;
+            const { role } = req.body;
+
+            if (!['admin', 'owner', 'member'].includes(role)) {
+                return res.status(400).json({ error: 'Invalid role. Must be admin, owner, or member.' });
+            }
+
+            const { data, error } = await this.supabase
+                .from('profiles')
+                .update({ role })
+                .eq('id', id)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            res.json(data);
         } catch (error) {
             res.status(500).json({ error: error.message });
         }

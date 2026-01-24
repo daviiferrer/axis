@@ -4,76 +4,72 @@
  * Blocks access to high-risk endpoints (e.g., mass campaign sending)
  * if the organization is not verified.
  * 
- * Logic:
- * 1. Checks req.user.organization_id (assuming populated by authMiddleware)
- * 2. Queries Supabase for 'risk_status'
- * 3. If 'pending_verification' or 'blocked', returns 403.
+ * Assumes authMiddleware has already run.
  */
-const createRiskMiddleware = (supabase) => {
-    return async (req, res, next) => {
-        try {
-            const userId = req.user?.id;
-            const organizationId = req.user?.organization_id; // Usually from JWT or looked up
-
-            if (!userId) {
-                return res.status(401).json({ error: 'Unauthorized' });
-            }
-
-            // If organization_id is not in request (e.g. not added by auth middleware yet), fetch it
-            let riskStatus = 'pending_verification';
-            const companyId = req.user.profile?.company_id;
-
-            // Fetch the organization risk profile
-            const { data: org, error } = await supabase
-                .from('companies')
-                .select('risk_status')
-                .eq('id', companyId || '') // Use companyId if available
-                .single();
-
-            if (org) {
-                riskStatus = org.risk_status || 'pending_verification';
-            } else if (userId) {
-                // Fallback: try by owner_id if companyId not in profile
-                const { data: ownedOrg } = await supabase
-                    .from('companies')
-                    .select('risk_status')
-                    .eq('owner_id', userId)
-                    .single();
-                if (ownedOrg) riskStatus = ownedOrg.risk_status || 'pending_verification';
-            }
-
-            // Hardwall Logic
-            const ALLOWED_STATUSES = ['verified', 'trusted'];
-
-            console.log(`🛡️ [Risk] Checking risk status: ${riskStatus}`);
-
-            if (process.env.NODE_ENV === 'development') {
-                console.log(`🔓 [Risk] DEVELOPMENT BYPASS ACTIVE (Status: ${riskStatus})`);
-                return next();
-            }
-
-            if (!ALLOWED_STATUSES.includes(riskStatus)) {
-                console.log(`🚫 [Risk] BLOCKED: Status is ${riskStatus}`);
-                // If in 'trial_premium' (Reverse Trial), we might allow small batches, 
-                // but for HARDWALL strategy, we block mass sending.
-                // We'll return a specific error code for the UI to show the Checklist.
-                return res.status(403).json({
-                    error: 'Risk verification required.',
-                    code: 'RISK_VERIFICATION_REQUIRED',
-                    current_status: riskStatus,
-                    message: 'Please complete your business verification to unlock mass sending.'
-                });
-            }
-
-            // All good
-            next();
-
-        } catch (err) {
-            console.error('[RiskMiddleware] Error:', err);
-            // Fail safe: Block if error
-            return res.status(500).json({ error: 'Internal risk check failed.' });
+const riskMiddleware = async (req, res, next) => {
+    try {
+        const user = req.user;
+        if (!user) {
+            return res.status(401).json({ error: 'Unauthorized: Auth required for Risk Check' });
         }
-    };
+
+        // 1. Identify Company
+        // AuthMiddleware guarantees req.user.profile.company_id is populated if fallback needed,
+        // or we use the explicit workspace context.
+        const companyId = user.membership?.company_id || user.profile?.company_id;
+
+        if (!companyId) {
+            // If no company context, we can't assess risk.
+            // For system admins, we might bypass?
+            if (user.profile?.role === 'admin') return next();
+
+            return res.status(403).json({ error: 'Risk Check Failed: No Company Context' });
+        }
+
+        // 2. Fetch Risk Status
+        // Use the scoped client from request
+        const supabase = req.supabase;
+
+        const { data: org, error } = await supabase
+            .from('companies')
+            .select('risk_status')
+            .eq('id', companyId)
+            .single();
+
+        if (error || !org) {
+            console.warn(`[Risk] Could not fetch company ${companyId}: ${error?.message}`);
+            // Fail safe: if we can't check, we block high-risk actions? 
+            // Or pending verification.
+            return res.status(403).json({ error: 'Risk Verification Unavailable' });
+        }
+
+        const riskStatus = org.risk_status || 'pending_verification';
+
+        // 3. Hardwall Logic
+        const ALLOWED_STATUSES = ['verified', 'trusted'];
+
+        // DEV BYPASS
+        if (process.env.NODE_ENV === 'development') {
+            // console.log(`🔓 [Risk] DEV PASSTHROUGH (Status: ${riskStatus})`);
+            return next();
+        }
+
+        if (!ALLOWED_STATUSES.includes(riskStatus)) {
+            console.warn(`🚫 [Risk] BLOCKED company ${companyId}: Status ${riskStatus}`);
+            return res.status(403).json({
+                error: 'Risk verification required.',
+                code: 'RISK_VERIFICATION_REQUIRED',
+                current_status: riskStatus,
+                message: 'Please complete business verification.'
+            });
+        }
+
+        next();
+
+    } catch (err) {
+        console.error('[RiskMiddleware] System Error:', err);
+        res.status(500).json({ error: 'Internal Risk Error' });
+    }
 };
 
-module.exports = createRiskMiddleware;
+module.exports = riskMiddleware;

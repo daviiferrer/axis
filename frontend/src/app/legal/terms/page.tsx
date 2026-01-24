@@ -9,7 +9,7 @@ export default function TermsPage() {
                 <div className="max-w-4xl mx-auto px-6 flex items-center justify-between">
                     <Link href="/">
                         <Image
-                            src="/assets/brand/axis-logo.svg"
+                            src="/assets/brand/logo.svg"
                             alt="AXIS Logo"
                             width={120}
                             height={40}

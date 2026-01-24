@@ -1,8 +1,8 @@
 const logger = require('../../../shared/Logger').createModuleLogger('company-service');
 
 class CompanyService {
-    constructor(supabase) {
-        this.supabase = supabase;
+    constructor({ supabaseClient }) {
+        this.supabase = supabaseClient;
     }
 
     /**
@@ -32,21 +32,37 @@ class CompanyService {
             throw new Error(`Failed to create company: ${companyError.message}`);
         }
 
-        // 2. Update User Profile with Company ID and Role
-        const { error: profileError } = await this.supabase
-            .from('profiles')
-            .update({
+        // 3. Create Membership (Owner)
+        // This enables Many-to-Many: User can have multiple companies via memberships
+        const { error: memberError } = await this.supabase
+            .from('memberships')
+            .insert({
+                user_id: userId,
                 company_id: company.id,
-                role: 'owner'
-            })
-            .eq('id', userId);
+                role: 'owner',
+                status: 'active'
+            });
 
-        if (profileError) {
-            // Rollback company creation? For now, just log and throw. 
-            // Ideally should be a transaction, but Supabase JS client doesn't support transactions easily without RPC.
-            logger.error({ error: profileError, companyId: company.id }, 'Failed to link profile to company');
-            // We might want to delete the company here to clean up, but keeping it simple for now.
-            throw new Error(`Failed to link profile: ${profileError.message}`);
+        if (memberError) {
+            logger.error({ error: memberError, companyId: company.id }, 'Failed to create membership');
+            throw new Error(`Failed to create membership: ${memberError.message}`);
+        }
+
+        // 4. Update Profile Default Company (if not set)
+        // We do this to ensure they have a context for legacy logic, but we don't overwrite if they already have one.
+        // Actually, for a clean switch, we might want to switch them to the new company immediately?
+        // Let's just ensure they have *some* company_id set.
+        const { data: currentProfile } = await this.supabase
+            .from('profiles')
+            .select('company_id')
+            .eq('id', userId)
+            .single();
+
+        if (!currentProfile?.company_id) {
+            await this.supabase
+                .from('profiles')
+                .update({ company_id: company.id, role: 'owner' })
+                .eq('id', userId);
         }
 
         logger.info({ userId, companyId: company.id }, 'Company created successfully');

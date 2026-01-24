@@ -40,6 +40,7 @@ export interface WahaChat {
     };
     unreadCount?: number;
     status?: 'PROSPECTING' | 'QUALIFIED' | 'FINISHED'; // Added for UI filtering
+    tags?: string[];
 }
 
 export interface WahaMessage {
@@ -70,6 +71,12 @@ export const wahaService = {
         // name is the 'session' param in URL
         const { data } = await api.delete(`/sessions/${name}`)
         return data
+    },
+
+    deleteChat: async (session: string, chatId: string) => {
+        // Calls the new backend route DELETE /chats/:session/:chatId
+        const { data } = await api.delete(`/chatting/chats/${session}/${chatId}`);
+        return data;
     },
 
     createSession: async (body: any) => {
@@ -122,6 +129,11 @@ export const wahaService = {
 
     sendMessage: async (session: string, chatId: string, text: string) => {
         const response = await api.post(`/chatting/sendText`, { session, chatId, text });
+        return response.data;
+    },
+
+    updateTags: async (session: string, chatId: string, tags: string[]) => {
+        const response = await api.post(`/chat/tags`, { session, chatId, tags });
         return response.data;
     },
 

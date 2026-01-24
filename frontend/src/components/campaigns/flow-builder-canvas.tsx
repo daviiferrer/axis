@@ -34,6 +34,8 @@ import { GotoNode } from './custom-nodes/goto-node';
 import { HandoffNode } from './custom-nodes/handoff-node';
 import { QualificationNode } from './custom-nodes/qualification-node'; // To implement
 
+import { NodeEditorPanel } from './node-editor-panel';
+
 const nodeTypes = {
     trigger: TriggerNode,
     agent: AgentNode,
@@ -43,7 +45,13 @@ const nodeTypes = {
     delay: DelayNode,
     goto: GotoNode,
     handoff: HandoffNode,
-    qualification: AgentNode, // Re-use generic agent layout for now or create specific
+    qualification: AgentNode,
+    outreach: AgentNode,
+    objection: AgentNode,
+    broadcast: ActionNode, // Re-use Action layout but we might want a specific one later
+    closing: ActionNode,   // Re-use Action layout
+    goto_campaign: GotoNode, // Re-use Goto layout or similar
+    // We can also creating specific components if needed, but reuse is faster for now
 };
 
 interface FlowBuilderCanvasProps {
@@ -57,8 +65,37 @@ function FlowBuilderCanvasInner({ campaignId, initialFlow }: FlowBuilderCanvasPr
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialFlow?.edges || []);
     const { screenToFlowPosition, getViewport, setViewport } = useReactFlow();
 
+    const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
+
+    // Initial Viewport
+    // ...
+
+    const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+        setSelectedNodeId(node.id);
+    }, []);
+
+    const handleUpdateNode = useCallback((nodeId: string, newData: any) => {
+        setNodes((nds) =>
+            nds.map((node) => {
+                if (node.id === nodeId) {
+                    // Check if we are mutating the NODE TYPE itself (structural change)
+                    if (newData.type && newData.type !== node.type) {
+                        return {
+                            ...node,
+                            type: newData.type, // Mutate top-level type
+                            data: { ...node.data, ...newData }
+                        };
+                    }
+                    // Normal data update
+                    return { ...node, data: { ...node.data, ...newData } };
+                }
+                return node;
+            })
+        );
+        toast.success('Nó atualizado');
+    }, [setNodes]);
 
     // Initial Viewport
     useEffect(() => {
@@ -154,6 +191,13 @@ function FlowBuilderCanvasInner({ campaignId, initialFlow }: FlowBuilderCanvasPr
                 </Button>
             </div>
 
+            {/* Node Editor Panel */}
+            <NodeEditorPanel
+                selectedNode={nodes.find((n) => n.id === selectedNodeId) || null}
+                onClose={() => setSelectedNodeId(null)}
+                onUpdateNode={handleUpdateNode}
+            />
+
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -162,10 +206,15 @@ function FlowBuilderCanvasInner({ campaignId, initialFlow }: FlowBuilderCanvasPr
                 onConnect={onConnect}
                 onDrop={onDrop}
                 onDragOver={onDragOver}
+                onNodeClick={onNodeClick}
+                onPaneClick={() => setSelectedNodeId(null)}
                 nodeTypes={nodeTypes}
                 fitView={!initialFlow?.nodes?.length}
                 proOptions={{ hideAttribution: true }}
                 defaultEdgeOptions={{ type: 'smoothstep', animated: true }}
+                deleteKeyCode={['Backspace', 'Delete']}
+                multiSelectionKeyCode={['Control', 'Meta', 'Shift']}
+                selectionKeyCode={['Control', 'Meta', 'Shift']}
             >
                 <Controls />
                 <MiniMap />

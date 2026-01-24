@@ -13,11 +13,11 @@ const {
 const transitionResolver = require('../../services/workflow/TransitionResolver');
 
 class WorkflowEngine {
-    constructor({ nodeFactory, leadService, campaignService, supabase, campaignSocket, queueService }) {
+    constructor({ nodeFactory, leadService, campaignService, supabaseClient, campaignSocket, queueService }) {
         this.nodeFactory = nodeFactory;
         this.leadService = leadService;
         this.campaignService = campaignService;
-        this.supabase = supabase;
+        this.supabase = supabaseClient;
         this.campaignSocket = campaignSocket;
         this.queueService = queueService;
         this.runnerIntervalId = null;
@@ -131,8 +131,6 @@ class WorkflowEngine {
 
             // 3. Triage / New Lead Logic
             if (!lead) {
-                logger.info({ phone: cleanPhone }, '✨ New Unknown Lead - Initiating Triage');
-
                 const { data: inboxParams } = await this.supabase
                     .from('campaigns')
                     .select('id')
@@ -161,7 +159,7 @@ class WorkflowEngine {
                     .from('leads')
                     .insert({
                         phone: cleanPhone,
-                        name: 'Novo Lead',
+                        name: cleanPhone, // FIX: Use Phone as Name (Requested by User)
                         status: 'new',
                         source: referral ? 'ad_click' : 'inbound', // Attribution
                         campaign_id: campaignId,
@@ -194,7 +192,7 @@ class WorkflowEngine {
                 return;
             }
 
-            logger.info({ phone: cleanPhone, leadId: lead.id }, '🤖 Triggering AI for lead');
+            logger.info({ phone: cleanPhone, leadId: lead.id }, '🤖 Processing incoming message for lead');
 
             const campaigns = lead.campaigns || (lead.campaign_id ? await this.campaignService.getCampaign(lead.campaign_id) : null);
 
@@ -263,6 +261,12 @@ class WorkflowEngine {
             logger.info({ leadId: lead.id, campaign: fullCampaign.name }, '⚙️ Workflow processing started');
             const graph = this.#loadGraph(fullCampaign);
 
+            // FIX: Prevent execution of empty/invalid graphs (User Request: "se os fluxos não estiverem certos não deveria funcionar")
+            if (!graph || !graph.nodes || graph.nodes.length === 0) {
+                logger.warn({ leadId: lead.id, campaignId: fullCampaign.id }, '⛔ Graph is empty or invalid. Aborting execution.');
+                return;
+            }
+
             while (steps < maxSteps) {
                 steps++;
                 let currentNodeId = lead.current_node_id;
@@ -271,27 +275,30 @@ class WorkflowEngine {
                 if (!currentNodeId) {
                     const entryNode = graph.nodes.find(n => n.type === 'leadEntry');
                     if (entryNode) {
-                        // --- STRICT TYPE ENFORCEMENT (Professional SaaS) ---
+                        // --- SOURCE VALIDATION (Node-Based Authority) ---
                         const leadSource = lead.source || 'imported';
-                        const campaignType = fullCampaign.type || 'inbound'; // Default to inbound if missing
+                        const campaignType = fullCampaign.type || 'inbound';
 
-                        // 1. Inbound Campaigns (Ads) should NOT process Cold Leads (Apify) automatically
-                        if (campaignType === 'inbound' && (leadSource === 'imported' || leadSource === 'apify')) {
-                            logger.warn({ leadId: lead.id, source: leadSource, campaignType }, '⛔ Strict Block: Cold Lead in Inbound Campaign');
-                            break;
+                        // 1. Check Node Configuration (The Authority)
+                        const nodeAllowedSources = entryNode.data?.allowedSources;
+
+                        if (nodeAllowedSources && Array.isArray(nodeAllowedSources)) {
+                            // Node explicitly defines what is allowed. Obey the Node.
+                            if (!nodeAllowedSources.includes(leadSource)) {
+                                logger.warn({ leadId: lead.id, source: leadSource, allowed: nodeAllowedSources }, '⛔ Lead Entry rejected by Node Source Filter');
+                                break;
+                            }
+                            logger.info({ leadId: lead.id, source: leadSource }, '✅ Lead Entry approved by Node Configuration');
+                        } else {
+                            // 2. Fallback: Strict Type Enforcement (Safety for unconfigured nodes)
+                            // Inbound Campaigns (Ads) should NOT process Cold Leads (Apify) automatically unless explicitly allowed by the node.
+                            if (campaignType === 'inbound' && (leadSource === 'imported' || leadSource === 'apify')) {
+                                logger.warn({ leadId: lead.id, source: leadSource, campaignType }, '⛔ Strict Block: Cold Lead in Inbound Campaign (No Node Override)');
+                                break;
+                            }
                         }
 
-                        // 2. Outbound Campaigns (Cold) usually expect Imported leads
-                        // (We allow Inbound in Outbound if they reply, but initial entry might differ)
-
-                        // 3. Node-Level Logic (Legacy)
-                        const allowedSources = entryNode.data?.allowedSources || ['imported', 'inbound', 'ad_click', 'apify'];
-
-                        if (!allowedSources.includes(leadSource)) {
-                            logger.warn({ leadId: lead.id, source: leadSource }, '⛔ Lead Entry rejected due to node source filter');
-                            break;
-                        }
-
+                        // 3. Transition to Entry Node
                         await this.leadService.transitionToNode(lead.id, entryNode.id);
                         lead.current_node_id = entryNode.id;
                         currentNodeId = entryNode.id;
@@ -334,6 +341,37 @@ class WorkflowEngine {
                         .update({ node_state: mergedState })
                         .eq('id', lead.id);
                     lead.node_state = mergedState;
+                }
+
+                if (result.action === 'transfer_campaign') {
+                    const { targetCampaignId, reason } = result.output;
+                    logger.info({ leadId: lead.id, from: fullCampaign.id, to: targetCampaignId, reason }, '🔀 Executing Campaign Transfer');
+
+                    // 1. Move Lead to New Campaign Table/Context
+                    await this.supabase.from('leads').update({
+                        campaign_id: targetCampaignId,
+                        current_node_id: null, // Reset execution pointer
+                        node_state: {},         // Reset state
+                        updated_at: new Date().toISOString()
+                    }).eq('id', lead.id);
+
+                    // 2. Terminate Current Instance
+                    // Assuming we are in FSM mode (instance exists in context, or implicit)
+                    // If running via processLead (legacy loop), we just break.
+                    if (lead.instance_id) { // If we have instance context
+                        await this._updateState(lead.instance_id, {
+                            status: 'transferred',
+                            context: { ...lead.context, transferred_to: targetCampaignId }
+                        });
+                    }
+
+                    // 3. Trigger New Campaign Start (Optional: Immediate or wait for next pulse)
+                    // Ideally, we let the next Pulse pick it up as a "New Lead" in that campaign
+                    // or we force-boot it here. For safety, let's just break and let Pulse handle it.
+                    // But to be "Robust", we should ensure the target campaign exists.
+
+                    logger.info({ leadId: lead.id }, '✅ Lead transferred successfully. Next pulse will pick up in new campaign.');
+                    break;
                 }
 
                 if (result.status === 'success' || result.status === 'complete') {

@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { AuthProvider } from "@/context/AuthContext";
+import { SocketProvider } from "@/context/SocketContext";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const jetbrainsMono = JetBrains_Mono({
@@ -24,8 +25,10 @@ export default function RootLayout({
         <html lang="pt-BR">
             <body className={`${inter.className} ${jetbrainsMono.variable} bg-white text-gray-900 antialiased`}>
                 <AuthProvider>
-                    <ScrollToTop />
-                    {children}
+                    <SocketProvider>
+                        <ScrollToTop />
+                        {children}
+                    </SocketProvider>
                 </AuthProvider>
             </body>
         </html>

@@ -5,7 +5,11 @@ module.exports = (chattingController) => {
 
     // Text
     router.get('/chats', (req, res) => chattingController.getChats(req, res));
+    router.delete('/chats/:session/:chatId', (req, res) => chattingController.deleteChat(req, res)); // Added Delete Route
     router.get('/messages', (req, res) => chattingController.getMessages(req, res));
+
+    // Profile Picture (Proxied)
+    router.get('/:session/chats/:chatId/picture', (req, res) => chattingController.getProfilePicture(req, res));
 
     router.post('/sendText', (req, res) => chattingController.sendText(req, res));
     router.get('/sendText', (req, res) => chattingController.sendText(req, res)); // Requested GET support

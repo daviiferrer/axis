@@ -58,6 +58,29 @@ class WebhookController {
                 } else {
                     const chatId = result.chatId || result.from;
 
+                    // REAL-TIME UPDATE: Emit to frontend
+                    if (this.socketService && result.message) {
+                        // Normalize message to match Frontend WahaMessage interface
+                        const rawMsg = result.message;
+                        const formattedMsg = {
+                            id: rawMsg.message_id, // Use Waha ID, not DB UUID
+                            from: rawMsg.from_me ? 'me' : chatId,
+                            to: rawMsg.from_me ? chatId : 'me',
+                            body: rawMsg.body,
+                            timestamp: new Date(rawMsg.created_at).getTime() / 1000,
+                            fromMe: rawMsg.from_me,
+                            ack: rawMsg.status === 'read' ? 3 : (rawMsg.status === 'delivered' ? 2 : 1),
+                            hasMedia: false, // TODO: Support media
+                            _data: {}
+                        };
+
+                        this.socketService.emit('message.received', {
+                            chatId: chatId,
+                            message: formattedMsg,
+                            session: sessionName
+                        });
+                    }
+
                     // Anti-Collision Check: Don't trigger AI if client is typing
                     if (composingCache.isComposing(chatId)) {
                         const cooldown = composingCache.getComposingCooldown(chatId);
@@ -135,6 +158,15 @@ class WebhookController {
         if (event === 'engine.event') {
             if (payload?.event === 'events.Presence') {
                 status = payload.data?.Unavailable === false ? 'online' : 'offline';
+
+                // Emit Presence Update
+                this.socketService.emit('presence.update', {
+                    session: sessionName,
+                    chatId: rawId,
+                    status: status,
+                    lastSeen: status === 'offline' ? Date.now() / 1000 : undefined
+                });
+
             } else if (payload?.event === 'events.ChatPresence') {
                 const state = payload.data?.State;
 
@@ -143,12 +175,25 @@ class WebhookController {
                     composingCache.setComposing(rawId);
                     logger.info({ chatId: rawId }, '✍️ Client started typing');
 
-                    if (payload.data?.Media === 'audio') {
-                        status = 'recording';
-                    }
+                    const action = payload.data?.Media === 'audio' ? 'recording' : 'typing';
+
+                    // Emit Acting Event
+                    this.socketService.emit('chat.acting', {
+                        session: sessionName,
+                        chatId: rawId,
+                        action: action
+                    });
+
                 } else if (state === 'paused') {
                     composingCache.clearComposing(rawId);
                     logger.info({ chatId: rawId }, '⏸️ Client stopped typing');
+
+                    // Emit Stop Acting
+                    this.socketService.emit('chat.acting', {
+                        session: sessionName,
+                        chatId: rawId,
+                        action: 'stop'
+                    });
                 }
             }
         }
@@ -156,6 +201,7 @@ class WebhookController {
         if (status === 'paused') status = 'online';
         if (!rawId) return;
 
+        // Workflow engine handling (optional, kept for existing logic)
         this.workflowEngine.handlePresenceUpdate(rawId, status, sessionName).catch(e =>
             logger.error({ error: e.message }, 'Presence update failed')
         );

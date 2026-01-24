@@ -1,8 +1,8 @@
 const logger = require('../../../shared/Logger').createModuleLogger('billing-service');
 
 class BillingService {
-    constructor(supabase) {
-        this.supabase = supabase;
+    constructor({ supabaseClient }) {
+        this.supabase = supabaseClient;
     }
 
     /**
@@ -59,9 +59,85 @@ class BillingService {
     // Deprecated methods stubs to prevent crashes if called
     async createCheckoutSession() { throw new Error('Billing simplified: Checkout not implemented'); }
     async getOrCreateCustomer() { return 'simplified-customer'; }
-    async addCredits() { logger.warn('Billing simplified: Credits not implemented'); }
-    async deductCredits() { logger.warn('Billing simplified: Credits not implemented'); }
-    async getBalance() { return 999999; } // Infinite credits for simplified mode
+    async hasSufficientCredits(companyId, amount = 1) {
+        // 1. Get Company Credits
+        const { data: company } = await this.supabase
+            .from('companies')
+            .select('credits, subscription_plan')
+            .eq('id', companyId)
+            .single();
+
+        if (!company) return false;
+
+        // Enterprise/Unlimited check?
+        if (company.subscription_plan === 'enterprise') return true;
+
+        return (company.credits || 0) >= amount;
+    }
+
+    async deductCredits(companyId, amount, details = {}) {
+        if (!companyId) return;
+
+        // Decrement using RPC or direct update? 
+        // Direct update is prone to race conditions, but fine for MVP.
+        // Ideally: rpc('deduct_credits', { amt: amount, row_id: companyId })
+        try {
+            const { data: company } = await this.supabase
+                .from('companies')
+                .select('credits')
+                .eq('id', companyId)
+                .single();
+
+            if (!company) return;
+
+            const newBalance = Math.max(0, (company.credits || 0) - amount);
+
+            await this.supabase
+                .from('companies')
+                .update({ credits: newBalance })
+                .eq('id', companyId);
+
+            // Log usage (optional, could be in a separate table 'usage_logs')
+            // logger.info({ companyId, deduction: amount, purpose: details.purpose }, 'Credits Deducted');
+        } catch (e) {
+            logger.error({ error: e.message, companyId }, 'Failed to deduct credits');
+        }
+    }
+
+    getPlanConfig(planName) {
+        const PLANS = {
+            'starter': {
+                max_waha_instances: 1,
+                features: {
+                    graph_engine: false,
+                    meta_capi: false,
+                    fine_tuning: false
+                },
+                queue_priority: 'normal'
+            },
+            'business': {
+                max_waha_instances: 3,
+                features: {
+                    graph_engine: true,
+                    meta_capi: true,
+                    fine_tuning: false
+                },
+                queue_priority: 'high'
+            },
+            'enterprise': {
+                max_waha_instances: 999,
+                features: {
+                    graph_engine: true,
+                    meta_capi: true,
+                    fine_tuning: true
+                },
+                queue_priority: 'critical'
+            }
+        };
+
+        const normalized = (planName || 'starter').toLowerCase();
+        return PLANS[normalized] || PLANS['starter'];
+    }
 }
 
 module.exports = BillingService;

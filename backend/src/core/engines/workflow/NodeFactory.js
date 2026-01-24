@@ -9,6 +9,8 @@ const QualificationNode = require('./nodes/sdr/QualificationNode');
 const ObjectionNode = require('./nodes/sdr/ObjectionNode');
 const SplitNode = require('./nodes/SplitNode');
 const GotoNode = require('./nodes/GotoNode');
+const StartNode = require('./nodes/StartNode');
+const GotoCampaignNode = require('./nodes/GotoCampaignNode');
 
 /**
  * NodeFactory - Creates node executors based on type.
@@ -17,6 +19,8 @@ const GotoNode = require('./nodes/GotoNode');
 class NodeFactory {
     constructor(dependencies) {
         this.dependencies = dependencies;
+        const startExecutor = new StartNode(dependencies);
+
         this.executors = {
             'broadcast': new BroadcastNode(dependencies),
             'logic': new LogicNode(dependencies),
@@ -29,8 +33,11 @@ class NodeFactory {
             'objection': new ObjectionNode(dependencies),
             'split': new SplitNode(dependencies),
             'goto': new GotoNode(dependencies),
+            'goto_campaign': new GotoCampaignNode(dependencies), // New Node
             'agent': new AgenticNode(dependencies),
-            'leadEntry': null
+            'start': startExecutor,
+            'trigger': startExecutor,
+            'leadEntry': startExecutor
         };
     }
 

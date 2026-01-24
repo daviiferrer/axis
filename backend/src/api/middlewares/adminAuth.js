@@ -9,14 +9,13 @@ const adminAuth = (req, res, next) => {
         return res.status(401).json({ error: 'Unauthorized: Authentication required' });
     }
 
-    const { is_super_admin, role } = req.user.profile;
+    const { role } = req.user.profile;
 
     // 2. Check for Super Admin ONLY
-    // 'owner' and 'ADMIN' are roles for Company/Tenant management, NOT System Admin.
-    const isSystemAdmin = is_super_admin === true;
+    const isSystemAdmin = role === 'admin';
 
     if (!isSystemAdmin) {
-        console.warn(`[Auth] ❌ System Admin access denied for user ${req.user.id} (Role: ${role}, Super: ${is_super_admin})`);
+        console.warn(`[Auth] ❌ System Admin access denied for user ${req.user.id} (Role: ${role})`);
         return res.status(403).json({ error: 'Forbidden: Requires System Administrator Privileges' });
     }
 

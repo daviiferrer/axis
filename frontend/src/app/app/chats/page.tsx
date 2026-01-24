@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import useSWR from "swr"
+import useSWR, { useSWRConfig } from "swr" // Fix import
+import { parsePhoneNumber } from "libphonenumber-js" // Import formatting lib
 import {
     Search,
     Plus,
@@ -14,7 +15,9 @@ import {
     LogOut,
     QrCode,
     RefreshCw,
-    Smartphone
+    Smartphone,
+    Check,
+    CheckCheck
 } from "lucide-react"
 
 import { Skeleton } from "@/components/ui/skeleton"
@@ -35,16 +38,56 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-    Select,
-    SelectContent,
-    SelectItem,
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/forms/select"
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuTrigger,
+} from "@/components/ui/context-menu"
+import { useSocket } from "@/context/SocketContext"
+import { Trash2 } from "lucide-react"
 
-import { wahaService, WahaSession, WahaChat, WahaMessage } from "@/services/waha"
+import { wahaService, WahaSession, WahaChat } from "@/services/waha"
 
-// --- Components ---
+export interface WahaMessage {
+    id: string;
+    from: string;
+    to: string;
+    body: string;
+    timestamp: number;
+    hasMedia?: boolean;
+    mediaUrl?: string;
+    fromMe: boolean;
+    ack?: number; // Added ack for ticks (1=sent, 2=delivered, 3=read)
+    _data?: any;
+}
+
+const formatPhone = (phone: string) => {
+    try {
+        if (!phone) return phone;
+        // Waha format usually 555199... or 55519...
+        // Ensure + prefix for parsing
+        const raw = phone.includes('@') ? phone.split('@')[0] : phone;
+        const p = parsePhoneNumber('+' + raw.replace(/\D/g, ''));
+        if (p && p.isValid()) {
+            return p.formatInternational(); // +55 51 9999-9999
+        }
+        return raw;
+    } catch (e) {
+        return phone;
+    }
+}
+
+function MessageTick({ ack }: { ack?: number }) {
+    if (!ack || ack < 0) return null; // Pending or error
+    if (ack === 1) return <Check className="size-3 text-gray-400" />; // Sent (Server)
+    if (ack === 2) return <CheckCheck className="size-3 text-gray-400" />; // Delivered
+    if (ack >= 3) return <CheckCheck className="size-3 text-blue-500" />; // Read/Played
+    return null; // Clock?
+}
 
 
 
@@ -59,14 +102,102 @@ function ChatList({
     onSelectChat: (chat: WahaChat) => void,
     statusFilter?: 'ALL' | 'PROSPECTING' | 'QUALIFIED' | 'FINISHED'
 }) {
-    const { data: chats, error, isLoading } = useSWR(session ? `/chats/${session}` : null, () => wahaService.getChats(session), {
-        refreshInterval: 5000,
+    const { data: chats, error, isLoading, mutate: mutateChats } = useSWR(session ? `/chats/${session}` : null, () => wahaService.getChats(session), {
+        refreshInterval: 0, // Disable polling in favor of Socket
         revalidateOnFocus: false,
-        revalidateOnReconnect: false,
-        revalidateIfStale: false, // Trust cache on mount
-        keepPreviousData: true,
-        shouldRetryOnError: false // Preventing retry loops on 404s if that's the case
+        keepPreviousData: true
     })
+
+    const { mutate } = useSWRConfig(); // Global mutate for other keys
+
+    const { socket } = useSocket();
+
+    useEffect(() => {
+        if (!socket || !session) return;
+
+        const handleMessageReceived = (data: any) => {
+            if (data.session !== session) return;
+            // Optimistic update or just revalidate
+            console.log("Socket: Message Received", data);
+            mutateChats(); // Re-fetch chats to update last message/unread
+            // Global mutation for messages list
+            const key = `/messages/${data.chatId}`;
+            mutate(key, (current: WahaMessage[] | undefined) => {
+                const list = current || [];
+                // Deduplicate by ID
+                if (list.some(m => m.id === data.message.id)) {
+                    return list;
+                }
+                return [data.message, ...list];
+            }, false);
+        };
+
+        const handleMessageAck = (data: any) => {
+            if (data.session !== session) return;
+            console.log("Socket: Message Ack", data);
+            // Update specific message in cache
+            // We need to find which chat this belongs to, but usually we only care if it's the open chat
+            // We can optimistically update ALL cached message lists? No, too expensive.
+            // Usually we only update the active one.
+            // But we don't have selectedChatId inside this effect unless we include it in deps, which causes reconnects.
+            // Better: mutate all `/messages/*` keys? No.
+            // Strategy: The ack has messageId. We can't easily find the chat key without chatId.
+            // Backend event should send chatId!
+            // Let's blindly mutate the chats list to show status on sidebar if shown? Sidebar usually doesn't show ticks.
+            // The chat window needs it.
+            // Let's add a global listener that iterates matching keys? Hard with SWR.
+            // Let's rely on `mutateChats` for now, but for instant tick update we need the active chat.
+        };
+
+        // Actually, let's put the ack listener INSIDE the ChatWindow component or passing current chat to this one.
+        // Or simply revalidate `mutateChats()`? No, that's just the sidebar.
+        // We need to revalidate `/messages/{activeChatId}`.
+        // If we don't have activeChatId here, we can't key it.
+        // Solution: Move socket listeners that depend on active chat to a separate effect that depends on selectedChatId?
+        // Or just `mutate((key) => key.startsWith('/messages/'), ...)`? (Not supported natively like that easily without cache provider access).
+
+        socket.on('message.received', handleMessageReceived);
+        // socket.on('message.ack', handleMessageAck); // TODO: Implement robustly
+
+        return () => {
+            socket.off('message.received', handleMessageReceived);
+            // socket.off('message.ack', handleMessageAck);
+        };
+    }, [socket, session, mutateChats, mutate]);
+
+    // Separate effect for active chat events (Ack)
+    useEffect(() => {
+        if (!socket || !session || !selectedChatId) return;
+
+        const handleAck = (data: any) => {
+            // data: { session, messageId, status, ack, ... } - wait, backend might not send chatId in ack payload?
+            // Checking WebhookController: emits { session, messageId, messageSuffix, status, ack }
+            // It does NOT emit chatId. This is a limitation.
+            // BUT, we can just revalidate the current open chat messages! 
+            // We assume the ack *might* be for this chat.
+            console.log("Socket: Ack received, revalidating current chat");
+            mutate(`/messages/${selectedChatId}`);
+        };
+
+        socket.on('message.ack', handleAck);
+        return () => {
+            socket.off('message.ack', handleAck);
+        };
+    }, [socket, session, selectedChatId, mutate]);
+
+    const handleDeleteChat = async (chatId: string) => {
+        if (confirm("Tem certeza que deseja excluir esta conversa?")) {
+            try {
+                // Optimistic delete
+                mutateChats(chats?.filter(c => c.id !== chatId), false);
+                await wahaService.deleteChat(session, chatId);
+                mutateChats(); // Revalidate to be sure
+            } catch (e) {
+                console.error("Failed to delete chat", e);
+                mutateChats(); // Revert on error
+            }
+        }
+    }
 
     if (isLoading && !chats) {
         return (
@@ -87,13 +218,12 @@ function ChatList({
 
     // Treat 404 or empty array as "No chats"
     if (error || (chats && chats.length === 0)) {
-        // You can check error.status === 404 if needed, for now assume 'Error' + 'Empty' means no data available yet
         if (error && error.status !== 404) {
             console.error("Chat load error:", error);
             // Keep distinct error for real failures
             return <div className="p-8 text-center text-sm text-gray-500 font-inter">
                 <p>Nenhuma conversa encontrada</p>
-                <p className="text-xs text-gray-400 mt-1">Aguardando sincronização...</p>
+                <p className="text-xs text-gray-400 mt-1">Aguardando...</p>
             </div>
         }
         return (
@@ -107,10 +237,6 @@ function ChatList({
     // Filter chats based on status
     const filteredChats = chats?.filter(chat => {
         if (statusFilter === 'ALL') return true;
-        // If chat.status is undefined, treat as PROSPECTING (default) or handle as 'ALL'?
-        // For now, simple strict match if status exists. If not, it won't show in filtered tabs.
-        // Or should I default undefined to 'PROSPECTING'?
-        // Let's default to showing only matching status.
         return chat.status === statusFilter;
     }) || [];
 
@@ -118,45 +244,54 @@ function ChatList({
         <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
             <div className="flex flex-col gap-1 p-2">
                 {filteredChats.map((chat) => (
-                    <button
-                        key={chat.id}
-                        onClick={() => onSelectChat(chat)}
-                        className={`group flex items-start gap-3 p-3 rounded-xl text-left transition-all duration-300 border border-transparent hover:bg-gray-50 relative overflow-hidden ${selectedChatId === chat.id
-                            ? "bg-blue-50/50 border-blue-100 shadow-sm"
-                            : "bg-white"
-                            }`}
-                    >
-                        {selectedChatId === chat.id && (
-                            <div className="absolute left-0 top-3 bottom-3 w-1 bg-blue-600 rounded-r-full" />
-                        )}
-
-                        <Avatar className="size-11 border border-gray-100 shadow-sm group-hover:scale-105 transition-transform duration-300">
-                            <AvatarImage src={chat.image} alt={chat.name} />
-                            <AvatarFallback className="bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600 text-xs font-bold">
-                                {chat.name?.substring(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 overflow-hidden">
-                            <div className="flex items-center justify-between mb-0.5">
-                                <span className={`text-sm truncate font-inter ${selectedChatId === chat.id ? "font-bold text-gray-900" : "font-medium text-gray-700"}`}>
-                                    {chat.name}
-                                </span>
-                                {chat.lastMessage && (
-                                    <span className="text-[10px] text-gray-400 font-mono">
-                                        {new Date(chat.lastMessage.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
+                    <ContextMenu key={chat.id}>
+                        <ContextMenuTrigger asChild>
+                            <button
+                                onClick={() => onSelectChat(chat)}
+                                className={`group flex items-start gap-3 p-3 rounded-xl text-left transition-all duration-300 border border-transparent hover:bg-gray-50 relative overflow-hidden ${selectedChatId === chat.id
+                                    ? "bg-blue-50/50 border-blue-100 shadow-sm"
+                                    : "bg-white"
+                                    }`}
+                            >
+                                {selectedChatId === chat.id && (
+                                    <div className="absolute left-0 top-3 bottom-3 w-1 bg-blue-600 rounded-r-full" />
                                 )}
-                            </div>
-                            <p className={`text-xs truncate font-inter ${chat.unreadCount ? "font-semibold text-gray-900" : "text-gray-500 font-light"}`}>
-                                {chat.lastMessage?.body || "Inicie a conversa"}
-                            </p>
-                        </div>
-                        {chat.unreadCount ? (
-                            <div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white shadow-[0_2px_8px_rgba(37,99,235,0.3)]">
-                                {chat.unreadCount}
-                            </div>
-                        ) : null}
-                    </button>
+
+                                <Avatar className="size-11 border border-gray-100 shadow-sm group-hover:scale-105 transition-transform duration-300">
+                                    <AvatarImage src={chat.image} alt={chat.name} />
+                                    <AvatarFallback className="bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600 text-xs font-bold">
+                                        {chat.name?.substring(0, 2).toUpperCase()}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 overflow-hidden">
+                                    <div className="flex items-center justify-between mb-0.5">
+                                        <span className={`text-sm truncate font-inter ${selectedChatId === chat.id ? "font-bold text-gray-900" : "font-medium text-gray-700"}`}>
+                                            {formatPhone(chat.name)}
+                                        </span>
+                                        {chat.lastMessage && (
+                                            <span className="text-[10px] text-gray-400 font-mono">
+                                                {new Date(chat.lastMessage.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className={`text-xs truncate font-inter ${chat.unreadCount ? "font-semibold text-gray-900" : "text-gray-500 font-light"}`}>
+                                        {chat.lastMessage?.body || "Inicie a conversa"}
+                                    </p>
+                                </div>
+                                {chat.unreadCount ? (
+                                    <div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white shadow-[0_2px_8px_rgba(37,99,235,0.3)]">
+                                        {chat.unreadCount}
+                                    </div>
+                                ) : null}
+                            </button>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                            <ContextMenuItem className="text-red-600 focus:text-red-600 focus:bg-red-50" onClick={() => handleDeleteChat(chat.id)}>
+                                <Trash2 className="size-4 mr-2" />
+                                Excluir Conversa
+                            </ContextMenuItem>
+                        </ContextMenuContent>
+                    </ContextMenu>
                 ))}
             </div>
         </div>
@@ -287,10 +422,31 @@ export default function ChatsPage() {
 
     const handleSendMessage = async (text: string) => {
         if (!currentSession || !selectedChat) return
+
+        const tempId = 'temp-' + Date.now();
+        const newMessage: WahaMessage = {
+            id: tempId,
+            from: 'me',
+            to: selectedChat.id,
+            body: text,
+            timestamp: Date.now() / 1000,
+            fromMe: true
+        };
+
+        // Optimistic UI: Update messages list immediately
+        const key = `/messages/${selectedChat.id}`;
+        mutate(
+            key,
+            (current: WahaMessage[] | undefined) => [newMessage, ...(current || [])],
+            false
+        );
+
         try {
             await wahaService.sendMessage(currentSession, selectedChat.id, text)
+            // Socket will handle the confirmation/real update
         } catch (e) {
             console.error("Failed to send", e)
+            mutate(key); // Revert on error
         }
     }
 
@@ -446,22 +602,82 @@ function ChatWindow({
     onSendMessage: (text: string) => void
 }) {
     const [input, setInput] = useState("")
+    const scrollRef = useRef<HTMLDivElement>(null)
+
+    // Auto-scroll to bottom on new messages
+    useEffect(() => {
+        if (scrollRef.current) {
+            const scrollContainer = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
+            if (scrollContainer) {
+                scrollContainer.scrollTop = scrollContainer.scrollHeight;
+            }
+        }
+    }, [messages])
+
+    const [presence, setPresence] = useState<{ status: 'online' | 'offline', lastSeen?: number }>({ status: 'offline' })
+    const [acting, setActing] = useState<'typing' | 'recording' | null>(null)
+    const { socket } = useSocket()
+
+    useEffect(() => {
+        if (!socket || !session || !chat) return;
+
+        // Reset state on chat change
+        setPresence({ status: 'offline' });
+        setActing(null);
+
+        const handlePresence = (data: any) => {
+            if (data.session !== session || data.chatId !== chat.id) return;
+            console.log("Presence:", data);
+            setPresence({ status: data.status, lastSeen: data.lastSeen });
+        };
+
+        const handleActing = (data: any) => {
+            if (data.session !== session || data.chatId !== chat.id) return;
+            console.log("Acting:", data);
+            setActing(data.action === 'stop' ? null : data.action);
+        };
+
+        socket.on('presence.update', handlePresence);
+        socket.on('chat.acting', handleActing);
+
+        return () => {
+            socket.off('presence.update', handlePresence);
+            socket.off('chat.acting', handleActing);
+        };
+    }, [socket, session, chat]);
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full w-full overflow-hidden">
             {/* Header */}
-            <div className="h-16 border-b border-border px-6 flex items-center justify-between bg-white/80 backdrop-blur sticky top-0 z-10">
+            <div className="h-16 shrink-0 border-b border-border px-6 flex items-center justify-between bg-white/80 backdrop-blur sticky top-0 z-10">
                 <div className="flex items-center gap-3">
                     <Avatar className="size-9 ring-2 ring-white shadow-sm">
                         <AvatarImage src={chat.image} />
                         <AvatarFallback>{chat.name?.substring(0, 1)}</AvatarFallback>
                     </Avatar>
                     <div>
-                        <h2 className="font-semibold text-sm text-gray-900">{chat.name}</h2>
-                        <span className="text-xs text-green-600 flex items-center gap-1.5 font-medium">
-                            <span className="size-1.5 rounded-full bg-green-500" />
-                            Online via WhatsApp
-                        </span>
+                        <h2 className="font-semibold text-sm text-gray-900">{formatPhone(chat.name)}</h2>
+
+                        {acting ? (
+                            <span className="text-xs text-green-600 flex items-center gap-1.5 font-medium animate-pulse">
+                                {acting === 'recording' ? (
+                                    <>
+                                        <Mic className="size-3" /> Gravando áudio...
+                                    </>
+                                ) : (
+                                    "Digitando..."
+                                )}
+                            </span>
+                        ) : presence.status === 'online' ? (
+                            <span className="text-xs text-green-600 flex items-center gap-1.5 font-medium">
+                                <span className="size-1.5 rounded-full bg-green-500" />
+                                Online
+                            </span>
+                        ) : (
+                            <span className="text-[10px] text-gray-400 font-light">
+                                Visto por último hoje
+                            </span>
+                        )}
                     </div>
                 </div>
                 <Button variant="ghost" size="icon" className="text-gray-400 hover:text-gray-900">
@@ -470,29 +686,34 @@ function ChatWindow({
             </div>
 
             {/* Messages */}
-            <ScrollArea className="flex-1 p-6 bg-slate-50/50">
-                <div className="max-w-3xl mx-auto flex flex-col gap-4">
-                    {messages.map((msg) => (
-                        <div key={msg.id} className={`flex ${msg.fromMe ? "justify-end" : "justify-start"}`}>
-                            <div className={`
-                                max-w-[70%] rounded-2xl px-5 py-3 text-sm shadow-sm ring-1 ring-inset
-                                ${msg.fromMe
-                                    ? "bg-blue-600 text-white ring-blue-600 rounded-tr-none"
-                                    : "bg-white text-gray-900 ring-gray-200 rounded-tl-none"
-                                }
-                            `}>
-                                <p className="leading-relaxed whitespace-pre-wrap">{msg.body}</p>
-                                <span className={`text-[10px] block mt-1 opacity-70 ${msg.fromMe ? "text-blue-100" : "text-gray-400"}`}>
-                                    {new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
+            <div className="flex-1 min-h-0 relative">
+                <ScrollArea ref={scrollRef} className="h-full w-full p-6 bg-slate-50/50">
+                    <div className="max-w-3xl mx-auto flex flex-col gap-4 pb-4">
+                        {messages.map((msg) => (
+                            <div key={msg.id} className={`flex ${msg.fromMe ? "justify-end" : "justify-start"}`}>
+                                <div className={`
+                                    max-w-[70%] rounded-2xl px-5 py-3 text-sm shadow-sm ring-1 ring-inset
+                                    ${msg.fromMe
+                                        ? "bg-blue-600 text-white ring-blue-600 rounded-tr-none"
+                                        : "bg-white text-gray-900 ring-gray-200 rounded-tl-none"
+                                    }
+                                `}>
+                                    <p className="leading-relaxed whitespace-pre-wrap">{msg.body}</p>
+                                    <div className="flex items-center justify-end gap-1 mt-1 opacity-70">
+                                        <span className={`text-[10px] ${msg.fromMe ? "text-blue-100" : "text-gray-400"}`}>
+                                            {new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                        {msg.fromMe && <MessageTick ack={msg.ack || 1} />}
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    ))}
-                </div>
-            </ScrollArea>
+                        ))}
+                    </div>
+                </ScrollArea>
+            </div>
 
             {/* Input */}
-            <div className="p-4 bg-white border-t border-border">
+            <div className="shrink-0 p-4 bg-white border-t border-border z-20">
                 <div className="max-w-3xl mx-auto relative flex items-center gap-2">
                     <Button size="icon" variant="ghost" className="text-gray-400 hover:text-blue-600 transition-colors">
                         <Paperclip className="size-5" />

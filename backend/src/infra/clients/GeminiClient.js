@@ -12,12 +12,20 @@ const SpintaxService = require('../../core/services/content/SpintaxService');
  * NÃO há modelo padrão hardcoded - se não for passado, lança erro.
  */
 class GeminiClient {
-    constructor(apiKey) {
-        if (!apiKey) {
-            logger.warn("⚠️ GeminiClient initialized without API Key. AI features will fail until configured.");
-        }
-        this.genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
+    constructor({ systemConfig, billingService, settingsService }) {
+        const apiKey = systemConfig?.geminiKey;
+        this.billingService = billingService;
+        this.settingsService = settingsService;
         this.apiKey = apiKey;
+
+        // If key is present, init immediately. If not, we'll try lazy load.
+        this.genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
+
+        if (!apiKey) {
+            logger.info("ℹ️ GeminiClient: No env API Key. Will attempt to load from SettingsService on demand.");
+        }
+
+        // ... rest of init
 
         // Circuit Breaker configuration
         this.breakerOptions = {
@@ -34,8 +42,14 @@ class GeminiClient {
 
         this.generateBreaker.fallback(() => {
             logger.warn('Circuit breaker triggered - using fallback message');
+            const fallbackJson = JSON.stringify({
+                response: SpintaxService.getFallbackMessage(),
+                thought: "System Overload / Circuit Open",
+                sentiment_score: 0.5,
+                confidence_score: 0.0
+            });
             return {
-                text: () => SpintaxService.getFallbackMessage(),
+                text: () => fallbackJson,
                 _metrics: { fallback: true }
             };
         });
@@ -43,6 +57,7 @@ class GeminiClient {
         this.generateBreaker.on('open', () => logger.warn('⚠️ Circuit OPEN - Gemini unavailable'));
         this.generateBreaker.on('halfOpen', () => logger.info('🔄 Circuit HALF-OPEN - testing Gemini'));
         this.generateBreaker.on('close', () => logger.info('✅ Circuit CLOSED - Gemini recovered'));
+
         this.simpleBreaker = new CircuitBreaker(
             this._rawGenerateSimple.bind(this),
             this.breakerOptions
@@ -50,20 +65,60 @@ class GeminiClient {
 
         this.simpleBreaker.fallback(() => {
             logger.warn('Circuit breaker triggered (Simple) - using fallback message');
+            const fallbackJson = JSON.stringify({
+                response: SpintaxService.getFallbackMessage(),
+                thought: "System Overload / Circuit Open",
+                sentiment_score: 0.5,
+                confidence_score: 0.0
+            });
             return {
-                text: () => SpintaxService.getFallbackMessage(),
+                text: () => fallbackJson,
                 _metrics: { fallback: true }
             };
         });
+    }
+
+    async _handleBilling(metrics, context = {}) {
+        if (!this.billingService || !context.companyId) return;
+
+        // Cost Model:
+        // Simple Generation: 1 Credit
+        // Complex (Chat/Stream): 2 Credits
+        const cost = context.isComplex ? 2 : 1;
+
+        try {
+            await this.billingService.deductCredits(context.companyId, cost, {
+                purpose: 'ai_generation',
+                model: metrics.model
+            });
+        } catch (e) {
+            logger.error({ error: e.message }, 'Billing Deduction Failed');
+        }
     }
 
     /**
      * Valida que o cliente está pronto e o modelo foi fornecido.
      * O modelo deve vir da tabela `agents.model` no banco de dados.
      */
-    _validateModel(modelName, methodName) {
+    /**
+     * Ensures the client is initialized with an API Key.
+     * Attempts to fetch from SettingsService if not already configured.
+     */
+    async _ensureClient(modelName, methodName) {
         if (!this.genAI) {
-            const error = `[GeminiClient.${methodName}] ERRO: API Key não configurada. Configure no Painel Admin.`;
+            // Try to load from DB
+            if (this.settingsService) {
+                const dbKey = await this.settingsService.getProviderKey(null, 'gemini');
+                if (dbKey) {
+                    this.apiKey = dbKey;
+                    this.genAI = new GoogleGenerativeAI(dbKey);
+                    logger.info("✅ GeminiClient: API Key loaded lazily from SettingsService.");
+                }
+            }
+        }
+
+        if (!this.genAI) {
+            const error = `[GeminiClient.${methodName}] ERRO: API Key não configurada (Env ou DB). Configure no Painel Admin.`;
             logger.error(error);
             throw new Error(error);
         }
@@ -79,7 +134,7 @@ class GeminiClient {
 
     async _rawGenerateContent(modelName, systemInstruction, history, options = {}) {
         const start = performance.now();
-        const model = this._validateModel(modelName, '_rawGenerateContent');
+        const model = await this._ensureClient(modelName, '_rawGenerateContent');
 
         const genModel = this.genAI.getGenerativeModel({
             model,
@@ -102,12 +157,18 @@ class GeminiClient {
 
         logger.info({ metrics }, 'Gemini generation completed');
         response._metrics = metrics;
+
+        // BILLING HOOK
+        if (options.companyId) {
+            this._handleBilling(metrics, { companyId: options.companyId, isComplex: true });
+        }
+
         return response;
     }
 
     async _rawGenerateSimple(modelName, systemInstruction, prompt, options = {}) {
         const start = performance.now();
-        const model = this._validateModel(modelName, '_rawGenerateSimple');
+        const model = await this._ensureClient(modelName, '_rawGenerateSimple');
 
         const genModel = this.genAI.getGenerativeModel({
             model,
@@ -121,7 +182,14 @@ class GeminiClient {
         const total_ms = Math.round(performance.now() - start);
         logger.info({ model, total_ms }, 'Simple generation completed');
 
-        response._metrics = { model, total_ms };
+        const metrics = { model, total_ms };
+        response._metrics = metrics;
+
+        // BILLING HOOK
+        if (options.companyId) {
+            this._handleBilling(metrics, { companyId: options.companyId, isComplex: false });
+        }
+
         return response;
     }
 
@@ -131,7 +199,7 @@ class GeminiClient {
 
     async generateContentStream(modelName, systemInstruction, history, options = {}) {
         const start = performance.now();
-        const model = this._validateModel(modelName, 'generateContentStream');
+        const model = await this._ensureClient(modelName, 'generateContentStream');
         let ttft = null;
         let tokenCount = 0;
 
@@ -173,7 +241,7 @@ class GeminiClient {
 
     async getEmbedding(modelName, text) {
         const start = performance.now();
-        const model = this._validateModel(modelName, 'getEmbedding');
+        const model = await this._ensureClient(modelName, 'getEmbedding');
 
         const genModel = this.genAI.getGenerativeModel({ model });
         const result = await genModel.embedContent(text);

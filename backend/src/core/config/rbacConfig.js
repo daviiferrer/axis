@@ -53,9 +53,9 @@ const PermissionMap = {
         [Resources.TEAM]: [Actions.CREATE, Actions.READ, Actions.UPDATE, Actions.DELETE]
     },
     [Roles.ADMIN]: {
-        [Resources.CAMPAIGN]: [Actions.CREATE, Actions.READ, Actions.UPDATE, Actions.START, Actions.PAUSE, Actions.RESUME],
+        [Resources.CAMPAIGN]: [Actions.CREATE, Actions.READ, Actions.UPDATE, Actions.DELETE, Actions.START, Actions.PAUSE, Actions.RESUME],
         [Resources.AGENT]: [Actions.CREATE, Actions.READ, Actions.UPDATE],
-        [Resources.WORKFLOW]: [Actions.CREATE, Actions.READ, Actions.UPDATE, Actions.SIMULATE],
+        [Resources.WORKFLOW]: [Actions.CREATE, Actions.READ, Actions.UPDATE, Actions.DELETE, Actions.SIMULATE],
         [Resources.WAHA]: [Actions.CONNECT, Actions.READ, Actions.RECONNECT],
         [Resources.DASHBOARD]: [Actions.READ],
         [Resources.LEAD]: [Actions.CREATE, Actions.READ, Actions.UPDATE],

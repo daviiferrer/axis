@@ -1,9 +1,10 @@
 const { createClient } = require('@supabase/supabase-js');
 
 class WahaSessionController {
-    constructor(wahaClient, supabase) {
+    constructor(wahaClient, supabaseClient, billingService) {
         this.waha = wahaClient;
-        this.supabase = supabase;
+        this.supabase = supabaseClient;
+        this.billingService = billingService;
     }
 
     /**
@@ -38,72 +39,85 @@ class WahaSessionController {
         try {
             const all = req.query.all === 'true';
 
-            // 1. Fetch raw sessions from WAHA
-            const wahaSessions = await this.waha.getSessions(all);
+            // 1. Fetch from DB (Source of Truth for UI)
+            const userId = req.user?.id;
+            const companyId = req.user?.profile?.company_id;
+            const supabase = this._getRequestClient(req);
 
-            // 2. Filter by Company (Multi-tenancy)
-            if (this.supabase && req.user) {
-                // AuthMiddleware attaches profile to req.user.profile
-                const companyId = req.user.profile?.company_id;
-                const userId = req.user.id;
-                const supabase = this._getRequestClient(req);
-
-                let query = supabase
-                    .from('sessions')
-                    .select('session_name');
-
-                if (companyId) {
-                    // If user has company, allow company sessions OR own sessions
-                    query = query.or(`company_id.eq.${companyId},created_by.eq.${userId}`);
-                } else {
-                    // If no company, only own sessions
-                    query = query.eq('created_by', userId);
-                }
-
-                const { data: allowedSessions, error } = await query;
-
-                if (error) {
-                    console.error('[WahaSessionController] Failed to fetch allowed sessions:', error);
-                    return res.json([]);
-                }
-
-                const allowedNames = new Set(allowedSessions.map(s => s.session_name));
-
-                // Filter
-                // Filter
-                const filtered = wahaSessions.filter(s => allowedNames.has(s.name));
-
-                if (filtered.length > 0) {
-                    process.nextTick(async () => {
-                        try {
-                            const supabase = this._getRequestClient(req);
-                            for (const s of filtered) {
-                                await supabase
-                                    .from('sessions')
-                                    .update({ status: s.status, updated_at: new Date() })
-                                    .eq('session_name', s.name);
-                            }
-                        } catch (syncErr) {
-                            console.error('[WahaSessionController] Passive sync failed:', syncErr);
-                        }
-                    });
-                }
-
-                return res.json(filtered);
+            if (!userId) {
+                return res.json([]);
             }
 
-            // Fallback for dev/no-auth (Shouldn't happen in prod with authMiddleware)
-            // But if we are here and have no user context, it's safer to return NOTHING or only PUBLIC sessions?
-            // To be safe: return empty array if no user context is present.
-            return res.json([]);
+            let query = supabase
+                .from('sessions')
+                .select('*');
+
+            if (companyId) {
+                query = query.or(`company_id.eq.${companyId},created_by.eq.${userId}`);
+            } else {
+                query = query.eq('created_by', userId);
+            }
+
+            const { data: dbSessions, error } = await query;
+
+            if (error) {
+                console.error('[WahaSessionController] DB Fetch Error:', error);
+                throw error;
+            }
+
+            // 2. Background Sync with WAHA (Fire & Forget)
+            // We return DB data immediately for speed/resilience.
+            // If WAHA is up, we'll update DB statuses.
+            this._syncSessionsWithWaha(all, dbSessions, req).catch(err => {
+                console.warn('[WahaSessionController] Background Sync Failed (WAHA likely down):', err.message);
+            });
+
+            // 3. Return DB Sessions (UI won't break)
+            res.json(dbSessions.map(s => ({
+                name: s.session_name,
+                status: s.status,
+                config: s.config,
+                me: s.me
+            })));
 
         } catch (error) {
-            console.error('[WahaSessionController] getSessions Error:', error.message);
-            const status = error.message.includes('WAHA Connection Error') ? 503 : 500;
-            res.status(status).json({
-                error: error.message,
-                hint: 'Please ensure the WAHA service is running via Docker.'
-            });
+            console.error('[WahaSessionController] getSessions Critical Error:', error.message);
+            res.status(500).json({ error: 'Failed to fetch sessions from DB' });
+        }
+    }
+
+    /**
+     * Helper to sync WAHA state to DB in background
+     */
+    async _syncSessionsWithWaha(all, dbSessions, req) {
+        try {
+            const wahaSessions = await this.waha.getSessions(all);
+            const supabase = this._getRequestClient(req);
+
+            for (const wSession of wahaSessions) {
+                const match = dbSessions.find(ds => ds.session_name === wSession.name);
+
+                if (match) {
+                    if (match.status !== wSession.status) {
+                        await supabase
+                            .from('sessions')
+                            .update({ status: wSession.status, updated_at: new Date() })
+                            .eq('id', match.id);
+                    }
+                } else {
+                    // Zombie Session Found (In WAHA, not in DB)
+                    // Since DB is Source of Truth, remove from WAHA
+                    console.log(`[WahaSessionController] Found Zombie Session: ${wSession.name}. Deleting from WAHA...`);
+                    try {
+                        await this.waha.deleteSession(wSession.name);
+                    } catch (e) {
+                        console.error(`[WahaSessionController] Failed to cleanup zombie ${wSession.name}`, e);
+                    }
+                }
+            }
+        } catch (e) {
+            // Throwing here is caught by the caller's .catch()
+            throw e;
         }
     }
 
@@ -156,6 +170,33 @@ class WahaSessionController {
             sessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_');
 
             const payload = { ...req.body, name: sessionName };
+
+            // --- INSTANCE LIMIT CHECK ---
+            if (this.billingService && req.user?.profile?.company_id) {
+                const companyId = req.user.profile.company_id;
+
+                // 1. Get Plan Status
+                const companyPlan = await this.billingService.getPlanStatus(req.user.id);
+                const planName = companyPlan?.subscription_plan || 'starter';
+                const config = this.billingService.getPlanConfig(planName);
+
+                // 2. Count Active Sessions
+                const supabase = this._getRequestClient(req);
+                const { count, error } = await supabase
+                    .from('sessions')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('company_id', companyId);
+
+                if (!error) {
+                    if (count >= config.max_waha_instances) {
+                        return res.status(403).json({
+                            error: 'Instance Limit Reached',
+                            message: `Your '${planName}' plan allows max ${config.max_waha_instances} WhatsApp instances. Upgrade to add more.`
+                        });
+                    }
+                }
+            }
+            // -----------------------------
 
             let result;
 
@@ -251,15 +292,21 @@ class WahaSessionController {
     async deleteSession(req, res) {
         try {
             const { session } = req.params;
-            const result = await this.waha.deleteSession(session);
 
-            // Sync: Remove from DB
+            // 1. Try to Delete from WAHA
+            try {
+                await this.waha.deleteSession(session);
+            } catch (wahaError) {
+                console.warn(`[WahaSessionController] Failed to delete from WAHA (likely offline). Proceeding to remove from DB. Error: ${wahaError.message}`);
+            }
+
+            // 2. Sync: Remove from DB always
             if (this.supabase) {
                 const supabase = this._getRequestClient(req);
                 await supabase.from('sessions').delete().eq('session_name', session);
             }
 
-            res.json(result);
+            res.json({ success: true, message: 'Session deleted' });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }

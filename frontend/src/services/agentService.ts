@@ -64,6 +64,10 @@ export interface DNAConfig {
         framework: SalesFramework;
         slots: QualificationSlot[];
     };
+    safety?: {
+        prohibited_topics: string[];
+        handoff_on_frustration: boolean;
+    };
 }
 
 export interface Agent {

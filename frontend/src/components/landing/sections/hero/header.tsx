@@ -42,11 +42,11 @@ export function Header() {
                     <div className="flex items-center gap-2">
                         <Link href="/" className="relative group">
                             <Image
-                                src="/assets/brand/axis-logo.svg"
+                                src="/assets/brand/logo.svg"
                                 alt="AXIS Logo"
-                                width={240}
-                                height={80}
-                                className="h-20 w-auto opacity-90 hover:opacity-100 transition-opacity"
+                                width={120}
+                                height={40}
+                                className="h-8 w-auto opacity-90 hover:opacity-100 transition-opacity"
                             />
                         </Link>
                     </div>

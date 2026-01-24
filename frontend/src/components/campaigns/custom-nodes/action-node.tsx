@@ -6,44 +6,46 @@ import { MessageSquare, Image, Mic } from 'lucide-react';
 
 export const ActionNode = memo(({ data, isConnectable }: any) => {
     return (
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm min-w-[220px] hover:ring-1 hover:ring-green-500/50 transition-all group">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm min-w-[220px] hover:ring-2 hover:ring-gray-900/10 transition-all group">
             <Handle
                 type="target"
                 position={Position.Left}
                 isConnectable={isConnectable}
-                className="w-2.5 h-2.5 bg-green-500 border-2 border-white -ml-1 transition-all group-hover:w-3 group-hover:h-3 group-hover:shadow-sm"
+                className="w-2 h-2 bg-gray-400 border-2 border-white -ml-1 transition-all group-hover:w-3 group-hover:h-3 group-hover:bg-gray-900"
             />
 
             {/* Header */}
-            <div className="p-3 border-b border-gray-100 flex items-center gap-2.5">
-                <MessageSquare size={16} className="text-green-600" />
+            <div className="p-4 border-b border-gray-100 flex items-center gap-2">
+                <div className="p-1.5 bg-gray-50 rounded-md border border-gray-100">
+                    <MessageSquare size={14} className="text-gray-900" strokeWidth={1.5} />
+                </div>
                 <div className="flex-1">
-                    <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide">Enviar Mensagem</h3>
+                    <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">Ação do Sistema</h3>
                 </div>
             </div>
 
             {/* Body */}
-            <div className="p-3">
-                <p className="text-sm text-gray-600 whitespace-pre-wrap line-clamp-3 font-medium">
-                    {data.message || data.label || 'Sem conteúdo...'}
+            <div className="p-4">
+                <p className="text-sm font-medium text-gray-700 line-clamp-2">
+                    {data.label || 'Configurar Ação'}
                 </p>
-
-                {(data.hasMedia || data.hasAudio) && (
-                    <div className="flex gap-2 mt-3 pt-2 border-t border-gray-50">
-                        {data.hasMedia && (
-                            <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium bg-gray-50 px-1.5 py-0.5 rounded-full border border-gray-100">
-                                <Image size={10} />
-                                <span>Mídia</span>
-                            </div>
-                        )}
-                        {data.hasAudio && (
-                            <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium bg-gray-50 px-1.5 py-0.5 rounded-full border border-gray-100">
-                                <Mic size={10} />
-                                <span>Áudio</span>
-                            </div>
-                        )}
-                    </div>
-                )}
+                <div className="mt-2 flex flex-wrap gap-1">
+                    {data.actionType === 'update_tag' && (
+                        <div className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-600 border border-gray-200 uppercase tracking-wider">
+                            🏷️ {data.tagPayload || 'Tag'}
+                        </div>
+                    )}
+                    {data.actionType === 'update_status' && (
+                        <div className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-600 border border-gray-200 uppercase tracking-wider">
+                            🔄 Status
+                        </div>
+                    )}
+                    {data.actionType === 'webhook' && (
+                        <div className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-600 border border-gray-200 uppercase tracking-wider">
+                            🔗 Webhook
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Handles */}
@@ -51,7 +53,7 @@ export const ActionNode = memo(({ data, isConnectable }: any) => {
                 type="source"
                 position={Position.Right}
                 isConnectable={isConnectable}
-                className="w-2.5 h-2.5 bg-green-500 border-2 border-white -mr-1 transition-all group-hover:w-3 group-hover:h-3 group-hover:shadow-sm"
+                className="w-2 h-2 bg-gray-400 border-2 border-white -mr-1 transition-all group-hover:w-3 group-hover:h-3 group-hover:bg-gray-900"
             />
         </div>
     );

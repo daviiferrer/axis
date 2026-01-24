@@ -2,7 +2,7 @@
  * CampaignService - Core Service for Campaign Management
  */
 class CampaignService {
-    constructor(supabaseClient) {
+    constructor({ supabaseClient }) {
         this.supabase = supabaseClient;
     }
 
@@ -68,86 +68,82 @@ class CampaignService {
         return data;
     }
 
+    async deleteCampaign(campaignId) {
+        // 1. Unlink Leads (Set campaign_id to NULL) - Preserve the leads, just detach them
+        const { error: leadsError } = await this.supabase
+            .from('leads')
+            .update({ campaign_id: null })
+            .eq('campaign_id', campaignId);
+
+        if (leadsError) {
+            console.error('Error detaching leads:', leadsError);
+            throw leadsError;
+        }
+
+        // 2. Delete Instances (Runtime state)
+        const { error: instancesError } = await this.supabase
+            .from('campaign_instances')
+            .delete()
+            .eq('campaign_id', campaignId);
+
+        if (instancesError) {
+            console.error('Error deleting instances:', instancesError);
+            throw instancesError;
+        }
+
+        // 3. Delete Campaign
+        const { error } = await this.supabase
+            .from('campaigns')
+            .delete()
+            .eq('id', campaignId);
+
+        if (error) throw error;
+        return { success: true };
+    }
+
     // --- Flow Management ---
 
     async getFlow(campaignId) {
-        // Get generic latest flow
         const { data, error } = await this.supabase
-            .from('campaign_flows')
-            .select('*')
-            .eq('campaign_id', campaignId)
-            .order('version', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            .from('campaigns')
+            .select('graph')
+            .eq('id', campaignId)
+            .single();
 
         if (error) throw error;
-        // Return empty structure if no flow exists yet
-        return data || { flow_data: { nodes: [], edges: [] }, version: 0 };
+        // Return existing graph or empty structure
+        return {
+            flow_data: data?.graph || { nodes: [], edges: [] },
+            version: 1
+        };
     }
 
     async saveFlow(campaignId, flowData) {
-        // Always create a new version or update draft?
-        // Strategy: Check if there is a draft (is_published=false) and update it.
-        // If the latest is published, create a new draft.
+        // Update the 'graph' jsonb column directly on the campaign
+        const { data, error } = await this.supabase
+            .from('campaigns')
+            .update({
+                graph: flowData,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', campaignId)
+            .select()
+            .single();
 
-        // 1. Get latest flow
-        const { data: latest } = await this.supabase
-            .from('campaign_flows')
-            .select('*')
-            .eq('campaign_id', campaignId)
-            .order('version', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-        if (latest && !latest.is_published) {
-            // Update existing draft
-            const { data, error } = await this.supabase
-                .from('campaign_flows')
-                .update({
-                    flow_data: flowData,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', latest.id)
-                .select()
-                .single();
-
-            if (error) throw error;
-            return data;
-        } else {
-            // Create new draft version
-            const { data, error } = await this.supabase
-                .from('campaign_flows')
-                .insert({
-                    campaign_id: campaignId,
-                    flow_data: flowData,
-                    is_published: false
-                    // version auto-incremented by trigger
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
-            return data;
-        }
+        if (error) throw error;
+        return { flow_data: data.graph };
     }
 
     async publishFlow(campaignId) {
-        // Find the latest draft and mark as published
-        const { data: latest } = await this.supabase
-            .from('campaign_flows')
-            .select('*')
-            .eq('campaign_id', campaignId)
-            .order('version', { ascending: false })
-            .limit(1)
-            .single();
-
-        if (!latest) throw new Error('No flow to publish');
+        // In the single-table model, saving is effectively publishing 
+        // unless we separate 'graph' (draft) and 'published_graph' (live).
+        // For now, assuming direct manipulation as per user request ("não ficar criando tabelas toda hora").
+        // We just verify the campaign is active.
 
         const { data, error } = await this.supabase
-            .from('campaign_flows')
-            .update({ is_published: true, updated_at: new Date().toISOString() })
-            .eq('id', latest.id)
-            .select()
+            .from('campaigns')
+            .select('status')
+            .eq('id', campaignId)
             .single();
 
         if (error) throw error;

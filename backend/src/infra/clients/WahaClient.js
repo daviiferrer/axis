@@ -7,10 +7,11 @@ const axios = require('axios');
 class WahaClient {
     #endpoints;
 
-    constructor(config = {}, httpClient = null) {
+    constructor({ systemConfig } = {}) {
+        const config = systemConfig || {};
         this.baseUrl = config.wahaUrl || process.env.WAHA_API_URL || 'http://localhost:3000';
         this.apiKey = config.apiKey || '';
-        this.http = httpClient || axios;
+        this.http = axios; // Default to axios, inject if needed in future
 
         this.#endpoints = {
             sessions: '/api/sessions',
@@ -39,7 +40,8 @@ class WahaClient {
                 sendLocation: '/api/sendLocation',
                 sendContactVcard: '/api/sendContactVcard',
                 replyButton: '/api/send/buttons/reply',
-                star: '/api/star'
+                star: '/api/star',
+                profilePic: '/api/chats/{chatId}/picture' // GET /api/{session}/chats/{chatId}/picture
             },
             contacts: '/api/contacts',
             files: '/api/files',
@@ -227,6 +229,26 @@ class WahaClient {
     async deleteProfilePicture(session) {
         // Not a standard WAHA endpoint usually?
         throw new Error('Method deleteProfilePicture not supported by core WAHA yet');
+    }
+
+    async getProfilePicture(session, chatId) {
+        // endpoint: /api/:session/chats/:chatId/picture
+        // Use encodeURIComponent for chatId to handle special characters correctly in URL path
+        const url = this.#getUrl(`/api/${session}/chats/${encodeURIComponent(chatId)}/picture`);
+
+        try {
+            console.log(`[WahaClient] GET Profile Pic: ${url}`);
+            const response = await this.http.get(url, { headers: await this.#getHeaders() });
+            // WAHA typically returns { url: '...' } or just the image URL string? 
+            return response.data;
+        } catch (error) {
+            // 404 means no profile pic or chat not found.
+            if (error.response && error.response.status === 404) {
+                return null;
+            }
+            console.warn(`[WahaClient] Failed to get profile pic for ${chatId}: ${error.message}`);
+            throw error;
+        }
     }
 
     // --- Chatting Methods ---

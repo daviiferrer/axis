@@ -14,6 +14,7 @@ class WahaChattingController {
                 .from('chats')
                 .select('*, messages!inner(body, created_at)')
                 .eq('session_name', session)
+                .not('chat_id', 'like', '147%') // Filter out ghost chats
                 .order('last_message_at', { ascending: false });
 
             if (error) throw error;
@@ -28,12 +29,56 @@ class WahaChattingController {
                     body: chat.messages?.[0]?.body || '',
                     timestamp: new Date(chat.last_message_at).getTime() / 1000
                 },
-                status: chat.status // 'active', 'archived', etc.
+                status: chat.status, // 'active', 'archived', etc.
+                tags: chat.tags || []
             }));
 
             res.json(formattedChats);
         } catch (error) {
             console.error('[WahaChattingController] getChats error:', error);
+            res.status(500).json({ error: error.message });
+        }
+    }
+
+    async deleteChat(req, res) {
+        try {
+            const { session, chatId } = req.params;
+
+            // Delete from Database to hide from UI
+            const { error } = await this.supabase
+                .from('chats')
+                .delete()
+                .eq('chat_id', chatId)
+                .eq('session_name', session);
+
+            if (error) throw error;
+
+            // Optional: Try to clear from Waha if supported (implementation dependent)
+            // try { await this.waha.deleteChat(session, chatId); } catch (e) {}
+
+            res.json({ success: true, chatId });
+        } catch (error) {
+            console.error('[WahaChattingController] deleteChat error:', error);
+            res.status(500).json({ error: error.message });
+        }
+    }
+
+    async getProfilePicture(req, res) {
+        try {
+            const { session, chatId } = req.params;
+            const result = await this.waha.getProfilePicture(session, chatId);
+
+            // WAHA might return null (404) or { url: ... } or just string
+            if (!result) {
+                return res.status(404).json({ error: 'Profile picture not found' });
+            }
+            res.json(result);
+        } catch (error) {
+            console.error('[WahaChattingController] getProfilePicture error:', error);
+            // If it's a 404 from axios, pass it through
+            if (error.response?.status === 404) {
+                return res.status(404).json({ error: 'Profile picture not found' });
+            }
             res.status(500).json({ error: error.message });
         }
     }

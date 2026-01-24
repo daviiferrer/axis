@@ -5,8 +5,8 @@
 const logger = require('../../../../shared/Logger').createModuleLogger('handoff-node');
 
 class HandoffNode {
-    constructor({ supabase, campaignSocket, historyService, geminiClient }) {
-        this.supabase = supabase;
+    constructor({ supabaseClient, campaignSocket, historyService, geminiClient }) {
+        this.supabase = supabaseClient;
         this.campaignSocket = campaignSocket;
         this.historyService = historyService;
         this.geminiClient = geminiClient;

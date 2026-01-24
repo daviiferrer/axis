@@ -11,6 +11,9 @@ function createCampaignRouter(campaignController, authMiddleware, riskMiddleware
     // Unified Status Management
     router.patch('/:id/status', rbac(Resources.CAMPAIGN, Actions.UPDATE), riskMiddleware, (req, res) => campaignController.updateStatus(req, res));
 
+    // Delete Campaign
+    router.delete('/:id', rbac(Resources.CAMPAIGN, Actions.DELETE), (req, res) => campaignController.deleteCampaign(req, res));
+
     // Flow Builder Endpoints
     router.get('/:id/flow', rbac(Resources.CAMPAIGN, Actions.READ), (req, res) => campaignController.getFlow(req, res));
     router.put('/:id/flow', rbac(Resources.CAMPAIGN, Actions.UPDATE), (req, res) => campaignController.saveFlow(req, res));

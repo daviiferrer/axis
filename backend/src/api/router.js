@@ -1,4 +1,5 @@
 const express = require('express');
+const riskMiddleware = require('./middlewares/riskMiddleware');
 
 function createRouter(controllers) {
     const router = express.Router();
@@ -21,8 +22,7 @@ function createRouter(controllers) {
         workflowEngine,
         chatService,
         wahaClient,
-        authMiddleware,
-        riskMiddleware
+        authMiddleware
     } = controllers;
 
     // Resource Routes
@@ -32,7 +32,7 @@ function createRouter(controllers) {
     v1Router.use('/leads', require('./routes/v1/campaign/lead.routes')(leadController));
     v1Router.use('/chats', require('./routes/v1/chat/chat.routes')(chatController));
     v1Router.use('/prospects', require('./routes/v1/campaign/prospect.routes')(prospectController));
-    v1Router.use('/settings', require('./routes/v1/system/settings.routes')(settingsController));
+    v1Router.use('/settings', require('./routes/v1/system/settings.routes')(settingsController, authMiddleware));
     v1Router.use('/webhook', require('./routes/v1/chat/webhook.routes')(webhookController));
     v1Router.use('/health', require('./routes/v1/system/health.routes')(healthController));
     v1Router.use('/billing', require('./routes/v1/billing/billing.routes')(billingController, authMiddleware));
@@ -47,7 +47,7 @@ function createRouter(controllers) {
     v1Router.use('/waha', authMiddleware, require('./routes/v1/waha/index')(controllers));
 
     // Admin Routes (v1)
-    v1Router.use('/admin', require('./routes/v1/system/AdminRoutes')(adminController));
+    v1Router.use('/admin', require('./routes/v1/system/AdminRoutes')(adminController, authMiddleware));
 
     // Dev Routes (Conditional)
     if (process.env.NODE_ENV !== 'production') {

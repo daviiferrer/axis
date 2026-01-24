@@ -19,11 +19,11 @@ export default function Home() {
                     {/* Logo - Restored & Scaled Up */}
                     <Link href="/" className="pointer-events-auto">
                         <Image
-                            src="/assets/brand/axis-logo.svg"
+                            src="/assets/brand/logo.svg"
                             alt="AXIS Logo"
-                            width={240}
-                            height={80}
-                            className="h-16 md:h-20 w-auto opacity-90 hover:opacity-100 transition-opacity"
+                            width={120}
+                            height={40}
+                            className="h-8 md:h-10 w-auto opacity-90 hover:opacity-100 transition-opacity"
                         />
                     </Link>
 

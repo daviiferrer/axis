@@ -4,7 +4,7 @@
 const logger = require('../../../shared/Logger').createModuleLogger('trigger-service');
 
 class TriggerService {
-    constructor(supabaseClient, workflowEngine) {
+    constructor({ supabaseClient, workflowEngine }) {
         this.supabase = supabaseClient;
         this.workflowEngine = workflowEngine;
         this.aiDebounceTimers = new Map();

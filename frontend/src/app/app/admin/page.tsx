@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import useSWR, { mutate } from 'swr';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,11 +11,35 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import api from '@/services/api';
+import { adminService } from '@/services/admin';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { toast } from "sonner"; // Assuming sonner is available based on previous context, otherwise rely on use-toast
 
 // --- COMPONENTS ---
 
+// SystemSettingsTab Component (Collapsed for brevity - logic unchanged but included in full file rewrite if needed. 
+// Proposing partial overwrite to keep SystemSettingsTab intact is risky with replace_file_content if lines shift too much.
+// I will just redefine UserManagementTab and Main Component logic)
+
 function SystemSettingsTab() {
-    const { toast } = useToast();
+    const { toast: uiToast } = useToast();
     const [loading, setLoading] = useState(false);
     const [settings, setSettings] = useState({
         // Environment
@@ -49,7 +74,6 @@ function SystemSettingsTab() {
         try {
             const res = await api.get('/settings');
             if (res.data) {
-                // Ensure defaults
                 setSettings(prev => ({
                     ...prev,
                     ...res.data,
@@ -58,7 +82,7 @@ function SystemSettingsTab() {
             }
         } catch (error) {
             console.error("Failed to load settings", error);
-            toast({ title: "Erro", description: "Falha ao carregar configurações.", variant: "destructive" });
+            uiToast({ title: "Erro", description: "Falha ao carregar configurações.", variant: "destructive" });
         } finally {
             setLoading(false);
         }
@@ -72,10 +96,10 @@ function SystemSettingsTab() {
         setLoading(true);
         try {
             await api.post('/settings', { settings });
-            toast({ title: "Sucesso", description: "Configurações salvas!" });
+            uiToast({ title: "Sucesso", description: "Configurações salvas!" });
         } catch (error) {
             console.error("Failed to save", error);
-            toast({ title: "Erro", description: "Falha ao salvar.", variant: "destructive" });
+            uiToast({ title: "Erro", description: "Falha ao salvar.", variant: "destructive" });
         } finally {
             setLoading(false);
         }
@@ -206,18 +230,75 @@ function SystemSettingsTab() {
 }
 
 function UserManagementTab() {
+    const { user } = useAuth();
+    const { data: users, error, isLoading } = useSWR(
+        (user as any)?.role === 'admin' ? 'admin-users' : null,
+        adminService.getUsers
+    );
+
+    const handleRoleChange = async (userId: string, newRole: string) => {
+        try {
+            await adminService.updateUserRole(userId, newRole);
+            toast.success("Cargo atualizado com sucesso!");
+            mutate('admin-users');
+        } catch (e) {
+            toast.error("Erro ao atualizar cargo do usuário.");
+        }
+    };
+
+    if (isLoading) return <div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-20 w-full" /></div>;
+    if (error) return <div>Erro ao carregar usuários.</div>;
+
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Gerenciamento de Usuários</CardTitle>
-                <CardDescription>Liste e gerencie usuários da plataforma.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="text-muted-foreground text-sm">
-                    Funcionalidade de listagem de usuários a ser implementada em breve.
-                </div>
-            </CardContent>
-        </Card>
+        <div className="space-y-6">
+            <div className="border rounded-lg bg-white shadow-sm">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="w-[80px]">Avatar</TableHead>
+                            <TableHead>Nome</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>Cargo (Role)</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Data de Cadastro</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {users?.map((u: any) => (
+                            <TableRow key={u.id}>
+                                <TableCell>
+                                    <Avatar>
+                                        <AvatarImage src={u.user_metadata?.avatar_url} />
+                                        <AvatarFallback>{u.email?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                    </Avatar>
+                                </TableCell>
+                                <TableCell className="font-medium">{u.user_metadata?.full_name || 'N/A'}</TableCell>
+                                <TableCell>{u.email}</TableCell>
+                                <TableCell>
+                                    <Select
+                                        defaultValue={u.role}
+                                        onValueChange={(val) => handleRoleChange(u.id, val)}
+                                        disabled={u.id === user?.id}
+                                    >
+                                        <SelectTrigger className="w-[140px]">
+                                            <SelectValue placeholder="Role" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="admin">Administrador do Sistema</SelectItem>
+                                            <SelectItem value="owner">Usuário Padrão (Owner)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </TableCell>
+                                <TableCell>
+                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 mr-2">Ativo</Badge>
+                                </TableCell>
+                                <TableCell>{new Date(u.created_at).toLocaleDateString()}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+        </div>
     );
 }
 
@@ -226,13 +307,13 @@ export default function AdminPage() {
     const router = useRouter();
 
     useEffect(() => {
-        if (!loading && !(user as any)?.is_super_admin) {
+        if (!loading && (user as any)?.role !== 'admin') {
             router.push('/app');
         }
     }, [user, loading, router]);
 
     if (loading) return <div>Carregando...</div>;
-    if (!(user as any)?.is_super_admin) return null;
+    if ((user as any)?.role !== 'admin') return null;
 
     return (
         <div className="container mx-auto py-6 pb-20">

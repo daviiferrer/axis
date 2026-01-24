@@ -4,7 +4,7 @@
 const logger = require('../../../shared/Logger').createModuleLogger('settings');
 
 class SettingsService {
-    constructor(supabaseClient) {
+    constructor({ supabaseClient }) {
         this.supabase = supabaseClient;
     }
 

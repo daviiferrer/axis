@@ -4,7 +4,7 @@ const { StateGraph, END, START } = require("@langchain/langgraph");
  * AgentGraphEngine - LangGraph-based reasoning.
  */
 class AgentGraphEngine {
-    constructor(geminiClient, promptService) {
+    constructor({ geminiClient, promptService }) {
         this.geminiClient = geminiClient;
         this.promptService = promptService;
         this.stateDefinition = {

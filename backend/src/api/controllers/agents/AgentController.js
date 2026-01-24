@@ -16,7 +16,8 @@ class AgentController {
             const agents = await this.agentService.listAgents();
             res.json(agents);
         } catch (error) {
-            res.status(500).json({ error: 'Failed to list agents' });
+            console.error('[AgentController] listAvailable Error:', error);
+            res.status(500).json({ error: 'Failed to list agents', details: error.message });
         }
     }
 

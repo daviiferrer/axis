@@ -14,7 +14,7 @@ const { PAD_INTERPRETATION, EMOTIONAL_INSTRUCTIONS } = require('../../../config/
  * D: Dominance (Control)
  */
 class EmotionalStateService {
-    constructor(supabaseClient) {
+    constructor({ supabaseClient }) {
         this.supabase = supabaseClient;
         this.DECAY_FACTOR = 0.9; // Retention of previous state (0.9 = high retention)
     }

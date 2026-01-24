@@ -14,6 +14,7 @@ const api = axios.create({
 api.interceptors.request.use(async (config) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.access_token) {
+        // console.log(`[API] Attaching token for: ${session.user.email}`);
         config.headers.Authorization = `Bearer ${session.access_token}`;
     }
     return config;

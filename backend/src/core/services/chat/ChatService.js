@@ -4,11 +4,12 @@ const logger = require('../../../shared/Logger').createModuleLogger('chat-servic
  * ChatService - Core Service for Chat Management and Persistence
  */
 class ChatService {
-    constructor(supabaseClient, billingService, wahaClient, settingsService) {
+    constructor({ supabaseClient, billingService, wahaClient, settingsService, jidService }) {
         this.supabase = supabaseClient;
         this.billingService = billingService;
         this.wahaClient = wahaClient;
         this.settingsService = settingsService;
+        this.jidService = jidService;
     }
 
     /**
@@ -17,7 +18,7 @@ class ChatService {
     async ensureChat(chatId, sessionName, userId, additionalData = {}) {
         const cleanPhone = chatId.replace(/\D/g, '');
 
-        const chatPayload = {
+        let chatPayload = {
             chat_id: chatId,
             session_name: sessionName,
             user_id: userId,
@@ -28,6 +29,38 @@ class ChatService {
             last_message_at: new Date().toISOString(),
             ...additionalData
         };
+
+        // PROFILE PICTURE LOGIC
+        // We check if it's feasible to fetch.
+        // Optimization: We could do this only if not exists, but for "upsert" we need to know.
+        // Let's do a quick check: if additionalData has it, good. If not, and it's a real user (not status), fetch it.
+        // To avoid blocking, we could use a separate promise or just await it if fast.
+        // User requested: "save to db"
+        if (!chatPayload.profile_pic_url && !chatId.includes('@broadcast') && !chatId.includes('@g.us')) {
+            try {
+                logger.info({ chatId }, '🖼️ Attempting to fetch profile picture...');
+                const picData = await this.wahaClient.getProfilePicture(sessionName, chatId);
+                logger.info({ chatId, picData }, '🖼️ Profile picture response');
+
+                let picUrl = null;
+                if (typeof picData === 'string') {
+                    picUrl = picData;
+                } else if (picData && picData.url) {
+                    picUrl = picData.url;
+                } else if (picData && picData.profilePicture) {
+                    picUrl = picData.profilePicture; // Handle potential variations
+                }
+
+                if (picUrl) {
+                    chatPayload.profile_pic_url = picUrl;
+                    logger.info({ chatId, url: picUrl }, '✅ Profile picture URL found and set');
+                } else {
+                    logger.warn({ chatId, picData }, '⚠️ No URL found in profile picture response');
+                }
+            } catch (picError) {
+                logger.warn({ chatId, error: picError.message }, 'Failed to fetch profile picture (non-blocking)');
+            }
+        }
 
         const { data, error } = await this.supabase
             .from('chats')
@@ -57,6 +90,23 @@ class ChatService {
     }
 
     /**
+     * Updates chat tags.
+     */
+    async updateTags(chatId, sessionName, tags) {
+        const { error } = await this.supabase
+            .from('chats')
+            .update({ tags })
+            .eq('chat_id', chatId)
+            .eq('session_name', sessionName);
+
+        if (error) {
+            console.error('[ChatService] Tags Update Error:', error.message);
+            throw error;
+        }
+        return tags;
+    }
+
+    /**
      * Updates chat-level metadata (e.g., profile picture).
      */
     async updateChatMetadata(chatId, sessionName, metadata) {
@@ -77,10 +127,26 @@ class ChatService {
      * Persists chat and message, then returns structured data for WorkflowEngine.
      */
     async processIncomingMessage(payload, sessionName) {
-        let { from, to, body, fromMe, id, _data } = payload;
-
         // Ignore status updates or weird system messages
-        if (!from || !body) return null;
+        if (!payload.from || !payload.body) return null;
+
+        // PRE-PROCESSING: Normalize JID (LID -> Phone JID)
+        // If message is from a Linked Device (LID), we try to resolve the real phone number JID.
+        // This prevents duplicate chats (one for LID, one for Phone).
+        const normalizedFrom = await this.jidService.normalizePayload(payload);
+        if (normalizedFrom) {
+            logger.info({ original: payload.from, normalized: normalizedFrom }, '🔄 JID Normalized');
+            payload.from = normalizedFrom;
+            if (payload.key) payload.key.remoteJid = normalizedFrom; // Update key if present
+        }
+
+        let { from, to, body, fromMe, hasMedia, media, _data, id } = payload;
+
+        // Groups are still ignored as per request
+        if (from.endsWith('@g.us') || to?.endsWith('@g.us') || payload.participant) {
+            logger.info({ from, to }, '🚫 Group message ignored');
+            return null;
+        }
 
         // ROBUSTNESS: Force fromMe check from deep WAHA properties
         // Sometimes payload.fromMe is undefined in certain events, leading to False Positives.
@@ -139,6 +205,8 @@ class ChatService {
         // We'll leave user_id null or try to link via phone matching if needed.
         // For strict CRM, we might want to find if this phone belongs to a Lead.
 
+        let message = null; // Lifted scope
+
         try {
             logger.info({ chatId, body: body.substring(0, 50), fromMe }, '📩 Message persistence starting');
             const chat = await this.ensureChat(chatId, sessionName, null, { name: pushName });
@@ -146,7 +214,7 @@ class ChatService {
             // Standardize JID in chat object if it's new
             const finalChatId = chat.chat_id.replace('@c.us', '@s.whatsapp.net');
 
-            const { data: message, error } = await this.supabase
+            const { data: savedMessage, error } = await this.supabase
                 .from('messages')
                 .upsert({
                     message_id: id?._serialized || id,
@@ -158,12 +226,18 @@ class ChatService {
                 .select()
                 .single();
 
+            message = savedMessage; // Assign to outer var
+
             if (error) {
                 logger.error({ error: error.message }, 'Failed to upsert message for incoming message');
                 throw error;
             }
         } catch (e) {
             logger.warn({ error: e.message }, 'Failed to ensure chat or save message for incoming message');
+            // If message save failed, we can't return it.
+            // But we should continue if possible?
+            // If we throw here, the webhook 500s.
+            // If we return null, no socket event.
         }
 
         // Extraction: Ad Referral Data (Meta Ads)
@@ -173,14 +247,21 @@ class ChatService {
             logger.info({ referral }, '🎯 Ad Context Detected');
         }
 
+        // Return the message if we have it, or construct a temporary one for socket if DB failed?
+        // Better to return what we have.
+        // If 'message' is from DB, it needs to be defined in outer scope.
+
         return {
             chatId,
             phone: cleanPhone,
             body,
             fromMe,
             pushName,
-            referral // Pass it up to the Controller/Engine
+            referral,
+            message: message // This will be undefined if we don't lift it!
         };
+
+
     }
 
     /**
@@ -221,37 +302,14 @@ class ChatService {
 
             // 3. Save to DB
             if (sentMessage && sentMessage.id) {
-                // Resolve UUID for chat
-                let { data: chat } = await this.supabase
-                    .from('chats')
-                    .select('id')
-                    .eq('chat_id', chatId)
-                    .single();
+                try {
+                    // Use ensureChat to guarantee chat existence and profile picture fetching
+                    // This unifies logic for inbound and outbound.
+                    // For outbound, we might not have a full name, but we have the phone/chatId.
+                    const chat = await this.ensureChat(chatId, session, userId, {
+                        name: chatId.split('@')[0] // Fallback name
+                    });
 
-                // If chat doesn't exist, ensure it does (e.g., for outbound messages to new contacts)
-                if (!chat) {
-                    const standardizedJid = chatId.replace('@c.us', '@s.whatsapp.net');
-                    // This part assumes 'lead', 'campaign' objects are available in scope or passed.
-                    // For a robust solution, you might need to fetch/create lead/campaign based on userId or other context.
-                    // For now, we'll create a minimal chat if not found.
-                    const { data: newChat, error: chatError } = await this.supabase.from('chats').insert({
-                        chat_id: standardizedJid,
-                        user_id: userId, // Assuming userId is the owner of this outbound message
-                        session_name: session,
-                        phone: standardizedJid.replace(/\D/g, ''),
-                        name: standardizedJid.split('@')[0], // Basic name from JID
-                        last_message_at: new Date().toISOString(),
-                        status: 'active' // Default status for new chat
-                    }).select().single();
-
-                    if (chatError) {
-                        logger.error({ chatError: chatError.message }, 'Failed to create chat for outbound message');
-                        throw chatError;
-                    }
-                    chat = newChat;
-                }
-
-                if (chat) {
                     await this.saveMessage({
                         message_id: sentMessage.id._serialized || sentMessage.id,
                         chat_id: chat.id, // UUID
@@ -260,6 +318,9 @@ class ChatService {
                         is_ai: true, // Assuming sent via API is AI/System
                         created_at: new Date().toISOString()
                     });
+                } catch (saveError) {
+                    logger.error({ error: saveError.message }, 'Failed to save sent message to DB');
+                    // We don't throw here to avoid failing the whole request if message sent successfully
                 }
             }
 

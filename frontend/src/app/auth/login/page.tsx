@@ -49,11 +49,11 @@ export default function LoginPage() {
                     <div className="mb-[15px]">
                         <Link href="/">
                             <Image
-                                src="/assets/brand/axis-logo.svg"
+                                src="/assets/brand/logo.svg"
                                 alt="AXIS Logo"
-                                width={240}
-                                height={80}
-                                className="h-16 md:h-24 w-auto opacity-90 hover:opacity-100 transition-opacity"
+                                width={160}
+                                height={50}
+                                className="h-10 md:h-12 w-auto opacity-90 hover:opacity-100 transition-opacity"
                             />
                         </Link>
                     </div>

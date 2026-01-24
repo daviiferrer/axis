@@ -37,5 +37,10 @@ export const adminService = {
     stopAllSessions: async () => {
         const response = await api.post('/admin/sessions/stop-all');
         return response.data;
+    },
+
+    updateUserRole: async (userId: string, role: string) => {
+        const response = await api.put(`/admin/users/${userId}/role`, { role });
+        return response.data;
     }
 };

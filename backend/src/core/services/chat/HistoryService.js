@@ -2,7 +2,7 @@
  * HistoryService - Core Service for Chat History Retrieval
  */
 class HistoryService {
-    constructor(supabaseClient) {
+    constructor({ supabaseClient }) {
         this.supabase = supabaseClient;
     }
 

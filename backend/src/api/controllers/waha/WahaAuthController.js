@@ -10,6 +10,15 @@ class WahaAuthController {
             res.json(result);
         } catch (error) {
             console.error('[WahaAuthController] getQR error:', error.message);
+
+            // Check for connection/timeout errors (Offline)
+            if (error.message.includes('WAHA Connection Error') || error.message.includes('ECONNREFUSED')) {
+                return res.status(503).json({
+                    error: 'Service Unavailable',
+                    message: 'WAHA service is offline. Please check Docker.'
+                });
+            }
+
             if (error.response) {
                 return res.status(error.response.status || 500).json({ error: error.message, details: error.response.data });
             }

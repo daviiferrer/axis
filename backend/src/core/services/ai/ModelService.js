@@ -7,8 +7,8 @@
 const logger = require('../../../shared/Logger').createModuleLogger('model-service');
 
 class ModelService {
-    constructor(supabase) {
-        this.supabase = supabase;
+    constructor({ supabaseClient }) {
+        this.supabase = supabaseClient;
     }
 
     /**

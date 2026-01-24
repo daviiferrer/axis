@@ -11,8 +11,8 @@ const IORedis = require('ioredis');
 const logger = require('../../../shared/Logger').createModuleLogger('queue');
 
 class QueueService {
-    constructor(redisUrl, supabaseClient) {
-        this.redisUrl = redisUrl || process.env.REDIS_URL || 'redis://localhost:6379';
+    constructor({ systemConfig, supabaseClient }) {
+        this.redisUrl = systemConfig?.redisUrl || process.env.REDIS_URL || 'redis://localhost:6379';
         this.supabase = supabaseClient;
         this.connection = null;
         this.flowProducer = null;

@@ -39,6 +39,21 @@ class ChatController {
         }
     }
 
+    async updateTags(req, res) {
+        try {
+            const { session, chatId, tags } = req.body;
+            if (!Array.isArray(tags)) {
+                return res.status(400).json({ error: 'Tags must be an array' });
+            }
+
+            const result = await this.chatService.updateTags(chatId, session, tags);
+            res.json({ tags: result });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ error: 'Failed to update tags' });
+        }
+    }
+
     async getOracleHint(req, res) {
         try {
             const { chatId, campaignId } = req.body;

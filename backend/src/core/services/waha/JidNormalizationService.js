@@ -6,9 +6,9 @@ const logger = require('../../../shared/Logger').createModuleLogger('jid-service
  * Centralizes LID bypass and real number extraction.
  */
 class JidNormalizationService {
-    constructor(wahaClient, supabase) {
+    constructor({ wahaClient, supabaseClient }) {
         this.wahaClient = wahaClient;
-        this.supabase = supabase;
+        this.supabase = supabaseClient;
         this.jidCache = new Map();
     }
 
@@ -136,7 +136,13 @@ class JidNormalizationService {
 
         const realJid = payload._data?.Info?.SenderAlt || payload._data?.Info?.RecipientAlt;
         if (realJid && realJid.includes('@s.whatsapp.net')) {
-            return realJid.split('@')[0];
+            // Extract number from JID (e.g. 555195698519:81@s.whatsapp.net -> 555195698519)
+            // Handle JIDs with device ID suffix (:81)
+            let cleanJid = realJid.replace('@s.whatsapp.net', '');
+            if (cleanJid.includes(':')) {
+                cleanJid = cleanJid.split(':')[0];
+            }
+            return cleanJid;
         }
 
         if (payload.from && !payload.from.endsWith('@lid')) {

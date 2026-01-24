@@ -12,7 +12,7 @@ class AgentNode {
      * @param {object} params.clients - Infrastructure clients (GeminiClient, WahaClient)
      */
     constructor(dependencies) {
-        this.supabase = dependencies.supabase;
+        this.supabase = dependencies.supabaseClient;
         this.geminiClient = dependencies.geminiClient;
         this.wahaClient = dependencies.wahaClient;
         this.promptService = dependencies.promptService;
@@ -77,7 +77,12 @@ class AgentNode {
 
         do {
             attempts++;
-            const responseText = await this.geminiClient.generateSimple(targetModel, systemInstruction, "Gere a próxima resposta baseada no histórico.");
+            const responseText = await this.geminiClient.generateSimple(
+                targetModel,
+                systemInstruction,
+                "Gere a próxima resposta baseada no histórico.",
+                { companyId: _campaign.company_id }
+            );
 
             try {
                 let cleanText = responseText.text().trim();

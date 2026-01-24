@@ -11,7 +11,9 @@ import {
     Users,
     Flag,
     Split,
-    ArrowRight
+    ArrowRight,
+    Megaphone,
+    Brain
 } from 'lucide-react';
 
 export function NodePalette() {
@@ -34,12 +36,41 @@ export function NodePalette() {
                 <div className="space-y-3">
                     <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Gatilhos</h3>
                     <div
-                        className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-lg cursor-grab hover:shadow-sm active:cursor-grabbing transition-all"
+                        className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg cursor-grab hover:shadow-sm hover:border-gray-300 transition-all group"
                         onDragStart={(event) => onDragStart(event, 'trigger', 'Início do Fluxo')}
                         draggable
                     >
-                        <Zap className="h-5 w-5 text-blue-600" />
-                        <span className="text-sm font-medium text-blue-900">Início / Gatilho</span>
+                        <Zap className="h-4 w-4 text-gray-700 group-hover:text-gray-900" strokeWidth={1.5} />
+                        <span className="text-sm font-medium text-gray-900">Início / Gatilho</span>
+                    </div>
+                </div>
+
+                {/* Actions & Communication */}
+                <div className="space-y-3">
+                    <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Ações & Comunicação</h3>
+                    <div
+                        className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg cursor-grab hover:shadow-sm hover:border-gray-300 transition-all group"
+                        onDragStart={(event) => onDragStart(event, 'action', 'Enviar Mensagem')}
+                        draggable
+                    >
+                        <MessageSquare className="h-4 w-4 text-gray-700 group-hover:text-gray-900" strokeWidth={1.5} />
+                        <span className="text-sm font-medium text-gray-900">Enviar Mensagem (Action)</span>
+                    </div>
+                    <div
+                        className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg cursor-grab hover:shadow-sm hover:border-gray-300 transition-all group"
+                        onDragStart={(event) => onDragStart(event, 'broadcast', 'Disparo em Massa')}
+                        draggable
+                    >
+                        <Megaphone className="h-4 w-4 text-gray-700 group-hover:text-gray-900" strokeWidth={1.5} />
+                        <span className="text-sm font-medium text-gray-900">Disparo em Massa (Broadcast)</span>
+                    </div>
+                    <div
+                        className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg cursor-grab hover:shadow-sm hover:border-gray-300 transition-all group"
+                        onDragStart={(event) => onDragStart(event, 'handoff', 'Transbordo Humano')}
+                        draggable
+                    >
+                        <Users className="h-4 w-4 text-gray-700 group-hover:text-gray-900" strokeWidth={1.5} />
+                        <span className="text-sm font-medium text-gray-900">Transbordo Humano</span>
                     </div>
                 </div>
 
@@ -47,78 +78,68 @@ export function NodePalette() {
                 <div className="space-y-3">
                     <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Inteligência (AI)</h3>
                     <div
-                        className="flex items-center gap-3 p-3 bg-purple-50 border border-purple-100 rounded-lg cursor-grab hover:shadow-sm transition-all"
+                        className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg cursor-grab hover:shadow-sm hover:border-gray-300 transition-all group"
                         onDragStart={(event) => onDragStart(event, 'agent', 'Agente IA')}
                         draggable
                     >
-                        <Bot className="h-5 w-5 text-purple-600" />
-                        <span className="text-sm font-medium text-purple-900">Agente IA</span>
-                    </div>
-                    <div
-                        className="flex items-center gap-3 p-3 bg-purple-50 border border-purple-100 rounded-lg cursor-grab hover:shadow-sm transition-all"
-                        onDragStart={(event) => onDragStart(event, 'qualification', 'Qualificação')}
-                        draggable
-                    >
-                        <Flag className="h-5 w-5 text-purple-600" />
-                        <span className="text-sm font-medium text-purple-900">Qualificação SDR</span>
+                        <Bot className="h-4 w-4 text-gray-700 group-hover:text-gray-900" strokeWidth={1.5} />
+                        <div className="flex flex-col">
+                            <span className="text-sm font-medium text-gray-900">Agente IA</span>
+                            <span className="text-[10px] text-gray-500 leading-tight">Escolha o cérebro nas configurações</span>
+                        </div>
                     </div>
                 </div>
 
-                {/* Actions */}
+                {/* Logic & Flow */}
                 <div className="space-y-3">
-                    <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</h3>
+                    <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Controle de Fluxo</h3>
                     <div
-                        className="flex items-center gap-3 p-3 bg-green-50 border border-green-100 rounded-lg cursor-grab hover:shadow-sm transition-all"
-                        onDragStart={(event) => onDragStart(event, 'action', 'Enviar Mensagem')}
+                        className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg cursor-grab hover:shadow-sm hover:border-gray-300 transition-all group"
+                        onDragStart={(event) => onDragStart(event, 'logic', 'Roteador Lógico')}
                         draggable
                     >
-                        <MessageSquare className="h-5 w-5 text-green-600" />
-                        <span className="text-sm font-medium text-green-900">Enviar Mensagem</span>
+                        <GitBranch className="h-4 w-4 text-gray-700 group-hover:text-gray-900" strokeWidth={1.5} />
+                        <span className="text-sm font-medium text-gray-900">Roteador Lógico</span>
                     </div>
                     <div
-                        className="flex items-center gap-3 p-3 bg-green-50 border border-green-100 rounded-lg cursor-grab hover:shadow-sm transition-all"
-                        onDragStart={(event) => onDragStart(event, 'handoff', 'Transbordo')}
+                        className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg cursor-grab hover:shadow-sm hover:border-gray-300 transition-all group"
+                        onDragStart={(event) => onDragStart(event, 'split', 'Teste A/B')}
                         draggable
                     >
-                        <Users className="h-5 w-5 text-green-600" />
-                        <span className="text-sm font-medium text-green-900">Transbordo Humano</span>
-                    </div>
-                </div>
-
-                {/* Logic */}
-                <div className="space-y-3">
-                    <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Lógica</h3>
-                    <div
-                        className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-100 rounded-lg cursor-grab hover:shadow-sm transition-all"
-                        onDragStart={(event) => onDragStart(event, 'logic', 'Condição')}
-                        draggable
-                    >
-                        <GitBranch className="h-5 w-5 text-orange-600" />
-                        <span className="text-sm font-medium text-orange-900">Condição (If/Else)</span>
+                        <Split className="h-4 w-4 text-gray-700 group-hover:text-gray-900" strokeWidth={1.5} />
+                        <span className="text-sm font-medium text-gray-900">Teste A/B (Split)</span>
                     </div>
                     <div
-                        className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-100 rounded-lg cursor-grab hover:shadow-sm transition-all"
-                        onDragStart={(event) => onDragStart(event, 'split', 'Split A/B')}
-                        draggable
-                    >
-                        <Split className="h-5 w-5 text-orange-600" />
-                        <span className="text-sm font-medium text-orange-900">Split A/B</span>
-                    </div>
-                    <div
-                        className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-100 rounded-lg cursor-grab hover:shadow-sm transition-all"
+                        className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg cursor-grab hover:shadow-sm hover:border-gray-300 transition-all group"
                         onDragStart={(event) => onDragStart(event, 'delay', 'Aguardar')}
                         draggable
                     >
-                        <Clock className="h-5 w-5 text-orange-600" />
-                        <span className="text-sm font-medium text-orange-900">Delay / Aguardar</span>
+                        <Clock className="h-4 w-4 text-gray-700 group-hover:text-gray-900" strokeWidth={1.5} />
+                        <span className="text-sm font-medium text-gray-900">Aguardar (Delay)</span>
                     </div>
                     <div
-                        className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-100 rounded-lg cursor-grab hover:shadow-sm transition-all"
-                        onDragStart={(event) => onDragStart(event, 'goto', 'Ir Para')}
+                        className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg cursor-grab hover:shadow-sm hover:border-gray-300 transition-all group"
+                        onDragStart={(event) => onDragStart(event, 'goto', 'Ir Para Nó')}
                         draggable
                     >
-                        <ArrowRight className="h-5 w-5 text-orange-600" />
-                        <span className="text-sm font-medium text-orange-900">Ir Para (Go To)</span>
+                        <ArrowRight className="h-4 w-4 text-gray-700 group-hover:text-gray-900" strokeWidth={1.5} />
+                        <span className="text-sm font-medium text-gray-900">Ir Para (GoTo Node)</span>
+                    </div>
+                    <div
+                        className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg cursor-grab hover:shadow-sm hover:border-gray-300 transition-all group"
+                        onDragStart={(event) => onDragStart(event, 'goto_campaign', 'Ir Para Campanha')}
+                        draggable
+                    >
+                        <ArrowRight className="h-4 w-4 text-gray-700 group-hover:text-gray-900" strokeWidth={1.5} />
+                        <span className="text-sm font-medium text-gray-900">Trocar Campanha</span>
+                    </div>
+                    <div
+                        className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg cursor-grab hover:shadow-sm hover:border-gray-300 transition-all group"
+                        onDragStart={(event) => onDragStart(event, 'closing', 'Encerrar Lead')}
+                        draggable
+                    >
+                        <MousePointerClick className="h-4 w-4 text-gray-700 group-hover:text-gray-900" strokeWidth={1.5} />
+                        <span className="text-sm font-medium text-gray-900">Finalizar (Closing)</span>
                     </div>
                 </div>
 

@@ -9,9 +9,13 @@ class SettingsController {
 
     async getSettings(req, res) {
         try {
-            const { userId } = req.query; // Or from auth middleware // TODO: standardized auth access
-            // Logic: Get global settings, or user specific if needed.
-            // For Super Admin, we usually want the global one row.
+            console.log('[SettingsController] GET / hit for user:', req.user?.id);
+            const userId = req.user?.id;
+
+            if (!userId) {
+                return res.status(401).json({ error: 'Auth context missing' });
+            }
+
             const settings = await this.settingsService.getSettings(userId);
             res.json(settings || {});
         } catch (error) {
@@ -22,10 +26,11 @@ class SettingsController {
 
     async saveSettings(req, res) {
         try {
-            const { userId, settings } = req.body;
+            const { settings } = req.body;
+            const userId = req.user?.id;
 
             if (!userId) {
-                return res.status(400).json({ error: 'User ID is required' });
+                return res.status(401).json({ error: 'User ID is required (Auth missing)' });
             }
 
             console.log(`[SettingsController] Updating settings for user ${userId}...`);

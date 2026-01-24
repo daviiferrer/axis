@@ -4,8 +4,8 @@
 const logger = require('../../../shared/Logger').createModuleLogger('agent-service');
 
 class AgentService {
-    constructor(supabase, settingsService) {
-        this.supabase = supabase;
+    constructor({ supabaseClient, settingsService }) {
+        this.supabase = supabaseClient;
         this.settingsService = settingsService;
     }
 

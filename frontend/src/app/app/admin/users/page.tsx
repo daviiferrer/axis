@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import useSWR from 'swr';
+import useSWR, { mutate } from 'swr';
 import { adminService } from '@/services/admin';
 import {
     Table,
@@ -14,6 +14,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { toast } from "sonner";
 
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -24,19 +32,29 @@ export default function AdminUsersPage() {
     const router = useRouter();
 
     const { data: users, error, isLoading } = useSWR(
-        (user as any)?.is_super_admin ? 'admin-users' : null,
+        (user as any)?.role === 'admin' ? 'admin-users' : null,
         adminService.getUsers
     );
 
     useEffect(() => {
-        if (!loading && !(user as any)?.is_super_admin) {
+        if (!loading && (user as any)?.role !== 'admin') {
             router.push('/app');
         }
     }, [user, loading, router]);
 
+    const handleRoleChange = async (userId: string, newRole: string) => {
+        try {
+            await adminService.updateUserRole(userId, newRole);
+            toast.success("Cargo atualizado com sucesso!");
+            mutate('admin-users'); // Refresh list
+        } catch (e) {
+            toast.error("Erro ao atualizar cargo do usuário.");
+        }
+    };
+
     if (loading || isLoading) return <div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-20 w-full" /></div>;
 
-    if (!(user as any)?.is_super_admin) {
+    if ((user as any)?.role !== 'admin') {
         return null;
     }
 
@@ -53,28 +71,42 @@ export default function AdminUsersPage() {
                             <TableHead className="w-[80px]">Avatar</TableHead>
                             <TableHead>Nome</TableHead>
                             <TableHead>Email</TableHead>
+                            <TableHead>Cargo (Role)</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Data de Cadastro</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {users?.map((user: any) => (
-                            <TableRow key={user.id}>
+                        {users?.map((u: any) => (
+                            <TableRow key={u.id}>
                                 <TableCell>
                                     <Avatar>
-                                        <AvatarImage src={user.user_metadata?.avatar_url} />
-                                        <AvatarFallback>{user.email?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                        <AvatarImage src={u.user_metadata?.avatar_url} />
+                                        <AvatarFallback>{u.email?.substring(0, 2).toUpperCase()}</AvatarFallback>
                                     </Avatar>
                                 </TableCell>
-                                <TableCell className="font-medium">{user.user_metadata?.full_name || 'N/A'}</TableCell>
-                                <TableCell>{user.email}</TableCell>
+                                <TableCell className="font-medium">{u.user_metadata?.full_name || 'N/A'}</TableCell>
+                                <TableCell>{u.email}</TableCell>
+                                <TableCell>
+                                    <Select
+                                        defaultValue={u.role}
+                                        onValueChange={(val) => handleRoleChange(u.id, val)}
+                                        disabled={u.id === user?.id} // Prevent self-demotion lockout logic for safety (optional but good UX)
+                                    >
+                                        <SelectTrigger className="w-[140px]">
+                                            <SelectValue placeholder="Role" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="admin">Super Admin</SelectItem>
+                                            <SelectItem value="owner">Owner (Cliente)</SelectItem>
+                                            <SelectItem value="member">Member (Func.)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </TableCell>
                                 <TableCell>
                                     <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 mr-2">Ativo</Badge>
-                                    {user.is_super_admin && (
-                                        <Badge variant="default" className="bg-purple-600 hover:bg-purple-700">Super Admin</Badge>
-                                    )}
                                 </TableCell>
-                                <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                                <TableCell>{new Date(u.created_at).toLocaleDateString()}</TableCell>
                             </TableRow>
                         ))}
                     </TableBody>

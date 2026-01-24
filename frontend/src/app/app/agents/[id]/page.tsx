@@ -12,6 +12,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/forms/select"
+import { Switch } from "@/components/ui/switch"
 import { ArrowLeft, Save, Bot, Brain, Activity, Clock, MessageSquare, Zap } from "lucide-react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -252,6 +253,7 @@ export default function AgentDNAEditorPage() {
                             <TabsTrigger value="emotions">❤️ Emoções (PAD)</TabsTrigger>
                             <TabsTrigger value="linguistics">💬 Linguística</TabsTrigger>
                             <TabsTrigger value="chronemics">⏱️ Cronêmica</TabsTrigger>
+                            <TabsTrigger value="safety">🛡️ Segurança</TabsTrigger>
                         </TabsList>
 
                         {/* --- TRIAGEM (Qualifications) --- */}
@@ -518,6 +520,46 @@ export default function AgentDNAEditorPage() {
                                                 <SelectItem value="HIGH">Alta (Caótico)</SelectItem>
                                             </SelectContent>
                                         </Select>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+
+                        {/* --- SAFETY & GUARDRAILS --- */}
+                        <TabsContent value="safety" className="mt-6">
+                            <Card className="border-none shadow-md bg-red-50/50">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-red-900">
+                                        <Activity className="h-5 w-5 text-red-600" />
+                                        Segurança & Guardrails
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-6">
+                                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border border-red-100">
+                                        <div className="space-y-1">
+                                            <label className="text-sm font-medium text-gray-900">Transbordo Automático por Frustração</label>
+                                            <p className="text-xs text-gray-500">
+                                                Monitora sentimento negativo. Se o cliente ficar irritado, o agente para e pede humano.
+                                            </p>
+                                        </div>
+                                        <Switch
+                                            checked={dna.safety?.handoff_on_frustration !== false} // Default true
+                                            onCheckedChange={(c) => updateDna('safety', 'handoff_on_frustration', c)}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-900">Tópicos Proibidos</label>
+                                        <Textarea
+                                            placeholder="Ex: Política, Religião, Concorrente X..."
+                                            value={dna.safety?.prohibited_topics?.join(', ') || ''}
+                                            onChange={(e) => {
+                                                const topics = e.target.value.split(',').map(t => t.trim()).filter(Boolean);
+                                                updateDna('safety', 'prohibited_topics', topics);
+                                            }}
+                                            className="bg-white"
+                                        />
+                                        <p className="text-xs text-gray-500">Separe os temas por vírgula. O agente se recusará a falar sobre isso.</p>
                                     </div>
                                 </CardContent>
                             </Card>

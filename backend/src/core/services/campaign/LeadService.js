@@ -2,7 +2,7 @@
  * LeadService - Core Service for Lead Management
  */
 class LeadService {
-    constructor(supabaseClient) {
+    constructor({ supabaseClient }) {
         this.supabase = supabaseClient;
     }
 
