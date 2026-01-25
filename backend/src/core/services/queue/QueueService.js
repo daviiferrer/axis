@@ -200,7 +200,7 @@ class QueueService {
 
         const worker = new Worker(queueName, processor, {
             connection: this.connection,
-            concurrency: 5
+            concurrency: process.env.QUEUE_CONCURRENCY ? parseInt(process.env.QUEUE_CONCURRENCY) : 5
         });
 
         worker.on('completed', (job) => {

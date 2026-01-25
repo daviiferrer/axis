@@ -6,7 +6,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     command: redis-server --appendonly yes
@@ -28,10 +28,10 @@ services:
       - WAHA_PRINT_QR=true
       - WAHA_ZIPPER=true
       # Dashboard login (Username/Password)
-      - WAHA_DASHBOARD_USERNAME=admin
-      - WAHA_DASHBOARD_PASSWORD=admin
+      - WAHA_DASHBOARD_USERNAME=${WAHA_DASHBOARD_USERNAME}
+      - WAHA_DASHBOARD_PASSWORD=${WAHA_DASHBOARD_PASSWORD}
       # API Key para autenticação (use no header: X-Api-Key)
-      - WHATSAPP_API_KEY=prospecao-fria-2026
+      - WHATSAPP_API_KEY=${WHATSAPP_API_KEY}
       # Webhook para o backend local
       - WHATSAPP_HOOK_URL=http://host.docker.internal:8000/api/v1/webhook/waha
       - WHATSAPP_HOOK_EVENTS=message,message.any,message.ack,presence.update,session.status

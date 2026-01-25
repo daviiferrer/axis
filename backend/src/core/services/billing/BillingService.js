@@ -78,29 +78,46 @@ class BillingService {
     async deductCredits(companyId, amount, details = {}) {
         if (!companyId) return;
 
-        // Decrement using RPC or direct update? 
-        // Direct update is prone to race conditions, but fine for MVP.
-        // Ideally: rpc('deduct_credits', { amt: amount, row_id: companyId })
         try {
-            const { data: company } = await this.supabase
+            const { data: company, error: fetchError } = await this.supabase
                 .from('companies')
-                .select('credits')
+                .select('credits, subscription_plan')
                 .eq('id', companyId)
                 .single();
 
-            if (!company) return;
+            if (fetchError || !company) throw new Error('Company not found');
 
+            // 1. Check if Enterprise (Unlimited)
+            if (company.subscription_plan === 'enterprise') {
+                return; // No deduction needed
+            }
+
+            // 2. Strict Balance Check
+            if ((company.credits || 0) < amount) {
+                logger.warn({ companyId, credits: company.credits, required: amount }, '⛔ Insufficient Credits - Execution Blocked');
+                throw new Error('INSUFFICIENT_CREDITS');
+            }
+
+            // 3. Deduct
             const newBalance = Math.max(0, (company.credits || 0) - amount);
 
-            await this.supabase
+            const { error: updateError } = await this.supabase
                 .from('companies')
                 .update({ credits: newBalance })
                 .eq('id', companyId);
 
+            if (updateError) throw updateError;
+
             // Log usage (optional, could be in a separate table 'usage_logs')
-            // logger.info({ companyId, deduction: amount, purpose: details.purpose }, 'Credits Deducted');
+            // logger.info({ companyId, deduction: amount, purpose: details.purpose, remaining: newBalance }, 'Credits Deducted');
         } catch (e) {
+            // Propagate 'INSUFFICIENT_CREDITS' to stop execution flow
+            if (e.message === 'INSUFFICIENT_CREDITS') throw e;
+
             logger.error({ error: e.message, companyId }, 'Failed to deduct credits');
+            // If it's a DB error, we might want to throw too, or allow graceful failure?
+            // For SaaS safety, better to fail closed (block) on error than fail open (free usage).
+            throw new Error('BILLING_SYSTEM_ERROR');
         }
     }
 

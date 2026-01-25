@@ -1,91 +1,119 @@
 "use client";
 
-import { motion, Variants } from "framer-motion";
-import { Button } from "@/components/ui/forms/button";
+import { motion } from "motion/react";
+import { ArrowRight, CheckCircle2, Star, Zap } from "lucide-react";
 import Link from "next/link";
-import { ArrowLeft, Calendar, CheckCircle2, Play } from "lucide-react";
+import { useEffect, useState } from "react";
 
-import { Ripple } from "@/components/ui/visuals/ripple";
+const TYPING_WORDS = ["vende 24/7", "qualifica leads", "agenda reuniões", "nunca dorme"];
 
 export function HeroText() {
-    // Animation variants for children
-    const container: Variants = {
-        hidden: { opacity: 0 },
-        show: {
-            opacity: 1,
-            transition: {
-                staggerChildren: 0.1, // Reduzido para ser mais rápido
-                delayChildren: 0.5    // Aumentado levemente para esperar o PageTransition estabilizar
-            }
-        }
-    };
+    const [wordIndex, setWordIndex] = useState(0);
+    const [text, setText] = useState("");
+    const [isDeleting, setIsDeleting] = useState(false);
 
-    const item: Variants = {
-        hidden: { opacity: 0, y: 20 },
-        show: {
-            opacity: 1,
-            y: 0,
-            transition: {
-                ease: "easeOut",
-                duration: 0.5
+    // Typewriter Effect Logic
+    useEffect(() => {
+        const currentWord = TYPING_WORDS[wordIndex];
+        const typeSpeed = isDeleting ? 40 : 80;
+
+        const timer = setTimeout(() => {
+            if (!isDeleting && text === currentWord) {
+                setTimeout(() => setIsDeleting(true), 1500); // Pause before deleting
+            } else if (isDeleting && text === "") {
+                setIsDeleting(false);
+                setWordIndex((prev) => (prev + 1) % TYPING_WORDS.length);
+            } else {
+                setText(currentWord.substring(0, text.length + (isDeleting ? -1 : 1)));
             }
-        }
-    };
+        }, typeSpeed);
+
+        return () => clearTimeout(timer);
+    }, [text, isDeleting, wordIndex]);
 
     return (
-        <motion.div
-            variants={container}
-            initial="hidden"
-            animate="show"
-            className="w-full max-w-4xl flex flex-col justify-center items-center md:items-start mx-auto md:mx-0"
-        >
-            <motion.div variants={item} className="relative">
-                <Ripple
-                    mainCircleSize={300}
-                    mainCircleOpacity={0.15}
-                    numCircles={6}
-                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-0 pointer-events-none"
-                    style={{ maskImage: 'none', WebkitMaskImage: 'none' }}
-                />
-
-                <h1
-                    className="relative z-10 font-[family-name:var(--font-jetbrains-mono)] text-4xl sm:text-5xl md:text-[60px] font-extrabold leading-[1.1] tracking-[-0.04em] mb-6 pointer-events-auto text-center md:text-left text-gray-900"
-                >
-                    Contrate o primeiro{" "}
-                    <span
-                        className="text-blue-600"
-                        style={{
-                            textShadow: '0 0 20px rgba(37,99,235,0.2)'
-                        }}
-                    >Agente de IA</span>{" "}
-                    que realmente entende o seu negócio.
-                </h1>
-            </motion.div>
-
-            <motion.p
-                variants={item}
-                className="text-gray-600 text-lg sm:text-xl md:text-[22px] font-extralight max-w-3xl leading-relaxed pointer-events-auto mb-10 text-center md:text-left mx-auto md:mx-0"
-            >
-                A AXIS transforma seu WhatsApp em uma máquina de receita autônoma. Implante agentes que qualificam leads, agendam reuniões e resolvem tickets com a empatia de um humano e a escala de um software. Sem fluxogramas. Sem scripts.
-            </motion.p>
-
-            {/* CTA Buttons */}
+        <div className="flex flex-col gap-6 max-w-4xl relative z-20">
+            {/* Live Activity Badge (Social Proof + Urgency) */}
             <motion.div
-                variants={item}
-                className="flex flex-col sm:flex-row items-center gap-4 pointer-events-auto relative z-50"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="inline-flex items-center gap-2 self-start px-3 py-1 rounded-full bg-blue-50/80 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 backdrop-blur-sm"
             >
-                <Link href="/auth/register">
-                    <Button className="h-12 px-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-base font-bold shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 transition-all duration-300 group">
-                        Criar meu primeiro agente
-                    </Button>
-                </Link>
-                <Link href="/demo">
-                    <Button variant="ghost" className="h-12 px-6 rounded-full text-gray-600 hover:text-gray-900 hover:bg-gray-100/50 text-base font-medium transition-all">
-                        <Play className="w-4 h-4 mr-2 fill-current" />
-                        Ver agentes em ação
-                    </Button>
-                </Link>
+                <div className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </div>
+                <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                    <span className="font-bold">14 empresas</span> começaram a escalar hoje
+                </span>
             </motion.div>
-        </motion.div>
+
+            {/* Dynamic Headline */}
+            <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-gray-900 dark:text-white leading-[1.1]">
+                Sua equipe dorme. <br />
+                <span className="whitespace-nowrap flex flex-wrap gap-x-2 md:gap-x-4">
+                    <span>O ÁXIS</span>
+                    <span className="relative inline-block text-left min-w-[2ch]">
+                        {/* Invisible placeholder to reserve width for the longest string */}
+                        <span className="invisible opacity-0 select-none" aria-hidden="true">agenda reuniões</span>
+
+                        {/* Actual Typing Text overlay */}
+                        <span className="absolute left-0 top-0 whitespace-nowrap text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-violet-600">
+                            {text}<span className="animate-pulse text-blue-600">|</span>
+                        </span>
+                    </span>
+                </span>
+            </h1>
+
+            {/* Subheadline (Outcome-Focused) */}
+            <p className="text-xl text-gray-600 dark:text-gray-300 leading-relaxed max-w-2xl">
+                Transforme seu WhatsApp em uma máquina de vendas autônoma.
+                Responda em <span className="font-bold text-gray-900 dark:text-white">0 segundos</span>, aumente a conversão em <span className="font-bold text-gray-900 dark:text-white">391%</span> e nunca mais perca um lead por demora.
+            </p>
+
+            {/* Trust Signals (Micro-Social Proof) */}
+            <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                <div className="flex -space-x-2">
+                    {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="w-8 h-8 rounded-full border-2 border-white dark:border-neutral-900 bg-gray-200" style={{ backgroundImage: `url(https://i.pravatar.cc/100?img=${i + 10})`, backgroundSize: 'cover' }}></div>
+                    ))}
+                    <div className="w-8 h-8 rounded-full border-2 border-white dark:border-neutral-900 bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700">+400</div>
+                </div>
+                <div className="flex flex-col">
+                    <div className="flex text-yellow-500">
+                        <Star className="w-3 h-3 fill-current" />
+                        <Star className="w-3 h-3 fill-current" />
+                        <Star className="w-3 h-3 fill-current" />
+                        <Star className="w-3 h-3 fill-current" />
+                        <Star className="w-3 h-3 fill-current" />
+                    </div>
+                    <span>Líderes de Vendas confiam</span>
+                </div>
+            </div>
+
+            {/* CTAs (High Contrast + Risk Reversal) */}
+            <div className="flex flex-col sm:flex-row gap-4 mt-4">
+                <Link
+                    href="/auth/register"
+                    className="group flex items-center justify-center gap-2 px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold text-lg transition-all shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 hover:-translate-y-1"
+                >
+                    <Zap className="w-5 h-5 fill-current" />
+                    Começar Teste Grátis
+                </Link>
+
+                <Link
+                    href="#demo"
+                    className="flex items-center justify-center gap-2 px-8 py-4 bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-neutral-700 rounded-full font-medium hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors"
+                >
+                    Ver Demonstração
+                </Link>
+            </div>
+
+            <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-2 mt-2">
+                <CheckCircle2 className="w-3 h-3 text-green-500" /> Sem cartão de crédito necessário
+                <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                <CheckCircle2 className="w-3 h-3 text-green-500" /> Instalação em 2 minutos
+            </p>
+        </div>
     );
 }

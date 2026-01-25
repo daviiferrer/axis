@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { supabase } from '@/lib/supabase/client';
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1').replace(/\/waha$/, '');
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1').replace(/\/waha$/, '');
 
 const api = axios.create({
     baseURL: API_URL,

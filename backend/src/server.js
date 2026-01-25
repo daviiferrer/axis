@@ -15,6 +15,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const helmet = require('helmet');
 const { scopePerRequest } = require('awilix-express');
 
 // DI Container
@@ -29,7 +30,10 @@ async function bootstrap() {
     const app = express();
     const server = http.createServer(app);
     const io = new Server(server, {
-        cors: { origin: "*", methods: ["GET", "POST"] }
+        cors: {
+            origin: process.env.CORS_ORIGIN || "*",
+            methods: ["GET", "POST"]
+        }
     });
 
     // 2. Configure Container
@@ -45,7 +49,10 @@ async function bootstrap() {
     });
 
     // 3. Middlewares
-    app.use(cors());
+    app.use(helmet());
+    app.use(cors({
+        origin: process.env.CORS_ORIGIN || "*"
+    }));
     app.use(express.json());
 
     // Awilix Scope per Request - Injects 'req.container'

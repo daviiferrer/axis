@@ -19,6 +19,8 @@ const EmotionalStateService = require('./core/services/ai/EmotionalStateService'
 const GuardrailService = require('./core/services/guardrails/GuardrailService');
 const PromptService = require('./core/services/ai/PromptService');
 const CsvParserService = require('./core/services/system/CsvParserService');
+const HealthService = require('./core/services/system/HealthService');
+const AnalyticsService = require('./core/services/analytics/AnalyticsService');
 
 // --- Controllers ---
 const SettingsController = require('./api/controllers/system/SettingsController');
@@ -101,7 +103,12 @@ function configureContainer() {
         promptService: asClass(PromptService).scoped(),
         csvParserService: asClass(CsvParserService).singleton(),
         emotionalStateService: asClass(EmotionalStateService).singleton(),
+        emotionalStateService: asClass(EmotionalStateService).singleton(),
         guardrailService: asClass(GuardrailService).singleton(),
+
+        // System & Analytics
+        healthService: asClass(HealthService).singleton(),
+        analyticsService: asClass(AnalyticsService).scoped(),
 
         // Singletons (Stateful/Global)
         // Singletons (Stateful/Global)
@@ -113,6 +120,11 @@ function configureContainer() {
         nodeFactory: asClass(NodeFactory).singleton(),
         // QueueService might be Infrastructure or Core. Assuming Singleton.
         queueService: asClass(QueueService).singleton(),
+
+        // ARCHITECTURE NOTE: WorkflowEngine is a Singleton running in background (God Mode).
+        // It injects 'leadService' (Scoped), which in turn injects 'supabaseClient' (Singleton Admin).
+        // This is safe for background processing as it bypasses RLS.
+        // BEWARE: Do not inject 'req.scoped' services that rely on 'req.user' here.
         workflowEngine: asClass(WorkflowEngine).singleton(),
         agentGraphEngine: asClass(AgentGraphEngine).singleton(),
 

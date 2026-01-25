@@ -13,6 +13,7 @@ export default function AppLayout({
 }) {
     const { user, loading } = useAuth()
     const router = useRouter()
+    const pathname = usePathname()
 
     useEffect(() => {
         if (!loading && !user) {
@@ -34,7 +35,6 @@ export default function AppLayout({
         return null
     }
 
-    const pathname = usePathname()
     const isFlowPage = pathname?.includes('/flow')
 
     // Aceternity Sidebar Layout

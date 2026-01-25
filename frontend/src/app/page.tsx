@@ -1,69 +1,48 @@
 "use client";
 
-
 import Link from "next/link";
 import Image from "next/image";
 import { HeroText } from "@/components/landing/sections/hero/hero-text";
 import { WhatsappDemo } from "@/components/landing/sections/hero/whatsapp-demo";
-import { DynamicBackground } from "@/components/ui/visuals/dynamic-background";
+import { SolutionSection } from "@/components/landing/sections/solution-section";
 
 export default function Home() {
     return (
-        <main className="w-full text-gray-900 selection:bg-blue-100 relative">
-            <DynamicBackground />
+        <main className="w-full text-slate-900 selection:bg-blue-100 relative bg-white">
 
-            {/* Hero Section */}
-            <section className="relative min-h-screen w-full overflow-hidden flex flex-col md:block bg-transparent mb-0">
-                {/* Header: Logo + Login */}
-                <div className="absolute top-6 md:top-8 left-0 right-0 z-50 w-full max-w-[1400px] mx-auto px-4 md:px-12 pointer-events-none flex justify-between items-center">
-                    {/* Logo - Restored & Scaled Up */}
-                    <Link href="/" className="pointer-events-auto">
-                        <Image
-                            src="/assets/brand/logo.svg"
-                            alt="AXIS Logo"
-                            width={120}
-                            height={40}
-                            className="h-8 md:h-10 w-auto opacity-90 hover:opacity-100 transition-opacity"
-                        />
+            {/* 1. HERO SECTION (Restored) */}
+            <section className="relative min-h-screen w-full flex flex-col pt-6 md:pt-12 overflow-hidden z-10">
+                {/* Header */}
+                <div className="w-full max-w-[1400px] mx-auto px-4 md:px-12 flex justify-between items-center relative z-50">
+                    <Link href="/">
+                        <Image src="/assets/brand/logo.svg" alt="AXIS Logo" width={120} height={40} className="h-8 md:h-10 w-auto" />
                     </Link>
-
-                    {/* Login CTA - Smaller Pill Shape */}
-                    <Link
-                        href="/auth/login"
-                        className="pointer-events-auto px-6 py-2 rounded-full bg-white text-gray-900 text-sm font-medium hover:bg-gray-100 transition-all shadow-sm border border-gray-200"
-                    >
+                    <Link href="/auth/login" className="px-6 py-2 rounded-full bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl">
                         Entrar
                     </Link>
                 </div>
 
-                {/* Main Layout Container - Grid for Perfect Alignment */}
-                <div className="relative z-30 w-full max-w-[1400px] mx-auto px-4 md:px-12 grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12 items-center h-full pt-32 md:pt-28 pb-12 md:pb-0">
-
-                    {/* Left Column: Text Content */}
-                    <div className="flex flex-col items-center md:items-start justify-center w-full md:col-span-7 lg:col-span-8">
-                        <HeroText />
-                    </div>
-
-                    {/* Right Column: Whatsapp Demo */}
-                    <div className="hidden md:flex flex-col items-center md:items-end justify-center w-full relative h-[600px] md:col-span-5 lg:col-span-4">
-                        <WhatsappDemo />
-                    </div>
-
-                    {/* Mobile Only: Show Whatsapp Demo below text */}
-                    <div className="md:hidden flex flex-col items-center justify-center w-full mt-8">
-                        <WhatsappDemo />
+                {/* Hero Content */}
+                <div className="flex-1 flex items-center w-full max-w-[1400px] mx-auto px-4 md:px-12 relative z-10 pt-10 md:pt-0">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12 items-center w-full">
+                        <div className="md:col-span-7 lg:col-span-8 flex justify-center md:justify-start">
+                            <HeroText />
+                        </div>
+                        <div className="md:col-span-5 lg:col-span-4 flex justify-end h-[500px] md:h-[600px] items-center relative">
+                            <WhatsappDemo />
+                        </div>
                     </div>
                 </div>
 
-                {/* Violet Glow - Bottom Right Corner - Reduced opacity for blend */}
-                <div
-                    className="absolute bottom-0 right-0 w-[500px] h-[500px] md:w-[1000px] md:h-[1000px] pointer-events-none z-5 will-change-transform"
-                    style={{
-                        background: 'radial-gradient(ellipse 60% 60% at 100% 100%, rgba(139, 92, 246, 0.1) 0%, rgba(139, 92, 246, 0.05) 35%, rgba(139, 92, 246, 0.01) 60%, transparent 80%)',
-                        filter: 'blur(60px)'
-                    }}
+                {/* Violet Glow (Hero Only Accent) */}
+                <div className="absolute bottom-0 right-0 w-[800px] h-[800px] pointer-events-none z-0 opacity-20"
+                    style={{ background: 'radial-gradient(ellipse at center, rgba(139, 92, 246, 0.3) 0%, transparent 70%)', filter: 'blur(80px)' }}
                 />
             </section>
+
+            {/* 2. THE SOLUTION (Context Cards / RevOps Platform) */}
+            <SolutionSection />
+
         </main>
     );
 }

@@ -1,18 +1,26 @@
+/**
+ * AnalyticsController.js
+ */
 class AnalyticsController {
-    constructor(analyticsService) {
+    constructor({ analyticsService }) {
         this.analyticsService = analyticsService;
     }
 
     async getDashboardStats(req, res) {
         try {
-            const stats = await this.analyticsService.getDashboardStats();
+            // req.user / req.companyId should be populated by authMiddleware
+            const companyId = req.user?.company_id;
+
+            const stats = await this.analyticsService.getDashboardStats(companyId);
+            const activity = await this.analyticsService.getRecentActivity(10);
+
             return res.json({
-                success: true,
-                data: stats
+                stats,
+                recent_activity: activity
             });
         } catch (error) {
-            console.error('AnalyticsController Error:', error);
-            return res.status(500).json({ error: 'Internal Server Error' });
+            console.error('Error fetching dashboard stats:', error);
+            return res.status(500).json({ error: 'Failed to fetch dashboard stats' });
         }
     }
 }

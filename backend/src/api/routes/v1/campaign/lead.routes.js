@@ -2,7 +2,10 @@ const express = require('express');
 const multer = require('multer');
 
 // Configure upload (Memory Storage for processing immediately)
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
 
 function createLeadRouter(leadController) {
     const router = express.Router();
