@@ -1,8 +1,33 @@
 const { lidCache, composingCache } = require('../../../core/services/system/CacheService');
 const logger = require('../../../shared/Logger').createModuleLogger('webhook');
 
+// Message Deduplication Cache (prevents processing same event 2x from WAHA)
+const processedMessages = new Map();
+const MESSAGE_DEDUP_TTL_MS = 30000; // 30 seconds
+
+function isMessageDuplicate(messageId) {
+    if (!messageId) return false;
+
+    const now = Date.now();
+
+    // Cleanup old entries
+    for (const [id, timestamp] of processedMessages) {
+        if (now - timestamp > MESSAGE_DEDUP_TTL_MS) {
+            processedMessages.delete(id);
+        }
+    }
+
+    if (processedMessages.has(messageId)) {
+        logger.debug({ messageId }, '🔁 Duplicate message ignored (dedup cache)');
+        return true;
+    }
+
+    processedMessages.set(messageId, now);
+    return false;
+}
+
 class WebhookController {
-    constructor(chatService, workflowEngine, socketService, wahaClient, supabase, jidService) {
+    constructor({ chatService, workflowEngine, socketService, wahaClient, supabase, jidService }) {
         this.chatService = chatService;
         this.workflowEngine = workflowEngine;
         this.socketService = socketService;
@@ -50,6 +75,12 @@ class WebhookController {
 
     async handleMessageEvent(payload, sessionName) {
         try {
+            // Deduplication: Skip if we already processed this message recently
+            const messageId = payload?.id?._serialized || payload?.id;
+            if (isMessageDuplicate(messageId)) {
+                return; // Already processed
+            }
+
             const result = await this.chatService.processIncomingMessage(payload, sessionName);
 
             if (result) {
@@ -96,7 +127,7 @@ class WebhookController {
                                 logger.info({ phone: result.phone }, '▶️ Anti-Collision: Resuming AI trigger');
                                 // Await to ensure persistence is done? It's already awaited above. 
                                 // But we can add a small safety delay or just ensure we catch.
-                                await this.workflowEngine.triggerAiForLead(result.phone, result.body, result.referral);
+                                await this.workflowEngine.triggerAiForLead(result.phone, result.body, result.referral, sessionName);
                             }
                         }, cooldown + 500);
                     } else {
@@ -113,7 +144,7 @@ class WebhookController {
                         // Actually, the main race is between persistence (line 53) and this trigger. 
                         // Since line 53 is awaited, we are good.
                         // But let's verify if triggerAiForLead should be awaited to handle errors properly here.
-                        await this.workflowEngine.triggerAiForLead(result.phone, result.body, result.referral);
+                        await this.workflowEngine.triggerAiForLead(result.phone, result.body, result.referral, sessionName);
                     }
                 }
             }

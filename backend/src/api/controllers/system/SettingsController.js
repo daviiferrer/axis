@@ -2,7 +2,7 @@
  * SettingsController - Handles system settings API requests.
  */
 class SettingsController {
-    constructor(settingsService, wahaClient) {
+    constructor({ settingsService, wahaClient }) {
         this.settingsService = settingsService;
         this.wahaClient = wahaClient;
     }

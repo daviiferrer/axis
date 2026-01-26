@@ -5,7 +5,7 @@ const logger = require('../../../shared/Logger').createModuleLogger('agent-contr
 const LlmFactory = require('../../../core/factories/LlmFactory');
 
 class AgentController {
-    constructor(agentService, llmFactory, agentGraphEngine) {
+    constructor({ agentService, llmFactory, agentGraphEngine }) {
         this.agentService = agentService;
         this.llmFactory = llmFactory;
         this.agentGraphEngine = agentGraphEngine;

@@ -46,6 +46,7 @@ class CampaignService {
                 name: campaignData.name,
                 description: campaignData.description,
                 session_id: campaignData.session_id,
+                waha_session_name: campaignData.waha_session_name, // Support for Multi-Tenancy Routing
                 type: campaignData.type || 'inbound', // Default to inbound
                 status: 'draft'
             })

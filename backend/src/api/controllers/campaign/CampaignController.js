@@ -2,7 +2,7 @@
  * CampaignController - Handles campaign-related API requests.
  */
 class CampaignController {
-    constructor(campaignService, supabaseClient) {
+    constructor({ campaignService, supabaseClient }) {
         this.campaignService = campaignService;
         this.supabase = supabaseClient;
     }

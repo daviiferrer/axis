@@ -110,7 +110,7 @@ export const wahaService = {
     },
 
     // Auth
-    getQR: async (session: string) => {
+    getAuthQR: async (session: string) => {
         // Returns base64 string directly from backend logic
         const response = await api.get(`/auth/${session}/qr`);
         return response.data;

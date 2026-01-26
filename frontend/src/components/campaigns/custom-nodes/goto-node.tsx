@@ -1,25 +1,54 @@
 'use client'
 
 import React, { memo } from 'react';
-import { Handle, Position } from '@xyflow/react';
-import { ArrowRight } from 'lucide-react';
+import { NodeProps } from '@xyflow/react';
+import { ArrowUpRight, ExternalLink, CornerUpRight } from 'lucide-react';
+import { BaseNode } from './base-node';
 
-export const GotoNode = memo(({ data, isConnectable }: any) => {
+// ============================================================================
+// GOTO NODE: Jump to another point or campaign (Premium Version)
+// ============================================================================
+
+export const GotoNode = memo(({ data, isConnectable, selected }: NodeProps) => {
     return (
-        <div className="shadow-sm rounded-full border border-gray-200 bg-white min-w-[140px] flex items-center justify-between px-3 py-2 hover:ring-2 hover:ring-gray-900/10 transition-all group">
-            <Handle
-                type="target"
-                position={Position.Left}
-                isConnectable={isConnectable}
-                className="w-2 h-2 bg-gray-400 border-2 border-white transition-all group-hover:bg-gray-900"
-            />
-
-            <div className="flex items-center gap-2 text-gray-700">
-                <ArrowRight size={14} strokeWidth={1.5} />
-                <span className="text-xs font-medium">
-                    Ir para: <span className="font-bold text-gray-900">{data.targetLabel || 'Passo X'}</span>
-                </span>
+        <BaseNode
+            gradientFrom="from-cyan-50"
+            gradientTo="to-blue-50/50"
+            iconColor="text-cyan-600"
+            accentColor="!bg-cyan-500"
+            icon={CornerUpRight}
+            title={data.label || 'Pular Para'}
+            subtitle="Navegação"
+            showInputHandle={true}
+            showOutputHandle={false}
+            selected={selected}
+            isConnectable={isConnectable}
+            data={data}
+        >
+            <div className="space-y-3">
+                {data.target_campaign_id ? (
+                    <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-indigo-50 border border-indigo-100">
+                        <ExternalLink size={14} className="text-indigo-500" />
+                        <span className="text-sm font-medium text-indigo-900 truncate">
+                            Campanha: {data.target_campaign_id.slice(0, 8)}...
+                        </span>
+                    </div>
+                ) : data.targetNodeId ? (
+                    <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-cyan-50 border border-cyan-100">
+                        <ArrowUpRight size={14} className="text-cyan-500" />
+                        <span className="text-xs font-mono text-cyan-700">
+                            → {data.targetNodeId}
+                        </span>
+                    </div>
+                ) : (
+                    <div className="text-center py-4">
+                        <CornerUpRight size={28} className="mx-auto text-gray-200 mb-2" />
+                        <p className="text-xs text-gray-400">Selecione destino</p>
+                    </div>
+                )}
             </div>
-        </div>
+        </BaseNode>
     );
 });
+
+GotoNode.displayName = 'GotoNode';

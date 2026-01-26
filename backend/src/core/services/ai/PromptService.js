@@ -109,11 +109,17 @@ class PromptService {
         <enthusiasm level="${tone.enthusiasm}/5">${tone.enthusiasm > 3 ? 'Alta energia!' : 'Calmo'}</enthusiasm>
     </tone_configuration>
     
-    <product_context>
-        <name>${productName}</name>
-        <core_benefit>${productBenefit}</core_benefit>
+        <product_context>
+        <!-- PRIORITY 1: Node-Specific Product (Granular) -->
+        <name>${safeProduct.name || 'Nossa Solução'}</name>
         <price>${safeProduct.price || 'Consulte'}</price>
+        <core_benefit>${safeProduct.mainBenefit || safeProduct.description || 'Solução Premium'}</core_benefit>
         <differentials>${safeProduct.differentials?.join(', ') || 'N/A'}</differentials>
+
+        <!-- PRIORITY 2: Campaign Catalog (Fallback) -->
+        <catalog_and_pricing>
+        ${campaign?.description || ''}
+        </catalog_and_pricing>
     </product_context>
     
     <target_context>
@@ -167,19 +173,21 @@ class PromptService {
     ${currentCta ? `<mandatory_cta>VOCÊ DEVE TERMINAR COM: ${currentCta}</mandatory_cta>` : ''}
     
     <critical_rules>
-        1. Use mensagens CURTAS e DIVIDIDAS (array "messages"). Imite o ritmo humano (várias mensagens curtas).
+        1. Use linguagem NATURAL e fluida. NÃO divida mensagens artificialmente. Use frases completas.
         2. SEMPRE responda em JSON válido.
         3. Se o lead disser NÃO/PARAR, marque como LOST.
         4. NUNCA prometa descontos sem autorização explícita.
         5. SE HOUVER <mandatory_cta>, termine obrigatoriamente com ele.
         6. SE O LEAD QUISER COMPRAR/FECHAR ("quero", "topo", "bora"), marque "ready_to_close": true.
+        7. EVITE repetir saudações (Oi, Olá) se a conversa já estiver em andamento.
+        8. SE o lead parecer um ROBÔ/BOT (respostas automáticas, loops, "atendimento virtual"), encerre a conversa educadamente.
     </critical_rules>
     
     <response_format>
         RESPONDA APENAS com este JSON:
         {
             "thought": "Raciocínio interno...",
-            "messages": ["Primeira frase...", "Segunda frase (quebra de linha natural)"],
+            "response": "Sua resposta completa e natural aqui.",
             "ready_to_close": false,
             "crm_actions": [],
             "sentiment_score": 0.5,

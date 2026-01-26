@@ -1,62 +1,62 @@
 'use client'
 
 import React, { memo } from 'react';
-import { Handle, Position } from '@xyflow/react';
-import { Split } from 'lucide-react';
+import { NodeProps } from '@xyflow/react';
+import { Split, Percent } from 'lucide-react';
+import { BaseNode, NODE_PRESETS } from './base-node';
 
-export const SplitNode = memo(({ data, isConnectable }: any) => {
+// ============================================================================
+// SPLIT NODE: A/B Test branching (Premium Version)
+// ============================================================================
+
+export const SplitNode = memo(({ data, isConnectable, selected }: NodeProps) => {
+    const percentA = data.variantA_percent ?? 50;
+    const percentB = 100 - percentA;
+
     return (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm min-w-[160px] hover:ring-2 hover:ring-gray-900/10 transition-all group">
-            <Handle
-                type="target"
-                position={Position.Left}
-                isConnectable={isConnectable}
-                className="w-2 h-2 bg-gray-400 border-2 border-white -ml-1 transition-all group-hover:w-3 group-hover:h-3 group-hover:bg-gray-900"
-            />
-
-            {/* Header */}
-            <div className="p-3 border-b border-gray-100 flex items-center gap-2">
-                <div className="p-1 bg-gray-50 rounded border border-gray-100">
-                    <Split size={14} className="text-gray-900" strokeWidth={1.5} />
-                </div>
-                <div className="flex-1">
-                    <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">Split A/B</h3>
-                </div>
-            </div>
-
-            {/* Body */}
-            <div className="p-0">
-                <div className="flex flex-col">
-                    <div className="relative p-2 flex justify-between items-center bg-gray-50/30 border-b border-gray-50">
-                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1">Caminho A</span>
-                        <span className="text-[10px] font-mono text-gray-700 bg-white px-1.5 py-0.5 rounded border border-gray-200">
-                            {data.variantA_percent || 50}%
-                        </span>
-                        <Handle
-                            type="source"
-                            position={Position.Right}
-                            id="a"
-                            isConnectable={isConnectable}
-                            className="w-2 h-2 bg-gray-400 border-2 border-white -mr-3 transition-all group-hover:bg-gray-900"
-                            style={{ right: '-11px' }}
-                        />
+        <BaseNode
+            {...NODE_PRESETS.split}
+            icon={Split}
+            title={data.label || 'Teste A/B'}
+            subtitle="Divisão"
+            showInputHandle={true}
+            showOutputHandle={true}
+            outputHandleCount={2}
+            selected={selected}
+            isConnectable={isConnectable}
+            data={data}
+        >
+            <div className="space-y-3">
+                {/* Visual Bar */}
+                <div className="relative h-8 rounded-full overflow-hidden bg-gray-100 flex">
+                    <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-blue-400 flex items-center justify-center"
+                        style={{ width: `${percentA}%` }}
+                    >
+                        <span className="text-[10px] font-bold text-white">A</span>
                     </div>
-                    <div className="relative p-2 flex justify-between items-center bg-white">
-                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1">Caminho B</span>
-                        <span className="text-[10px] font-mono text-gray-700 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
-                            {100 - (data.variantA_percent || 50)}%
-                        </span>
-                        <Handle
-                            type="source"
-                            position={Position.Right}
-                            id="b"
-                            isConnectable={isConnectable}
-                            className="w-2 h-2 bg-gray-400 border-2 border-white -mr-3 transition-all group-hover:bg-gray-900"
-                            style={{ right: '-11px' }}
-                        />
+                    <div
+                        className="h-full bg-gradient-to-r from-pink-400 to-pink-500 flex items-center justify-center"
+                        style={{ width: `${percentB}%` }}
+                    >
+                        <span className="text-[10px] font-bold text-white">B</span>
+                    </div>
+                </div>
+
+                {/* Labels */}
+                <div className="flex justify-between text-xs">
+                    <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                        <span className="font-bold text-blue-600">{percentA}%</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-pink-600">{percentB}%</span>
+                        <div className="w-2.5 h-2.5 rounded-full bg-pink-500" />
                     </div>
                 </div>
             </div>
-        </div>
+        </BaseNode>
     );
 });
+
+SplitNode.displayName = 'SplitNode';

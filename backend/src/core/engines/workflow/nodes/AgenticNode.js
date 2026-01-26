@@ -36,7 +36,7 @@ class AgenticNode extends AgentNode {
         // 2. Get History (Using Base Class Method)
         const chatId = this.getChatId(lead.phone);
         // Reuse chatService for consistency
-        const chat = await this.chatService.ensureChat(chatId, campaign.session_name, campaign.user_id, {
+        const chat = await this.chatService.ensureChat(chatId, campaign.waha_session_name || campaign.session_name, campaign.user_id, {
             lead_id: lead.id,
             campaign_id: campaign.id,
             name: lead.name
@@ -72,6 +72,7 @@ class AgenticNode extends AgentNode {
             campaign, lead, chatHistory: history, emotionalAdjustment,
             nodeDirective: nodeConfig.data?.instruction_override || nodeConfig.data?.systemPrompt,
             scopePolicy: nodeConfig.data?.scope_policy || 'READ_ONLY',
+            product: nodeConfig.data?.product, // <--- INJECT PRODUCT DATA FROM NODE CONFIG
             dna // Pass DNA to prompt builder
         };
         const systemInstruction = await this.promptService.buildStitchedPrompt(contextData);
@@ -138,6 +139,22 @@ class AgenticNode extends AgentNode {
             );
         }
 
+        // --- NEW: Loop & Bot Detection ---
+        const historyContext = history.slice(-6); // Check last 3 exchanges
+        if (this.detectLoopOrBot(historyContext, finalizedText)) {
+            logger.warn({ leadId: lead.id }, '🤖 Bot/Loop Detected - Ending Conversation');
+            return {
+                status: NodeExecutionStateEnum.EXITED,
+                edge: 'DEFAULT', // Or specific 'END' edge if available
+                output: {
+                    response: null, // Don't send the generated response
+                    thought: 'Loop detected. Ending conversation.',
+                    conversation_ended: true
+                }
+            };
+        }
+        // ---------------------------------
+
         // 5.1. Update Lead Temperature (Cumulative Sentiment Decay)
         const currentTemp = lead.temperature || 0.5;
         const decayFactor = 0.8;
@@ -188,14 +205,36 @@ class AgenticNode extends AgentNode {
             confidence: response.confidence_score
         }, '🏷️ Agent Classification (Campaign will read this)');
 
+        // 8. Slot Validation (Merged from QualificationNode)
+        const criticalSlots = nodeConfig.data?.criticalSlots || [];
+        let slotsSatisfied = true;
+
+        if (criticalSlots.length > 0) {
+            const slots = response.qualification_slots || {};
+            slotsSatisfied = criticalSlots.every(slot => slots[slot] && slots[slot] !== 'unknown');
+            logger.info({ leadId: lead.id, satisfied: slotsSatisfied, missing: criticalSlots.filter(s => !slots[s] || slots[s] === 'unknown') }, '🕵️ Critical Slots Check');
+        }
+
         // FSM-Compliant Return
-        // Agent outputs classification, Campaign reads to decide next state
         return {
             status: NodeExecutionStateEnum.AWAITING_ASYNC, // Waiting for lead reply
+
+            // DURABLE EXECUTION: Checkpoint data for StateCheckpointService
+            checkpoint: {
+                waitingFor: 'USER_REPLY',
+                waitUntil: null, // No timeout - waits indefinitely for reply
+                correlationKey: chatId // Use chatId for webhook correlation
+            },
+
             output: {
                 // Classification for Campaign FSM to read
                 intent: classifiedIntent,
                 sentiment: classifiedSentiment,
+
+                // Slots Data
+                slots_satisfied: slotsSatisfied, // logic nodes can read this
+                qualification_slots: response.qualification_slots,
+
                 sentiment_score: response.sentiment_score,
                 confidence_score: response.confidence_score,
 
@@ -206,7 +245,8 @@ class AgenticNode extends AgentNode {
             },
             nodeState: {
                 last_outbound_at: new Date().toISOString(),
-                classified_intent: classifiedIntent
+                classified_intent: classifiedIntent,
+                awaiting_reply: true
             }
         };
     }
@@ -246,6 +286,31 @@ class AgenticNode extends AgentNode {
         if (score < 0.6) return SentimentEnum.NEUTRAL;
         if (score < 0.8) return SentimentEnum.POSITIVE;
         return SentimentEnum.VERY_POSITIVE;
+    }
+    /**
+     * Detects infinite loops or bot-like repetitive behavior.
+     */
+    detectLoopOrBot(history, currentResponse) {
+        if (!history || history.length < 4) return false;
+
+        const lastUserMsg = history[history.length - 1];
+        const lastAiMsg = history[history.length - 2];
+
+        // 1. Repetitive Pleasantries at the end
+        const pleasantries = ['obrigad', 'tchau', 'até mais', 'valeu', 'disponha', 'certo', 'ok'];
+        const isPleasantry = (text) => text && pleasantries.some(p => text.toLowerCase().includes(p));
+
+        if (isPleasantry(currentResponse) && isPleasantry(lastUserMsg?.content)) {
+            // If both just said goodbye/thanks, STOP.
+            return true;
+        }
+
+        // 2. Exact Repetition (Echo Loop)
+        if (lastAiMsg && lastAiMsg.role === 'assistant' && lastAiMsg.content === currentResponse) {
+            return true;
+        }
+
+        return false;
     }
 }
 

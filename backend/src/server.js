@@ -24,7 +24,7 @@ const { configureContainer } = require('./container');
 // Router
 const createRouter = require('./api/router');
 const createAuthMiddleware = require('./api/middlewares/authMiddleware');
-// const createRiskMiddleware = require('./api/middlewares/riskMiddleware'); // TODO: Refactor Risk Middleware
+const riskMiddleware = require('./api/middlewares/riskMiddleware');
 
 async function bootstrap() {
     const app = express();
@@ -132,8 +132,8 @@ async function bootstrap() {
 
         // Middlewares
         authMiddleware: createAuthMiddleware(),
-        // RiskMiddleware refactor pending - Bypass
-        riskMiddleware: (req, res, next) => next(),
+        // RiskMiddleware Active 🛡️
+        riskMiddleware: riskMiddleware,
     };
 
     // 5. Routes

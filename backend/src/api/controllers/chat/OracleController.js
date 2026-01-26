@@ -3,7 +3,7 @@
  * MODELO VINDO DA TABELA AGENTS via ModelService.
  */
 class OracleController {
-    constructor(geminiClient, historyService, modelService) {
+    constructor({ geminiClient, historyService, modelService }) {
         this.geminiClient = geminiClient;
         this.historyService = historyService;
         this.modelService = modelService;

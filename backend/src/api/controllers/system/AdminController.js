@@ -2,7 +2,7 @@
  * AdminController - Handles administrative operations.
  */
 class AdminController {
-    constructor(supabaseAdmin, wahaClient) {
+    constructor({ supabaseAdmin, wahaClient }) {
         this.supabase = supabaseAdmin;
         this.wahaClient = wahaClient;
     }

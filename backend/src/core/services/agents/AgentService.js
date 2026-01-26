@@ -67,7 +67,6 @@ class AgentService {
      * Update an existing agent with provider validation.
      */
     async updateAgent(id, updates, userId) {
-        // If changing provider, validate new API key
         if (updates.provider && this.settingsService) {
             const validation = await this.settingsService.validateProviderKey(userId, updates.provider);
             if (!validation.valid) {
@@ -77,6 +76,12 @@ class AgentService {
                 err.keyName = validation.keyName;
                 throw err;
             }
+        }
+
+        // Fix: Map 'status' (frontend) to 'is_active' (db)
+        if (updates.status) {
+            updates.is_active = updates.status === 'active';
+            delete updates.status;
         }
 
         const { data, error } = await this.supabase
@@ -143,19 +148,23 @@ class AgentService {
     }
 
     /**
-     * O modelo DEVE ser especificado pelo usuário ao criar o agente.
-     * Não há modelo padrão hardcoded.
+     * Retorna modelo padrão para o provedor.
+     * Atualizado para Gemini 2.5 Flash (Melhor custo-benefício)
      */
     #getDefaultModel(provider) {
-        // Modelos disponíveis por provedor (apenas para referência/validação)
-        const available = {
-            'gemini': ['gemini-2.5-pro-preview-05-06', 'gemini-2.0-flash', 'gemini-1.5-pro'],
-            'openai': ['gpt-4o-mini', 'gpt-4o'],
-            'anthropic': ['claude-3-sonnet']
+        const defaults = {
+            'gemini': 'gemini-2.5-flash',
+            'openai': 'gpt-4o-mini',
+            'anthropic': 'claude-3-sonnet'
         };
 
-        // NÃO retorna default - exige que o usuário configure
-        throw new Error(`ERRO: Modelo não especificado. Informe 'model' ao criar o agente. Opções para ${provider}: ${available[provider?.toLowerCase()]?.join(', ') || 'N/A'}`);
+        const defaultModel = defaults[provider?.toLowerCase()];
+        if (defaultModel) {
+            return defaultModel;
+        }
+
+        // Se não houver default configurado, lança erro
+        throw new Error(`ERRO: Modelo não especificado. Informe 'model' ao criar o agente.`);
     }
 }
 

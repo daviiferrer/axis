@@ -5,7 +5,7 @@
  * the PAD model: Pleasure, Arousal, Dominance.
  */
 const { createClient } = require('@supabase/supabase-js');
-const { PAD_INTERPRETATION, EMOTIONAL_INSTRUCTIONS } = require('../../../config/AgentDNA');
+const { PAD_INTERPRETATION, EMOTIONAL_INSTRUCTIONS } = require('../../config/AgentDNA');
 
 /**
  * Service to manage Lead's Emotional State (PAD Model).

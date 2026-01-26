@@ -1,55 +1,65 @@
 'use client'
 
 import React, { memo } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { NodeProps } from '@xyflow/react';
 import { Bot, Sparkles, BrainCircuit } from 'lucide-react';
+import { BaseNode, NODE_PRESETS } from './base-node';
+import { Badge } from '@/components/ui/badge';
 
-export const AgentNode = memo(({ data, isConnectable }: any) => {
+// ============================================================================
+// AGENT NODE: AI-powered conversational agent (Premium Version)
+// ============================================================================
+
+export const AgentNode = memo(({ data, isConnectable, selected }: NodeProps) => {
     return (
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm min-w-[240px] hover:ring-1 hover:ring-purple-500/50 transition-all group">
-            <Handle
-                type="target"
-                position={Position.Left}
-                isConnectable={isConnectable}
-                className="w-2.5 h-2.5 bg-purple-500 border-2 border-white -ml-1 transition-all group-hover:w-3 group-hover:h-3 group-hover:shadow-sm"
-            />
-
-            {/* Header */}
-            <div className="p-3 border-b border-gray-100 flex items-center gap-2.5">
-                <Bot size={16} className="text-purple-600" />
-                <div className="flex-1">
-                    <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide">Agente AI</h3>
-                </div>
+        <BaseNode
+            {...NODE_PRESETS.agent}
+            icon={Bot}
+            title={data.label || 'Agente IA'}
+            subtitle="Inteligência"
+            showInputHandle={true}
+            showOutputHandle={true}
+            selected={selected}
+            isConnectable={isConnectable}
+            data={data}
+        >
+            <div className="space-y-3">
+                {/* Model Badge */}
                 {data.model && (
-                    <div className="bg-purple-50 px-2 py-0.5 rounded text-[10px] text-purple-700 font-medium border border-purple-100">
+                    <Badge className="bg-purple-100 text-purple-700 border-0 text-[10px] font-mono">
+                        <Sparkles size={10} className="mr-1" />
                         {data.model}
+                    </Badge>
+                )}
+
+                {/* Agent Name / Brain Selected */}
+                {data.agentName && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-purple-50 to-violet-50 border border-purple-100">
+                        <BrainCircuit size={14} className="text-purple-500" />
+                        <span className="text-sm font-medium text-purple-900">{data.agentName}</span>
                     </div>
                 )}
-            </div>
 
-            {/* Body */}
-            <div className="p-3 space-y-2">
-                <div className="flex items-start gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-400 mt-0.5 shrink-0" />
-                    <p className="text-sm font-medium text-gray-800 line-clamp-2 leading-tight">
-                        {data.label || 'Configurar Agente'}
-                    </p>
-                </div>
-
+                {/* System Prompt Preview */}
                 {data.systemPrompt && (
-                    <div className="bg-gray-50 p-2.5 rounded-md text-xs text-gray-500 line-clamp-3 font-mono border border-gray-100 leading-relaxed">
-                        {data.systemPrompt}
+                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Prompt</p>
+                        <p className="text-xs text-gray-600 line-clamp-2 font-mono leading-relaxed">
+                            {data.systemPrompt}
+                        </p>
+                    </div>
+                )}
+
+                {/* Empty State */}
+                {!data.agentName && !data.systemPrompt && (
+                    <div className="text-center py-3">
+                        <BrainCircuit size={24} className="mx-auto text-gray-300 mb-2" />
+                        <p className="text-xs text-gray-400">Selecione um cérebro</p>
                     </div>
                 )}
             </div>
-
-            {/* Handles */}
-            <Handle
-                type="source"
-                position={Position.Right}
-                isConnectable={isConnectable}
-                className="w-2.5 h-2.5 bg-purple-500 border-2 border-white -mr-1 transition-all group-hover:w-3 group-hover:h-3 group-hover:shadow-sm"
-            />
-        </div>
+        </BaseNode>
     );
 });
+
+AgentNode.displayName = 'AgentNode';

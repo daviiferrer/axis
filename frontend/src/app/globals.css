@@ -143,3 +143,61 @@
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
 }
+
+/* ============================================
+   REACT FLOW CUSTOM STYLES
+   ============================================ */
+
+/* Animated Edge Flow */
+@keyframes flow {
+    0% {
+        stroke-dashoffset: 24;
+    }
+    100% {
+        stroke-dashoffset: 0;
+    }
+}
+
+.animate-flow {
+    animation: flow 1s linear infinite;
+}
+
+/* Node Selection Ring */
+.react-flow__node.selected .react-flow__node-default {
+    box-shadow: 0 0 0 2px #6366f1;
+}
+
+/* Handle Hover States */
+.react-flow__handle {
+    transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.react-flow__handle:hover {
+    transform: scale(1.25);
+}
+
+/* MiniMap Styling */
+.react-flow__minimap {
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(8px);
+}
+
+/* Controls Styling */
+.react-flow__controls {
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.react-flow__controls-button {
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+
+.react-flow__controls-button:hover {
+    background-color: #f3f4f6;
+}

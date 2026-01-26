@@ -1,8 +1,21 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } = require("@google/generative-ai");
 const CircuitBreaker = require('opossum');
 const logger = require('../../shared/Logger').createModuleLogger('gemini');
 const { updateTraceContext } = require('../../shared/TraceContext');
 const SpintaxService = require('../../core/services/content/SpintaxService');
+
+/**
+ * Safety settings for sales/customer service AI.
+ * We need to allow processing offensive USER messages (leads being rude)
+ * while still blocking the AI from generating harmful content.
+ * BLOCK_NONE allows processing all input - the AI still won't generate bad content.
+ */
+const SALES_SAFETY_SETTINGS = [
+    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+];
 
 /**
  * GeminiClient - Infrastructure Client for Google Gemini AI
@@ -28,11 +41,12 @@ class GeminiClient {
         // ... rest of init
 
         // Circuit Breaker configuration
+        // More tolerant settings for production - don't open too quickly
         this.breakerOptions = {
-            timeout: 10000,
-            errorThresholdPercentage: 50,
-            resetTimeout: 30000,
-            volumeThreshold: 5
+            timeout: 15000,              // 15s timeout for Gemini calls
+            errorThresholdPercentage: 70, // Open after 70% failures (was 50%)
+            resetTimeout: 30000,          // Try again after 30 seconds
+            volumeThreshold: 10           // Need 10 requests before calculating error rate (was 5)
         };
 
         this.generateBreaker = new CircuitBreaker(
@@ -75,6 +89,14 @@ class GeminiClient {
                 text: () => fallbackJson,
                 _metrics: { fallback: true }
             };
+        });
+
+        // Log actual errors that cause circuit breaker to trigger
+        this.simpleBreaker.on('failure', (error) => {
+            logger.error({ error: error?.message || error, stack: error?.stack?.slice(0, 200) }, '❌ Gemini Simple call failed');
+        });
+        this.generateBreaker.on('failure', (error) => {
+            logger.error({ error: error?.message || error, stack: error?.stack?.slice(0, 200) }, '❌ Gemini Generate call failed');
         });
     }
 
@@ -139,6 +161,7 @@ class GeminiClient {
         const genModel = this.genAI.getGenerativeModel({
             model,
             systemInstruction,
+            safetySettings: SALES_SAFETY_SETTINGS,
             ...options
         });
 
@@ -173,6 +196,7 @@ class GeminiClient {
         const genModel = this.genAI.getGenerativeModel({
             model,
             systemInstruction,
+            safetySettings: SALES_SAFETY_SETTINGS,
             ...options
         });
 

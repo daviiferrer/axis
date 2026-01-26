@@ -1,29 +1,42 @@
 'use client';
 
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { campaignService } from '@/services/campaign';
-import { Rocket, MessageCircle, Megaphone } from 'lucide-react';
+import { Rocket, ChevronRight, Check } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 
 export function CampaignCreateDialog({ onSuccess }: { onSuccess: () => void }) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [name, setName] = useState('');
-    const [type, setType] = useState('inbound'); // inbound | outbound
+    const [sessionName, setSessionName] = useState(''); // New State for Session
 
     const handleCreate = async () => {
-        if (!name) return;
+        if (!name.trim()) {
+            toast.error('Por favor, dê um nome para sua campanha.');
+            return;
+        }
         setLoading(true);
         try {
-            await campaignService.createCampaign({ name, type });
+            // Updated Payload with waha_session_name
+            await campaignService.createCampaign({
+                name,
+                type: 'inbound',
+                waha_session_name: sessionName || 'default' // Fallback to default if empty
+            });
+            toast.success('Campanha criada com sucesso! 🚀');
             setOpen(false);
+            setName('');
+            setSessionName('');
             onSuccess();
         } catch (error) {
             console.error(error);
+            toast.error('Erro ao criar campanha.');
         } finally {
             setLoading(false);
         }
@@ -31,53 +44,71 @@ export function CampaignCreateDialog({ onSuccess }: { onSuccess: () => void }) {
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button>
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button onClick={() => setOpen(true)} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/20 border-0">
                     <Rocket className="mr-2 h-4 w-4" />
                     Nova Campanha
                 </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Criar Nova Campanha</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <div className="grid gap-2">
-                        <Label htmlFor="name">Nome da Campanha</Label>
-                        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Captação Black Friday" />
-                    </div>
-                    <div className="grid gap-2">
-                        <Label>Tipo de Estratégia</Label>
-                        <Select value={type} onValueChange={setType}>
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="inbound">
-                                    <div className="flex items-center gap-2">
-                                        <MessageCircle className="h-4 w-4 text-blue-500" />
-                                        <span>Inbound (Ads / Receptivo)</span>
-                                    </div>
-                                </SelectItem>
-                                <SelectItem value="outbound">
-                                    <div className="flex items-center gap-2">
-                                        <Megaphone className="h-4 w-4 text-orange-500" />
-                                        <span>Outbound (Prospecção Ativa)</span>
-                                    </div>
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            {type === 'inbound'
-                                ? 'O robô aguarda o cliente chamar (via Anúncio ou Link).'
-                                : 'O robô inicia a conversa enviando a primeira mensagem (Lista Fria/Apify).'}
-                        </p>
+            </motion.div>
+
+            <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden bg-white/95 backdrop-blur-xl border-white/20 shadow-2xl rounded-3xl ring-1 ring-gray-900/5">
+                {/* Header */}
+                <div className="relative h-28 bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-600 flex items-center justify-center overflow-hidden">
+                    <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-20" />
+                    <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl animate-pulse" />
+                    <div className="text-center z-10 p-4">
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.1 }}
+                        >
+                            <h2 className="text-2xl font-bold text-white tracking-tight">Nova Campanha</h2>
+                            <p className="text-blue-100 text-sm mt-1 font-medium">Configure a Inteligência da Campanha</p>
+                        </motion.div>
                     </div>
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-                    <Button onClick={handleCreate} disabled={loading}>{loading ? 'Criando...' : 'Criar'}</Button>
-                </DialogFooter>
+
+                <div className="p-8 space-y-6">
+                    <div className="space-y-3">
+                        <Label htmlFor="name" className="text-sm font-bold text-gray-500 uppercase tracking-wider">Nome da Campanha</Label>
+                        <Input
+                            id="name"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Ex: Advogado - Triagem Inicial"
+                            className="bg-gray-50 border-gray-200 focus:bg-white transition-all rounded-xl"
+                            autoFocus
+                        />
+                    </div>
+
+                    <div className="space-y-3">
+                        <Label htmlFor="session" className="text-sm font-bold text-gray-500 uppercase tracking-wider">Sessão do WhatsApp (WAHA)</Label>
+                        <Input
+                            id="session"
+                            value={sessionName}
+                            onChange={(e) => setSessionName(e.target.value)}
+                            placeholder="Ex: franklyn_advogado"
+                            className="bg-gray-50 border-gray-200 focus:bg-white transition-all rounded-xl"
+                        />
+                        <p className="text-xs text-gray-400">Nome da sessão criada no painel do WAHA.</p>
+                    </div>
+                </div>
+
+                <div className="p-6 bg-gray-50/80 border-t border-gray-100 flex justify-end gap-3">
+                    <Button variant="ghost" onClick={() => setOpen(false)} className="hover:bg-gray-200/50">Cancelar</Button>
+                    <Button
+                        onClick={handleCreate}
+                        disabled={loading || !name}
+                        className={`
+                            bg-gray-900 hover:bg-black text-white px-8 transition-all
+                            ${loading ? 'opacity-80' : ''}
+                        `}
+                    >
+                        {loading ? 'Criando...' : (
+                            <span className="flex items-center gap-2">Criar Campanha <ChevronRight size={16} /></span>
+                        )}
+                    </Button>
+                </div>
             </DialogContent>
         </Dialog>
     );

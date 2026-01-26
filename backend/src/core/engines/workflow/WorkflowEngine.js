@@ -13,17 +13,19 @@ const {
 const transitionResolver = require('../../services/workflow/TransitionResolver');
 
 class WorkflowEngine {
-    constructor({ nodeFactory, leadService, campaignService, supabaseClient, campaignSocket, queueService }) {
+    constructor({ nodeFactory, leadService, campaignService, supabaseClient, campaignSocket, queueService, stateCheckpointService }) {
         this.nodeFactory = nodeFactory;
         this.leadService = leadService;
         this.campaignService = campaignService;
         this.supabase = supabaseClient;
         this.campaignSocket = campaignSocket;
         this.queueService = queueService;
+        this.stateCheckpointService = stateCheckpointService; // NEW: Durable state persistence
         this.runnerIntervalId = null;
+        this.timerRecoveryIntervalId = null; // NEW: Timer recovery loop
         this.useQueues = false;
 
-        // Anti-Race Condition Lock
+        // Anti-Race Condition Lock (kept for backward compatibility during transition)
         this.processingPhones = new Set();
     }
 
@@ -33,21 +35,130 @@ class WorkflowEngine {
      */
     async start() {
         // Try to initialize queue-based processing
+        /* 
+        // DISABLED FOR STABILITY - Using Polling Mode
         if (this.queueService) {
             const connected = await this.queueService.initialize();
             if (connected) {
                 this.useQueues = true;
-                this.#registerWorkers();
+                // this.#registerWorkers(); // Implement when moving to full event-driven
                 logger.info('🚀 WorkflowEngine started (Queue Mode - BullMQ)');
                 return;
             }
-        }
+        } 
+        */
 
         // Fallback to polling mode
         logger.info('🚀 WorkflowEngine started (Polling Mode - setInterval)');
         this.runnerIntervalId = setInterval(async () => {
             await this.pulse();
         }, 10000);
+
+        // NEW: Timer Recovery Loop - processes expired DelayNode timers
+        // Runs every 15 seconds to check for workflows waiting on timers
+        if (this.stateCheckpointService) {
+            this.timerRecoveryIntervalId = setInterval(async () => {
+                await this.processExpiredTimers();
+            }, 15000);
+            logger.info('⏰ Timer Recovery Loop started (15s interval)');
+        }
+    }
+
+    /**
+     * NEW: Process workflows with expired timers (DelayNode completion).
+     * Called by timer recovery loop.
+     */
+    async processExpiredTimers() {
+        try {
+            const expiredInstances = await this.stateCheckpointService.findExpiredTimers();
+
+            if (expiredInstances.length === 0) return;
+
+            logger.info({ count: expiredInstances.length }, '⏰ Processing expired timer checkpoints');
+
+            for (const instance of expiredInstances) {
+                try {
+                    await this.resumeFromCheckpoint(instance, { event: 'TIMER_EXPIRED' });
+                } catch (err) {
+                    logger.error({
+                        instanceId: instance.id,
+                        error: err.message
+                    }, '❌ Failed to resume from checkpoint');
+
+                    // Record error on instance
+                    await this.stateCheckpointService.recordError(instance.id, err.message);
+                }
+            }
+        } catch (error) {
+            logger.error({ error: error.message }, '❌ Timer recovery loop error');
+        }
+    }
+
+    /**
+     * NEW: Resume workflow execution from a checkpoint.
+     * Called when timer expires or user reply received.
+     */
+    async resumeFromCheckpoint(instance, triggerEvent = {}) {
+        const { leads: lead, campaigns: campaign } = instance;
+
+        if (!lead || !campaign) {
+            logger.error({ instanceId: instance.id }, 'Invalid checkpoint: missing lead or campaign');
+            return;
+        }
+
+        logger.info({
+            instanceId: instance.id,
+            leadId: lead.id,
+            nodeId: instance.current_node_id,
+            trigger: triggerEvent.event
+        }, '▶️ Resuming from checkpoint');
+
+        // Restore context from checkpoint
+        const restoredLead = {
+            ...lead,
+            current_node_id: instance.current_node_id,
+            node_state: instance.node_state,
+            context: instance.context
+        };
+
+        // Clear waiting state before execution
+        await this.stateCheckpointService.advanceToNode(
+            instance.id,
+            instance.current_node_id,
+            { waiting_for: null, wait_until: null }
+        );
+
+        // Get the graph and proceed to next node (timer completed)
+        const graph = campaign.strategy_graph || campaign.graph || { nodes: [], edges: [] };
+        const currentNode = graph.nodes?.find(n => n.id === instance.current_node_id);
+
+        if (!currentNode) {
+            logger.error({ nodeId: instance.current_node_id }, 'Current node not found in graph');
+            return;
+        }
+
+        // For timer expiry, find the next node and transition
+        const nextNode = this.#getNextNode(currentNode.id, graph, 'default');
+
+        if (nextNode) {
+            logger.info({
+                instanceId: instance.id,
+                from: currentNode.id,
+                to: nextNode.id
+            }, '➡️ Timer completed, advancing to next node');
+
+            // Update checkpoint to new node
+            await this.stateCheckpointService.advanceToNode(instance.id, nextNode.id, {
+                context: instance.context
+            });
+
+            // Continue processing with legacy processLead (will use restored context)
+            await this.processLead(restoredLead, campaign);
+        } else {
+            // No next node = end of flow
+            await this.stateCheckpointService.markCompleted(instance.id);
+            logger.info({ instanceId: instance.id }, '✅ Workflow completed (timer was final step)');
+        }
     }
 
     /**
@@ -79,7 +190,7 @@ class WorkflowEngine {
      * Triggers AI processing for a lead by phone number.
      * Called by WebhookController when a message arrives.
      */
-    async triggerAiForLead(phone, messageBody = null, referral = null) {
+    async triggerAiForLead(phone, messageBody = null, referral = null, sessionName = null) {
         // Standardize phone (remove non-digits)
         const cleanPhone = phone.replace(/\D/g, '');
 
@@ -131,15 +242,35 @@ class WorkflowEngine {
 
             // 3. Triage / New Lead Logic
             if (!lead) {
-                const { data: inboxParams } = await this.supabase
-                    .from('campaigns')
-                    .select('id')
-                    .or('name.ilike.%Triagem%,name.ilike.%Inbox%')
-                    .eq('status', 'active')
-                    .limit(1)
-                    .maybeSingle();
+                // MULTI-TENANCY FIX: Find Campaign by Session Name First
+                let campaignId = null;
 
-                const campaignId = inboxParams?.id || null;
+                // If we have a specific session (not default), try to find the linked campaign
+                if (sessionName && sessionName !== 'default') {
+                    const { data: sessionCampaign } = await this.supabase
+                        .from('campaigns')
+                        .select('id')
+                        .eq('waha_session_name', sessionName)
+                        .eq('status', 'active')
+                        .single();
+
+                    if (sessionCampaign) {
+                        campaignId = sessionCampaign.id;
+                        logger.info({ sessionName, campaignId }, '📍 Routing Lead based on Waha Session');
+                    }
+                }
+
+                // If no session-specific campaign, fall back to Triage/Inbox
+                if (!campaignId) {
+                    const { data: inboxParams } = await this.supabase
+                        .from('campaigns')
+                        .select('id')
+                        .or('name.ilike.%Triagem%,name.ilike.%Inbox%')
+                        .eq('status', 'active')
+                        .limit(1)
+                        .maybeSingle();
+                    campaignId = inboxParams?.id || null;
+                }
 
                 // Prepare Ad Context
                 let adContext = {};
@@ -273,7 +404,7 @@ class WorkflowEngine {
 
                 // 1. Initial Transition (Lead Entry)
                 if (!currentNodeId) {
-                    const entryNode = graph.nodes.find(n => n.type === 'leadEntry');
+                    const entryNode = graph.nodes.find(n => n.type === 'leadEntry' || n.type === 'trigger' || n.data?.isEntry);
                     if (entryNode) {
                         // --- SOURCE VALIDATION (Node-Based Authority) ---
                         const leadSource = lead.source || 'imported';
@@ -284,7 +415,8 @@ class WorkflowEngine {
 
                         if (nodeAllowedSources && Array.isArray(nodeAllowedSources)) {
                             // Node explicitly defines what is allowed. Obey the Node.
-                            if (!nodeAllowedSources.includes(leadSource)) {
+                            // FIX: Treat 'inbound' as 'whatsapp' for compatibility or just allow it if present.
+                            if (!nodeAllowedSources.includes(leadSource) && leadSource !== 'inbound') {
                                 logger.warn({ leadId: lead.id, source: leadSource, allowed: nodeAllowedSources }, '⛔ Lead Entry rejected by Node Source Filter');
                                 break;
                             }
@@ -403,8 +535,28 @@ class WorkflowEngine {
                         continue;
                     }
                     break;
-                } else if (result.status === 'waiting') {
-                    logger.info({ leadId: lead.id, node: node.id }, '⏸️ Node requested wait, stopping pulse');
+                } else if (result.status === 'waiting' || result.status === NodeExecutionStateEnum.AWAITING_ASYNC) {
+                    // DURABLE EXECUTION: Save checkpoint for async wait
+                    if (this.stateCheckpointService && result.checkpoint) {
+                        await this.stateCheckpointService.saveCheckpoint(lead.id, fullCampaign.id, {
+                            currentNodeId: node.id,
+                            executionState: NodeExecutionStateEnum.AWAITING_ASYNC,
+                            nodeState: result.nodeState || lead.node_state || {},
+                            context: lead.context || {},
+                            waitingFor: result.checkpoint.waitingFor,
+                            waitUntil: result.checkpoint.waitUntil,
+                            correlationKey: result.checkpoint.correlationKey
+                        });
+
+                        logger.info({
+                            leadId: lead.id,
+                            node: node.id,
+                            waitingFor: result.checkpoint.waitingFor,
+                            waitUntil: result.checkpoint.waitUntil
+                        }, '💾 Checkpoint saved (AWAITING_ASYNC)');
+                    } else {
+                        logger.info({ leadId: lead.id, node: node.id }, '⏸️ Node requested wait, stopping pulse');
+                    }
                     break;
                 } else {
                     // result.status error or unknown
@@ -802,9 +954,29 @@ class WorkflowEngine {
     /**
      * FSM: Handle incoming message (USER_REPLY event)
      * This triggers the next transition in the FSM.
+     * 
+     * DURABLE EXECUTION: First checks workflow_instances for checkpoint,
+     * then falls back to campaign_instances for backward compatibility.
      */
     async handleUserReply(lead, campaign, messageBody) {
-        // Get or create instance
+        // DURABLE PATH: Check if there's a checkpoint waiting for user reply
+        if (this.stateCheckpointService) {
+            const checkpoint = await this.stateCheckpointService.loadCheckpoint(lead.id, campaign.id);
+
+            if (checkpoint && checkpoint.waiting_for === 'USER_REPLY') {
+                logger.info({
+                    instanceId: checkpoint.id,
+                    nodeId: checkpoint.current_node_id,
+                    leadId: lead.id
+                }, '📥 Resuming from USER_REPLY checkpoint');
+
+                // Resume from checkpoint with user message context
+                await this.resumeFromCheckpointWithReply(checkpoint, lead, campaign, messageBody);
+                return;
+            }
+        }
+
+        // LEGACY PATH: Use campaign_instances
         const instance = await this.getOrCreateInstance(lead, campaign);
         if (!instance) {
             logger.warn({ leadId: lead.id }, 'FSM: No instance, falling back to processLead');
@@ -824,6 +996,44 @@ class WorkflowEngine {
             logger.info({ instanceId: instance.id, state: instance.node_state }, 'FSM: Instance not awaiting, using processLead');
             return this.processLead(lead, campaign);
         }
+    }
+
+    /**
+     * NEW: Resume workflow from checkpoint when user replies.
+     * Re-executes the current node with the new message context.
+     */
+    async resumeFromCheckpointWithReply(checkpoint, lead, campaign, messageBody) {
+        logger.info({
+            instanceId: checkpoint.id,
+            nodeId: checkpoint.current_node_id,
+            messagePreview: messageBody?.substring(0, 50)
+        }, '💬 Processing user reply on checkpoint');
+
+        // Clear waiting state
+        await this.stateCheckpointService.advanceToNode(
+            checkpoint.id,
+            checkpoint.current_node_id,
+            {
+                waiting_for: null,
+                context: {
+                    ...checkpoint.context,
+                    lastUserMessage: messageBody,
+                    lastReplyAt: new Date().toISOString()
+                }
+            }
+        );
+
+        // Restore lead with checkpoint context
+        const restoredLead = {
+            ...lead,
+            current_node_id: checkpoint.current_node_id,
+            node_state: checkpoint.node_state,
+            context: checkpoint.context,
+            last_message_body: messageBody // Ensure current message is available
+        };
+
+        // Continue processing - the agentic node will see the new message
+        await this.processLead(restoredLead, campaign);
     }
 }
 

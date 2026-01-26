@@ -1,7 +1,6 @@
 'use client'
 
 import { Campaign, campaignService } from "@/services/campaign"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,24 +11,24 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger
 } from "@/components/ui/overlay/dropdown-menu"
-import { MoreVertical, Play, Pause, Edit, Trash2, GitFork, Activity } from "lucide-react"
+import { MoreVertical, Play, Pause, Edit, Trash2, GitFork, Activity, MessageSquare, Users, TrendingUp } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
-
-// Verify sonner import. Step 11 listed sonner.
-// Assuming standard usage.
+import { motion } from "framer-motion"
 
 interface CampaignCardProps {
     campaign: Campaign
     onUpdate?: () => void
+    index?: number
 }
 
-export function CampaignCard({ campaign, onUpdate }: CampaignCardProps) {
+export function CampaignCard({ campaign, onUpdate, index = 0 }: CampaignCardProps) {
     const router = useRouter()
     const [isLoading, setIsLoading] = useState(false)
 
-    const handleStatusToggle = async () => {
+    const handleStatusToggle = async (e: React.MouseEvent) => {
+        e.stopPropagation();
         try {
             setIsLoading(true)
             const newStatus = campaign.status === 'active' ? 'paused' : 'active'
@@ -43,7 +42,8 @@ export function CampaignCard({ campaign, onUpdate }: CampaignCardProps) {
         }
     }
 
-    const handleDelete = async () => {
+    const handleDelete = async (e: React.MouseEvent) => {
+        e.stopPropagation();
         if (!confirm("Tem certeza que deseja excluir esta campanha?")) return
         try {
             setIsLoading(true)
@@ -57,85 +57,111 @@ export function CampaignCard({ campaign, onUpdate }: CampaignCardProps) {
         }
     }
 
-    const statusColors = {
-        draft: "bg-gray-100 text-gray-800",
-        active: "bg-green-100 text-green-800",
-        paused: "bg-yellow-100 text-yellow-800",
-        archived: "bg-red-100 text-red-800",
-    }
+    const isActive = campaign.status === 'active';
+    const isPaused = campaign.status === 'paused';
 
     return (
-        <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                <div className="space-y-1">
-                    <CardTitle className="text-lg font-semibold">{campaign.name}</CardTitle>
-                    <CardDescription className="line-clamp-1">
-                        {campaign.description || "Sem descrição"}
-                    </CardDescription>
-                </div>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Menu</span>
-                            <MoreVertical className="h-4 w-4" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => router.push(`/app/campaigns/${campaign.id}/flow`)}>
-                            <GitFork className="mr-2 h-4 w-4" />
-                            Editar Fluxo
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={handleStatusToggle}>
-                            {campaign.status === 'active' ? (
-                                <><Pause className="mr-2 h-4 w-4" /> Pausar</>
-                            ) : (
-                                <><Play className="mr-2 h-4 w-4" /> Iniciar</>
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05, duration: 0.4 }}
+            whileHover={{ y: -5, transition: { duration: 0.2 } }}
+            className={`
+                group relative overflow-hidden rounded-3xl border transition-all duration-300 backdrop-blur-sm
+                ${isActive
+                    ? 'border-green-500/30 bg-white/60 hover:shadow-xl hover:shadow-green-500/10'
+                    : 'border-gray-200 bg-white/40 hover:shadow-xl hover:shadow-gray-200/50'
+                }
+            `}
+            onClick={() => router.push(`/app/campaigns/${campaign.id}/flow`)}
+        >
+            {/* Status Strip */}
+            <div className={`absolute top-0 left-0 right-0 h-1.5 ${isActive ? 'bg-gradient-to-r from-green-400 to-emerald-500' : isPaused ? 'bg-yellow-400' : 'bg-gray-200'}`} />
+
+            <div className="p-5 flex flex-col h-full cursor-pointer">
+                {/* Header */}
+                <div className="flex justify-between items-start mb-4">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            {isActive && (
+                                <span className="relative flex h-2.5 w-2.5">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                                </span>
                             )}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600" onClick={handleDelete}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Excluir
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            </CardHeader>
-            <CardContent>
-                <div className="flex items-center gap-2 mb-4">
-                    <Badge variant="secondary" className={statusColors[campaign.status]}>
-                        {campaign.status.toUpperCase()}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                        Sessão: {campaign.session_id ? 'Conectada' : 'Nenhuma'}
-                    </span>
+                            <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-1">{campaign.name}</h3>
+                        </div>
+                        <p className="text-xs text-gray-500 font-medium">{campaign.type === 'outbound' ? 'PROSPECÇÃO ATIVA' : 'INBOUND RECEPTIVO'}</p>
+                    </div>
+
+                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-gray-400 hover:text-gray-900"
+                            onClick={handleStatusToggle}
+                        >
+                            {isActive ? <Pause size={16} /> : <Play size={16} />}
+                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-900">
+                                    <MoreVertical className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48 rounded-xl">
+                                <DropdownMenuLabel>Ações da Campanha</DropdownMenuLabel>
+                                <DropdownMenuItem onClick={() => router.push(`/app/campaigns/${campaign.id}/flow`)}>
+                                    <GitFork className="mr-2 h-4 w-4" /> Editar Fluxo
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={handleDelete}>
+                                    <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-center text-sm">
-                    <div className="bg-gray-50 p-2 rounded">
-                        <div className="font-bold text-gray-900">{campaign.stats?.sent || 0}</div>
-                        <div className="text-xs text-gray-500">Enviados</div>
+                {/* Description */}
+                <p className="text-sm text-gray-600 line-clamp-2 mb-6 flex-grow">
+                    {campaign.description || "Sem descrição. Adicione detalhes para organizar suas campanhas."}
+                </p>
+
+                {/* Stats Grid - Glass Effect */}
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                    <div className="bg-white/50 rounded-xl p-2.5 text-center border border-gray-100/50 group-hover:border-blue-100/50 transition-colors">
+                        <Users size={14} className="mx-auto text-gray-400 mb-1" />
+                        <div className="font-bold text-gray-900 text-lg leading-none">{campaign.stats?.sent || 0}</div>
+                        <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mt-0.5">Leads</div>
                     </div>
-                    <div className="bg-gray-50 p-2 rounded">
-                        <div className="font-bold text-blue-600">{campaign.stats?.responded || 0}</div>
-                        <div className="text-xs text-gray-500">Respostas</div>
+                    <div className="bg-white/50 rounded-xl p-2.5 text-center border border-gray-100/50 group-hover:border-blue-100/50 transition-colors">
+                        <MessageSquare size={14} className="mx-auto text-blue-400 mb-1" />
+                        <div className="font-bold text-blue-600 text-lg leading-none">{campaign.stats?.responded || 0}</div>
+                        <div className="text-[10px] uppercase font-bold text-blue-400/70 tracking-wider mt-0.5">Ativos</div>
                     </div>
-                    <div className="bg-gray-50 p-2 rounded">
-                        <div className="font-bold text-green-600">{campaign.stats?.converted || 0}</div>
-                        <div className="text-xs text-gray-500">Conv.</div>
+                    <div className="bg-white/50 rounded-xl p-2.5 text-center border border-gray-100/50 group-hover:border-green-100/50 transition-colors">
+                        <TrendingUp size={14} className="mx-auto text-green-500 mb-1" />
+                        <div className="font-bold text-green-600 text-lg leading-none">{campaign.stats?.converted || 0}</div>
+                        <div className="text-[10px] uppercase font-bold text-green-500/70 tracking-wider mt-0.5">Vendas</div>
                     </div>
                 </div>
-            </CardContent>
-            <CardFooter className="pt-2">
-                <Button
-                    className="w-full"
-                    variant="outline"
-                    onClick={() => router.push(`/app/campaigns/${campaign.id}/flow`)}
-                >
-                    <GitFork className="mr-2 h-4 w-4" />
-                    Abrir Construtor
-                </Button>
-            </CardFooter>
-        </Card>
+
+                {/* Footer / Connect Status */}
+                <div className="flex items-center justify-between pt-3 border-t border-gray-50 text-xs mt-auto">
+                    <span className={`
+                        flex items-center gap-1.5 px-2 py-1 rounded-full font-medium
+                        ${campaign.session_id ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}
+                    `}>
+                        <Activity size={10} />
+                        {campaign.session_id ? 'Conectado' : 'Desconectado'}
+                    </span>
+                    <span className="text-gray-400 font-mono text-[10px]">{new Date(campaign.updated_at).toLocaleDateString()}</span>
+                </div>
+            </div>
+
+            {/* Hover Gradient Shine */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/30 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 pointer-events-none" />
+        </motion.div>
     )
 }

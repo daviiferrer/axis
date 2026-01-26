@@ -58,6 +58,7 @@ const ModelService = require('./core/services/ai/ModelService');
 const SocketService = require('./shared/SocketService');
 const NodeFactory = require('./core/engines/workflow/NodeFactory');
 const QueueService = require('./core/services/queue/QueueService');
+const StateCheckpointService = require('./core/services/workflow/StateCheckpointService');
 
 const container = createContainer({
     injectionMode: InjectionMode.PROXY
@@ -103,8 +104,10 @@ function configureContainer() {
         promptService: asClass(PromptService).scoped(),
         csvParserService: asClass(CsvParserService).singleton(),
         emotionalStateService: asClass(EmotionalStateService).singleton(),
-        emotionalStateService: asClass(EmotionalStateService).singleton(),
         guardrailService: asClass(GuardrailService).singleton(),
+
+        // Durable Execution Services
+        stateCheckpointService: asClass(StateCheckpointService).singleton(),
 
         // System & Analytics
         healthService: asClass(HealthService).singleton(),
@@ -140,31 +143,32 @@ function configureContainer() {
         supabase: asFunction(({ supabaseClient }) => supabaseClient).scoped(),
 
         // 4. Controllers (Registered as CLASSIC because they use positional args currently)
-        settingsController: asClass(SettingsController).classic(),
-        analyticsController: asClass(AnalyticsController).classic(),
-        adminController: asClass(AdminController).classic(),
-        campaignController: asClass(CampaignController).classic(),
-        oracleController: asClass(OracleController).classic(),
-        leadController: asClass(LeadController).classic(),
-        apifyController: asClass(ApifyController).classic(),
-        apifyWebhookHandler: asClass(ApifyWebhookHandler).classic(),
-        webhookController: asClass(WebhookController).classic(),
-        agentController: asClass(AgentController).classic(),
-        prospectController: asClass(ProspectController).classic(),
-        chatController: asClass(ChatController).classic(),
-        healthController: asClass(HealthController).classic(),
-        billingController: asClass(BillingController).classic(),
-        companyController: asClass(CompanyController).classic(),
+        // 4. Controllers (Registered as PROXY by default in this container)
+        settingsController: asClass(SettingsController),
+        analyticsController: asClass(AnalyticsController),
+        adminController: asClass(AdminController),
+        campaignController: asClass(CampaignController),
+        oracleController: asClass(OracleController),
+        leadController: asClass(LeadController),
+        apifyController: asClass(ApifyController),
+        apifyWebhookHandler: asClass(ApifyWebhookHandler),
+        webhookController: asClass(WebhookController),
+        agentController: asClass(AgentController),
+        prospectController: asClass(ProspectController),
+        chatController: asClass(ChatController),
+        healthController: asClass(HealthController),
+        billingController: asClass(BillingController),
+        companyController: asClass(CompanyController),
 
         // WAHA Controllers
-        wahaSessionController: asClass(WahaSessionController).classic(),
-        wahaAuthController: asClass(WahaAuthController).classic(),
-        wahaProfileController: asClass(WahaProfileController).classic(),
-        wahaChattingController: asClass(WahaChattingController).classic(),
-        wahaPresenceController: asClass(WahaPresenceController).classic(),
-        wahaMediaController: asClass(WahaMediaController).classic(),
-        wahaObservabilityController: asClass(WahaObservabilityController).classic(),
-        wahaScreenshotController: asClass(WahaScreenshotController).classic(),
+        wahaSessionController: asClass(WahaSessionController),
+        wahaAuthController: asClass(WahaAuthController),
+        wahaProfileController: asClass(WahaProfileController),
+        wahaChattingController: asClass(WahaChattingController),
+        wahaPresenceController: asClass(WahaPresenceController),
+        wahaMediaController: asClass(WahaMediaController),
+        wahaObservabilityController: asClass(WahaObservabilityController),
+        wahaScreenshotController: asClass(WahaScreenshotController),
 
         // Factories
         llmFactory: asClass(require('./core/factories/LlmFactory')).scoped(),

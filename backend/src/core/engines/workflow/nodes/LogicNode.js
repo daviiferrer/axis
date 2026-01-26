@@ -26,7 +26,9 @@ class LogicNode {
         return {
             status: NodeExecutionStateEnum.EXITED,
             output: { routedIntent: lastIntent },
-            edge: this._resolveEdge(lastIntent)
+            output: { routedIntent: lastIntent },
+            edge: this._resolveEdge(lastIntent),
+            action: this._resolveEdge(lastIntent) // Compatibility with Legacy Engine
         };
     }
 

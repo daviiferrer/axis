@@ -124,15 +124,23 @@ function resolveDNA(dnaConfig) {
 
     // 1. Resolve Physics (Chronemics)
     const latencyEnum = config.chronemics?.latency_profile || 'MODERATE';
-    const burstEnum = config.chronemics?.burstiness || 'LOW';
 
-    // Influence of Big5 Extraversion on Burstiness? 
-    // Example: If Extraversion is HIGH, boost Burstiness slightly? 
-    // Implementing explicit overrides for now.
+    // Support both canonical path (chronemics.burstiness) and direct path (physics.burstiness)
+    // Direct path is used by agents stored in DB with their own physics config
+    let burstinessConfig = _BURSTINESS_MAP['MEDIUM']; // Default to MEDIUM for more human behavior
+
+    if (config.physics?.burstiness?.enabled !== undefined) {
+        // Direct physics config from DB (preferred)
+        burstinessConfig = config.physics.burstiness;
+    } else if (config.chronemics?.burstiness) {
+        // Canonical enum path
+        const burstEnum = config.chronemics.burstiness;
+        burstinessConfig = _BURSTINESS_MAP[burstEnum] || _BURSTINESS_MAP['MEDIUM'];
+    }
 
     const physics = {
         typing: _LATENCY_MAP[latencyEnum],
-        burstiness: _BURSTINESS_MAP[burstEnum]
+        burstiness: burstinessConfig
     };
 
     // 2. Resolve Linguistics (Typos, etc.)

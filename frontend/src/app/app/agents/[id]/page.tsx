@@ -19,6 +19,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 import { agentService, Agent, DNAConfig } from "@/services/agentService"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/layout/tabs"
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/data-display/accordion"
 
 // Default DNA Config
 const DEFAULT_DNA: DNAConfig = {
@@ -50,6 +56,63 @@ const DEFAULT_DNA: DNAConfig = {
     }
 }
 
+// --- REUSABLE COMPONENTS ---
+
+// Visual Option Card (replaces boring Selects)
+const VisualOption = ({
+    label,
+    value,
+    selected,
+    onClick,
+    icon: Icon,
+    description
+}: {
+    label: string,
+    value: string,
+    selected: boolean,
+    onClick: () => void,
+    icon?: any,
+    description?: string
+}) => (
+    <div
+        onClick={onClick}
+        className={`
+            cursor-pointer relative p-4 rounded-xl border-2 transition-all duration-200 group
+            ${selected
+                ? 'border-blue-600 bg-blue-50/50 shadow-sm'
+                : 'border-transparent bg-gray-50 hover:bg-white hover:shadow-md hover:border-gray-200'
+            }
+        `}
+    >
+        <div className="flex items-start gap-3">
+            {Icon && (
+                <div className={`
+                    p-2 rounded-lg transition-colors
+                    ${selected ? 'bg-blue-100 text-blue-700' : 'bg-white text-gray-500 group-hover:text-gray-700'}
+                `}>
+                    <Icon className="h-5 w-5" />
+                </div>
+            )}
+            <div>
+                <h4 className={`text-sm font-bold ${selected ? 'text-blue-900' : 'text-gray-900'}`}>{label}</h4>
+                {description && (
+                    <p className={`text-xs mt-1 leading-relaxed ${selected ? 'text-blue-700' : 'text-gray-500'}`}>
+                        {description}
+                    </p>
+                )}
+            </div>
+        </div>
+
+        {/* Selection Indicator */}
+        <div className={`
+            absolute top-4 right-4 w-4 h-4 rounded-full border-2 flex items-center justify-center
+            ${selected ? 'border-blue-600 bg-blue-600' : 'border-gray-300'}
+        `}>
+            {selected && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+        </div>
+    </div>
+)
+
 export default function AgentDNAEditorPage() {
     const params = useParams()
     const router = useRouter()
@@ -74,7 +137,6 @@ export default function AgentDNAEditorPage() {
                     setModel(data.model || 'gemini-2.5-flash')
 
                     if (data.dna_config) {
-                        // Merge with default to ensure no missing fields if schema updates
                         setDna({ ...DEFAULT_DNA, ...data.dna_config })
                     }
                 } catch (error) {
@@ -140,157 +202,216 @@ export default function AgentDNAEditorPage() {
     }
 
     return (
-        <div className="h-full flex flex-col font-inter bg-gray-50/50">
-            {/* Toolbar */}
-            <div className="border-b px-8 py-4 flex items-center justify-between bg-white z-10 sticky top-0 shadow-sm">
-                <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" asChild className="hover:bg-gray-100">
-                        <Link href="/app/agents">
-                            <ArrowLeft className="h-5 w-5 text-gray-500" />
-                        </Link>
-                    </Button>
-                    <div className="flex flex-col">
-                        <h1 className="text-lg font-bold text-gray-900 leading-none">
-                            {isNew ? 'Criar Novo Agente' : 'Editor de DNA'}
-                        </h1>
-                        <p className="text-sm text-muted-foreground mt-1">
-                            {isNew ? 'Defina a identidade da sua IA' : `Editando: ${name || 'Sem nome'}`}
-                        </p>
+        <div className="min-h-screen bg-gray-50/50 flex flex-col font-sans">
+            {/* 1. HEADER MODERNO */}
+            <div className="bg-white border-b sticky top-0 z-20 shadow-sm/50 backdrop-blur-xl bg-white/80 supports-[backdrop-filter]:bg-white/60">
+                <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <Button variant="ghost" size="icon" asChild className="hover:bg-gray-100 rounded-full h-8 w-8">
+                            <Link href="/app/agents">
+                                <ArrowLeft className="h-4 w-4 text-gray-600" />
+                            </Link>
+                        </Button>
+
+                        <div className="h-6 w-px bg-gray-200" />
+
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xs ring-2 ring-white shadow-sm">
+                                {name ? name.substring(0, 2).toUpperCase() : 'IA'}
+                            </div>
+                            <div>
+                                <h1 className="text-sm font-bold text-gray-900 leading-none">
+                                    {isNew ? 'Criando Nova Inteligência' : name}
+                                </h1>
+                                <p className="text-[10px] uppercase font-bold text-blue-600 tracking-wider mt-0.5">
+                                    {description || 'SDR (Vendas)'}
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div className="flex items-center gap-3">
-                    <Button onClick={handleSave} disabled={loading} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
-                        <Save className="mr-2 h-4 w-4" />
-                        {loading ? 'Salvando...' : 'Salvar DNA'}
-                    </Button>
+
+                    <div className="flex items-center gap-3">
+                        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-xs font-bold ring-1 ring-green-100">
+                            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                            Active Model: {model}
+                        </div>
+                        <Button
+                            onClick={handleSave}
+                            disabled={loading}
+                            className="rounded-full bg-gray-900 hover:bg-black text-white px-6 shadow-lg shadow-gray-200 hover:shadow-xl transition-all"
+                        >
+                            {loading ? <Activity className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                            Salvar Alterações
+                        </Button>
+                    </div>
                 </div>
             </div>
 
-            {/* Main Content */}
-            <div className="flex-1 overflow-y-auto p-8 max-w-6xl mx-auto w-full space-y-8 pb-32">
+            {/* MAIN CANVAS */}
+            <div className="flex-1 max-w-6xl mx-auto w-full p-6 pb-24 space-y-8">
 
-                {/* 1. Identity & Brain */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <div className="md:col-span-1 space-y-2">
-                        <h3 className="text-lg font-semibold flex items-center gap-2">
-                            <Bot className="h-5 w-5 text-blue-600" />
-                            Identidade e Cérebro
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                            Configurações fundamentais. Quem ele é e qual sua missão principal.
-                        </p>
-                    </div>
-                    <Card className="md:col-span-2 border-none shadow-md">
-                        <CardContent className="space-y-6 pt-6">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-700">Nome</label>
-                                    <Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Ana" />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-700">Função (Role)</label>
-                                    <Select value={description} onValueChange={setDescription}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Selecione a função" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Sales Development Representative">SDR (Vendas)</SelectItem>
-                                            <SelectItem value="Customer Support Specialist">Suporte (SAC)</SelectItem>
-                                            <SelectItem value="Account Executive">Executivo de Contas</SelectItem>
-                                            <SelectItem value="Onboarding Specialist">Onboarding</SelectItem>
-                                            <SelectItem value="Technical Consultant">Consultor Técnico</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                {/* 2. IDENTITY SECTION - GRID LAYOUT */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                    {/* AVATAR & BASIC INFO (Left Col) */}
+                    <div className="md:col-span-4 space-y-4">
+                        <Card className="border-none shadow-lg shadow-gray-200/50 overflow-hidden bg-white">
+                            <div className="h-24 bg-gradient-to-r from-blue-500 to-indigo-600 relative">
+                                <div className="absolute -bottom-10 left-6 p-1 bg-white rounded-2xl shadow-sm">
+                                    <div className="w-20 h-20 rounded-xl bg-gray-100 flex items-center justify-center text-2xl">
+                                        🤖
+                                    </div>
                                 </div>
                             </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Modelo de IA</label>
-                                <Select value={model} onValueChange={setModel}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
-                                        <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
-                                        <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="p-4 bg-blue-50 text-blue-700 text-sm rounded-lg flex items-start gap-3">
-                                <Brain className="h-5 w-5 shrink-0 mt-0.5" />
+                            <CardContent className="pt-12 px-6 pb-6 space-y-4">
                                 <div>
-                                    <p className="font-semibold">Prompt Gerado Automaticamente</p>
-                                    <p className="opacity-90 mt-1">
-                                        O comportamento deste agente é governado estritamente pelas configurações de DNA abaixo (Psicometria, Emoções, etc).
-                                        Não é necessário escrever instruções manuais.
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Nome do Agente</label>
+                                    <Input
+                                        value={name}
+                                        onChange={e => setName(e.target.value)}
+                                        className="mt-1 h-10 font-medium text-lg border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-lg"
+                                        placeholder="Ex: Ana Silva"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Função Principal</label>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {[
+                                            { id: 'Sales Development Representative', label: 'SDR / Vendas', icon: Zap },
+                                            { id: 'Customer Support Specialist', label: 'Suporte / SAC', icon: MessageSquare },
+                                        ].map(role => (
+                                            <div
+                                                key={role.id}
+                                                onClick={() => setDescription(role.id)}
+                                                className={`
+                                                    cursor-pointer p-2.5 rounded-lg border flex items-center gap-3 transition-all
+                                                    ${description === role.id ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-200' : 'bg-white hover:bg-gray-50 border-gray-200'}
+                                                `}
+                                            >
+                                                <div className={`p-1.5 rounded-md ${description === role.id ? 'bg-blue-200 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                    <role.icon className="h-4 w-4" />
+                                                </div>
+                                                <span className={`text-sm font-medium ${description === role.id ? 'text-blue-900' : 'text-gray-600'}`}>
+                                                    {role.label}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* AI BRAIN CONFIG (Right Col) */}
+                    <div className="md:col-span-8">
+                        <Card className="border-none shadow-lg shadow-gray-200/50 bg-white h-full">
+                            <CardHeader>
+                                <div className="flex items-center gap-2">
+                                    <Brain className="h-5 w-5 text-purple-600" />
+                                    <CardTitle className="text-base text-gray-900">Cérebro & Inteligência</CardTitle>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* MODEL SELECTION AS CARDS */}
+                                    {['gemini-2.5-flash', 'gpt-4o'].map(m => (
+                                        <div
+                                            key={m}
+                                            onClick={() => setModel(m)}
+                                            className={`
+                                                cursor-pointer relative p-4 rounded-xl border-2 transition-all
+                                                ${model === m ? 'border-purple-600 bg-purple-50/30' : 'border-dashed border-gray-200 hover:border-purple-300 hover:bg-gray-50'}
+                                            `}
+                                        >
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className={`text-sm font-bold ${model === m ? 'text-purple-900' : 'text-gray-500'}`}>
+                                                    {m === 'gemini-2.5-flash' ? 'Gemini Flash' : 'GPT-4o'}
+                                                </span>
+                                                {model === m && <div className="h-2 w-2 rounded-full bg-purple-600 shadow-[0_0_8px_rgba(147,51,234,0.5)]" />}
+                                            </div>
+                                            <p className="text-xs text-gray-500 leading-relaxed">
+                                                {m === 'gemini-2.5-flash' ? '⚡ Ultra-rápido, ideal para respostas instantâneas.' : '🧠 Mais complexo, melhor para raciocínio profundo.'}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                    <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                        <Bot className="h-3 w-3" />
+                                        Prompt Base
+                                    </h4>
+                                    <p className="text-sm text-gray-500 leading-relaxed">
+                                        O sistema irá gerar automaticamente um prompt otimizado baseado no <strong>DNA</strong> abaixo.
+                                        Você não precisa escrever instruções complexas manualmente.
                                     </p>
                                 </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                            </CardContent>
+                        </Card>
+                    </div>
                 </div>
 
-                <div className="w-full h-px bg-gray-200" />
-
-                {/* 2. DNA Configuration Tabs */}
+                {/* 3. TABS NAVIGATION REIMAGINED */}
                 <div className="space-y-6">
-                    <div className="flex flex-col gap-2">
-                        <h3 className="text-xl font-bold flex items-center gap-2 text-gray-900">
-                            <Brain className="h-6 w-6 text-purple-600" />
-                            Configuração de DNA
-                        </h3>
-                        <p className="text-gray-500 max-w-2xl">
-                            Ajuste fino da personalidade e comportamento do agente. Todas as variáveis afetam como ele processa e responde.
-                        </p>
-                    </div>
-
                     <Tabs defaultValue="psychometrics" className="w-full">
                         <TabsList className="w-full justify-start bg-gray-100 p-1 rounded-lg">
-                            <TabsTrigger value="triagem">🎯 Triagem (BANT/SPIN)</TabsTrigger>
-                            <TabsTrigger value="psychometrics">🧠 Psicometria (Big 5)</TabsTrigger>
-                            <TabsTrigger value="emotions">❤️ Emoções (PAD)</TabsTrigger>
-                            <TabsTrigger value="linguistics">💬 Linguística</TabsTrigger>
-                            <TabsTrigger value="chronemics">⏱️ Cronêmica</TabsTrigger>
-                            <TabsTrigger value="safety">🛡️ Segurança</TabsTrigger>
+                            <TabsTrigger value="triagem">🎯 Qualificação</TabsTrigger>
+                            <TabsTrigger value="psychometrics">🧠 Personalidade</TabsTrigger>
+                            <TabsTrigger value="emotions">❤️ Humor Base</TabsTrigger>
+                            <TabsTrigger value="linguistics">💬 Forma de Escrever</TabsTrigger>
+                            <TabsTrigger value="chronemics">⏱️ Velocidade e Estilo</TabsTrigger>
+                            <TabsTrigger value="safety">🛡️ Limites</TabsTrigger>
                         </TabsList>
 
                         {/* --- TRIAGEM (Qualifications) --- */}
                         <TabsContent value="triagem" className="mt-6">
                             <Card className="border-none shadow-md">
                                 <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Zap className="h-5 w-5 text-yellow-500" />
-                                        Metodologia de Vendas & Qualificação
-                                    </CardTitle>
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="p-2 bg-yellow-100 rounded-lg">
+                                            <Zap className="h-6 w-6 text-yellow-600" />
+                                        </div>
+                                        <div>
+                                            <CardTitle>Metodologia de Vendas & Qualificação</CardTitle>
+                                            <p className="text-sm text-gray-500 font-normal mt-1">
+                                                Como o agente deve abordar a venda e quais perguntas são obrigatórias.
+                                            </p>
+                                        </div>
+                                    </div>
                                 </CardHeader>
-                                <CardContent className="space-y-6">
-                                    <div className="space-y-2 max-w-md">
-                                        <label className="text-sm font-medium text-gray-700">Framework de Vendas</label>
-                                        <Select
-                                            value={dna.qualification?.framework || 'SPIN'}
-                                            onValueChange={(v) => updateDna('qualification', 'framework', v)}
-                                        >
-                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="SPIN">SPIN Selling (Situação, Problema...)</SelectItem>
-                                                <SelectItem value="BANT">BANT (Budget, Authority, Need, Time)</SelectItem>
-                                                <SelectItem value="GPCT">GPCT (Goals, Plans, Challenges...)</SelectItem>
-                                                <SelectItem value="MEDDIC">MEDDIC (Metrics, Economic Buyer...)</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <p className="text-xs text-gray-500">O framework define a estrutura lógica das perguntas que o agente fará.</p>
+                                <CardContent className="space-y-8">
+                                    <div className="space-y-4">
+                                        <label className="text-base font-bold text-gray-900 block">Framework de Vendas (Lógica de Perguntas)</label>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {[
+                                                { id: 'SPIN', label: 'SPIN Selling', desc: 'Foca em investigar a dor antes de vender. (Situação, Problema, Implicação)' },
+                                                { id: 'BANT', label: 'BANT (Clássico)', desc: 'Qualificação rápida: Orçamento, Autoridade, Necessidade e Prazo.' },
+                                                { id: 'GPCT', label: 'GPCT', desc: 'Foco em objetivos e planos do cliente. Mais consultivo.' },
+                                                { id: 'MEDDIC', label: 'MEDDIC', desc: 'Avançado. Foca em métricas, decisor e processo de compra.' }
+                                            ].map(fw => (
+                                                <VisualOption
+                                                    key={fw.id}
+                                                    label={fw.label}
+                                                    description={fw.desc}
+                                                    selected={dna.qualification?.framework === fw.id}
+                                                    onClick={() => updateDna('qualification', 'framework', fw.id)}
+                                                    value={fw.id}
+                                                />
+                                            ))}
+                                        </div>
                                     </div>
 
-                                    <div className="space-y-3">
-                                        <label className="text-sm font-medium text-gray-700 block">Slots de Qualificação (Obrigatórios)</label>
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    <div className="p-6 bg-gray-50 rounded-xl border border-gray-100 space-y-4">
+                                        <label className="text-base font-bold text-gray-900 block">Dados Obrigatórios (Slots)</label>
+                                        <p className="text-sm text-gray-500 mb-4">
+                                            Selecione quais informações o agente <strong>NÃO pode esquecer</strong> de perguntar antes de passar para um humano.
+                                        </p>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                             {[
-                                                { id: 'need', label: 'Necessidade (Need)' },
+                                                { id: 'need', label: 'Necessidade / Dor' },
                                                 { id: 'budget', label: 'Orçamento (Budget)' },
-                                                { id: 'authority', label: 'Autoridade (Authority)' },
-                                                { id: 'timeline', label: 'Prazo (Timeline)' },
+                                                { id: 'authority', label: 'Quem Decide?' },
+                                                { id: 'timeline', label: 'Prazo / Urgência' },
                                                 { id: 'solution', label: 'Interesse na Solução' },
                                                 { id: 'timing', label: 'Momento de Compra' }
                                             ].map((slot) => {
@@ -300,19 +421,23 @@ export default function AgentDNAEditorPage() {
                                                         key={slot.id}
                                                         onClick={() => toggleSlot(slot.id)}
                                                         className={`
-                                                            cursor-pointer border rounded-lg p-3 flex items-center justify-between transition-all
-                                                            ${isSelected ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-300' : 'bg-white hover:bg-gray-50'}
+                                                            cursor-pointer relative p-3 rounded-lg border-2 flex items-center gap-3 transition-all
+                                                            ${isSelected ? 'bg-green-50 border-green-500' : 'bg-white border-gray-200 hover:border-gray-300'}
                                                         `}
                                                     >
-                                                        <span className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>{slot.label}</span>
-                                                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
-                                                            {isSelected && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                                                        <div className={`
+                                                            w-5 h-5 rounded flex items-center justify-center border
+                                                            ${isSelected ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-300'}
+                                                        `}>
+                                                            {isSelected && <Zap className="h-3 w-3 fill-current" />}
                                                         </div>
+                                                        <span className={`text-sm font-semibold ${isSelected ? 'text-green-900' : 'text-gray-600'}`}>
+                                                            {slot.label}
+                                                        </span>
                                                     </div>
                                                 )
                                             })}
                                         </div>
-                                        <p className="text-xs text-gray-500">O agente tentará preencher estes slots durante a conversa antes de avançar.</p>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -322,31 +447,78 @@ export default function AgentDNAEditorPage() {
                         <TabsContent value="psychometrics" className="mt-6">
                             <Card className="border-none shadow-md">
                                 <CardHeader>
-                                    <CardTitle>Ocean Model (Big 5)</CardTitle>
+                                    <CardTitle>Traços de Personalidade</CardTitle>
                                 </CardHeader>
-                                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <CardContent className="space-y-8">
                                     {[
-                                        { id: 'openness', label: 'Abertura (Openness)' },
-                                        { id: 'conscientiousness', label: 'Conscienciosidade' },
-                                        { id: 'extraversion', label: 'Extroversão' },
-                                        { id: 'agreeableness', label: 'Amabilidade' },
-                                        { id: 'neuroticism', label: 'Neuroticismo' }
+                                        {
+                                            id: 'openness',
+                                            label: 'Criatividade (Openness)',
+                                            desc: 'Quão aberta a novas ideias e conceitos abstratos a IA deve ser?',
+                                            options: [
+                                                { value: 'LOW', label: 'Prática & Direta', desc: 'Foca no concreto, no "agora". Ótimo para suporte técnico.' },
+                                                { value: 'MEDIUM', label: 'Equilibrada', desc: 'Mistura fatos com boa adaptação.' },
+                                                { value: 'HIGH', label: 'Criativa & Abstrata', desc: 'Gosta de explorar ideias. Ótimo para consultoria.' }
+                                            ]
+                                        },
+                                        {
+                                            id: 'conscientiousness',
+                                            label: 'Organização (Conscienciosidade)',
+                                            desc: 'O nível de disciplina, ordem e atenção aos detalhes.',
+                                            options: [
+                                                { value: 'LOW', label: 'Espontânea', desc: 'Mais flexível, menos rígida com processos.' },
+                                                { value: 'MEDIUM', label: 'Organizada', desc: 'Segue processos mas adapta se necessário.' },
+                                                { value: 'HIGH', label: 'Metódica & Precisa', desc: 'Extremamente detalhista. Perfeito para financeiro/jurídico.' }
+                                            ]
+                                        },
+                                        {
+                                            id: 'extraversion',
+                                            label: 'Sociabilidade (Extroversão)',
+                                            desc: 'Nível de energia social e entusiasmo na fala.',
+                                            options: [
+                                                { value: 'LOW', label: 'Reservada & Calma', desc: 'Fala o necessário. Passa seriedade.' },
+                                                { value: 'MEDIUM', label: 'Amigável', desc: 'Entusiasmo na medida certa.' },
+                                                { value: 'HIGH', label: 'Enérgica & Extrovertida', desc: 'Muito expressiva, usa exclamações! Ótimo para vendas.' }
+                                            ]
+                                        },
+                                        {
+                                            id: 'agreeableness',
+                                            label: 'Gentileza (Amabilidade)',
+                                            desc: 'O quão cooperativa e empática ela é com o usuário.',
+                                            options: [
+                                                { value: 'LOW', label: 'Direta & Desafiadora', desc: 'Foca na verdade nua e crua. Bom para negociação dura.' },
+                                                { value: 'MEDIUM', label: 'Educada', desc: 'Cordial e profissional.' },
+                                                { value: 'HIGH', label: 'Muito Empática', desc: 'Foca totalmente em agradar e ajudar. Bom para SAC.' }
+                                            ]
+                                        },
+                                        {
+                                            id: 'neuroticism',
+                                            label: 'Sensibilidade Emocional',
+                                            desc: 'Como ela reage ao estresse ou frustração do usuário.',
+                                            options: [
+                                                { value: 'LOW', label: 'Resiliente & Estável', desc: 'Não se abala com insultos. Pedra de gelo.' },
+                                                { value: 'MEDIUM', label: 'Reativa', desc: 'Demonstra preocupação normal.' },
+                                                { value: 'HIGH', label: 'Sensível & Ansiosa', desc: 'Demonstra muita urgência e preocupação. Bom para emergências.' }
+                                            ]
+                                        }
                                     ].map((trait) => (
-                                        <div key={trait.id} className="space-y-2">
-                                            <label className="text-sm font-medium text-gray-700">{trait.label}</label>
-                                            <Select
-                                                value={dna.psychometrics[trait.id as keyof typeof dna.psychometrics]}
-                                                onValueChange={(v) => updateDna('psychometrics', trait.id, v)}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="LOW">Baixo</SelectItem>
-                                                    <SelectItem value="MEDIUM">Médio</SelectItem>
-                                                    <SelectItem value="HIGH">Alto</SelectItem>
-                                                </SelectContent>
-                                            </Select>
+                                        <div key={trait.id} className="space-y-4 pb-6 border-b border-gray-100 last:border-0">
+                                            <div>
+                                                <label className="text-base font-bold text-gray-900">{trait.label}</label>
+                                                <p className="text-sm text-gray-500">{trait.desc}</p>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                {trait.options.map((opt) => (
+                                                    <VisualOption
+                                                        key={opt.value}
+                                                        label={opt.label}
+                                                        description={opt.desc}
+                                                        selected={dna.psychometrics[trait.id as keyof typeof dna.psychometrics] === opt.value}
+                                                        onClick={() => updateDna('psychometrics', trait.id, opt.value)}
+                                                        value={opt.value}
+                                                    />
+                                                ))}
+                                            </div>
                                         </div>
                                     ))}
                                 </CardContent>
@@ -359,51 +531,71 @@ export default function AgentDNAEditorPage() {
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <Activity className="h-5 w-5 text-red-500" />
-                                        Emotional State (PAD)
+                                        Estado Emocional Padrão
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700">Prazer (Pleasure)</label>
-                                        <Select
-                                            value={dna.pad_baseline.pleasure}
-                                            onValueChange={(v) => updateDna('pad_baseline', 'pleasure', v)}
-                                        >
-                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="NEGATIVE">Negativo (Displasure)</SelectItem>
-                                                <SelectItem value="NEUTRAL">Neutro</SelectItem>
-                                                <SelectItem value="POSITIVE">Positivo</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                                <CardContent className="space-y-8">
+                                    {/* PLEASURE */}
+                                    <div className="space-y-3">
+                                        <label className="text-base font-bold text-gray-900 block">Humor Geral</label>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            {[
+                                                { value: 'NEGATIVE', label: 'Descontente / Sério', desc: 'Tom mais pesado ou preocupado.' },
+                                                { value: 'NEUTRAL', label: 'Neutro / Profissional', desc: 'Sem viés emocional forte.' },
+                                                { value: 'POSITIVE', label: 'Alegre / Otimista', desc: 'Vibe positiva e leve.' }
+                                            ].map(opt => (
+                                                <VisualOption
+                                                    key={opt.value}
+                                                    label={opt.label}
+                                                    description={opt.desc}
+                                                    selected={dna.pad_baseline.pleasure === opt.value}
+                                                    onClick={() => updateDna('pad_baseline', 'pleasure', opt.value)}
+                                                    value={opt.value}
+                                                />
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700">Ativação (Arousal)</label>
-                                        <Select
-                                            value={dna.pad_baseline.arousal}
-                                            onValueChange={(v) => updateDna('pad_baseline', 'arousal', v)}
-                                        >
-                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="LOW">Baixa (Calmo)</SelectItem>
-                                                <SelectItem value="MEDIUM">Média</SelectItem>
-                                                <SelectItem value="HIGH">Alta (Excited)</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+
+                                    {/* AROUSAL */}
+                                    <div className="space-y-3">
+                                        <label className="text-base font-bold text-gray-900 block">Nível de Energia (Arousal)</label>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            {[
+                                                { value: 'LOW', label: 'Zen / Calmo', desc: 'Relaxada, sem pressa.' },
+                                                { value: 'MEDIUM', label: 'Atento', desc: 'Pronta para responder.' },
+                                                { value: 'HIGH', label: 'Pilhado / Intenso', desc: 'Muita energia de ação!' }
+                                            ].map(opt => (
+                                                <VisualOption
+                                                    key={opt.value}
+                                                    label={opt.label}
+                                                    description={opt.desc}
+                                                    selected={dna.pad_baseline.arousal === opt.value}
+                                                    onClick={() => updateDna('pad_baseline', 'arousal', opt.value)}
+                                                    value={opt.value}
+                                                />
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700">Dominância</label>
-                                        <Select
-                                            value={dna.pad_baseline.dominance}
-                                            onValueChange={(v) => updateDna('pad_baseline', 'dominance', v)}
-                                        >
-                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="SUBMISSIVE">Submisso</SelectItem>
-                                                <SelectItem value="EGALITARIAN">Igualitário</SelectItem>
-                                                <SelectItem value="DOMINANT">Dominante</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+
+                                    {/* DOMINANCE */}
+                                    <div className="space-y-3">
+                                        <label className="text-base font-bold text-gray-900 block">Postura na Conversa</label>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            {[
+                                                { value: 'SUBMISSIVE', label: 'Serviçal / Passivo', desc: 'Espera ordens do cliente.' },
+                                                { value: 'EGALITARIAN', label: 'Parceiro / Igual', desc: 'Trata como colega.' },
+                                                { value: 'DOMINANT', label: 'Líder / Guia', desc: 'Conduz a conversa com firmeza.' }
+                                            ].map(opt => (
+                                                <VisualOption
+                                                    key={opt.value}
+                                                    label={opt.label}
+                                                    description={opt.desc}
+                                                    selected={dna.pad_baseline.dominance === opt.value}
+                                                    onClick={() => updateDna('pad_baseline', 'dominance', opt.value)}
+                                                    value={opt.value}
+                                                />
+                                            ))}
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -413,69 +605,79 @@ export default function AgentDNAEditorPage() {
                         <TabsContent value="linguistics" className="mt-6">
                             <Card className="border-none shadow-md">
                                 <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <MessageSquare className="h-5 w-5 text-blue-500" />
-                                        Estilo de Escrita
-                                    </CardTitle>
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="p-2 bg-blue-100 rounded-lg">
+                                            <MessageSquare className="h-6 w-6 text-blue-600" />
+                                        </div>
+                                        <div>
+                                            <CardTitle>Estilo de Escrita</CardTitle>
+                                            <p className="text-sm text-gray-500 font-normal mt-1">
+                                                Define como as mensagens são formatadas. Gírias? Emojis? Erros de digitação?
+                                            </p>
+                                        </div>
+                                    </div>
                                 </CardHeader>
-                                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700">Nível de Redução (Formalidade)</label>
-                                        <Select
-                                            value={dna.linguistics.reduction_profile}
-                                            onValueChange={(v) => updateDna('linguistics', 'reduction_profile', v)}
-                                        >
-                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="CORPORATE">Corporativo (Formal)</SelectItem>
-                                                <SelectItem value="BALANCED">Balanceado</SelectItem>
-                                                <SelectItem value="NATIVE">Nativo (Informal)</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                                <CardContent className="space-y-8">
+                                    {/* FORMALIDADE */}
+                                    <div className="space-y-4">
+                                        <label className="text-base font-bold text-gray-900 block">Formalidade (Nível de Redução)</label>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            {[
+                                                { value: 'CORPORATE', label: 'Corporativo', desc: 'Português impecável, "Prezado cliente".' },
+                                                { value: 'BALANCED', label: 'Balanceado', desc: 'Profissional, mas acessível. Padrão.' },
+                                                { value: 'NATIVE', label: 'Whatsapp Nativo', desc: 'Usa abreviações (vc, tbm), parece amigo.' }
+                                            ].map(opt => (
+                                                <VisualOption
+                                                    key={opt.value}
+                                                    label={opt.label}
+                                                    description={opt.desc}
+                                                    selected={dna.linguistics.reduction_profile === opt.value}
+                                                    onClick={() => updateDna('linguistics', 'reduction_profile', opt.value)}
+                                                    value={opt.value}
+                                                />
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700">Capitalização (Maiúsculas)</label>
-                                        <Select
-                                            value={dna.linguistics.caps_mode}
-                                            onValueChange={(v) => updateDna('linguistics', 'caps_mode', v)}
-                                        >
-                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="STANDARD">Padrão</SelectItem>
-                                                <SelectItem value="SENTENCE_CASE">Apenas inicial</SelectItem>
-                                                <SelectItem value="LOWERCASE_ONLY">Tudo minúsculo</SelectItem>
-                                                <SelectItem value="CHAOTIC">Caótico (Humanizado)</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+
+                                    {/* CAPITALIZAÇÃO */}
+                                    <div className="space-y-4">
+                                        <label className="text-base font-bold text-gray-900 block">Estilo de Letras (Caps)</label>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {[
+                                                { value: 'STANDARD', label: 'Padrão (Gramatical)', desc: 'Começa frases com maiúscula. Normal.' },
+                                                { value: 'LOWERCASE_ONLY', label: 'ticket jovem (minúsculas)', desc: 'tudo minúsculo, estilo gen z / startup.' }
+                                            ].map(opt => (
+                                                <VisualOption
+                                                    key={opt.value}
+                                                    label={opt.label}
+                                                    description={opt.desc}
+                                                    selected={dna.linguistics.caps_mode === opt.value}
+                                                    onClick={() => updateDna('linguistics', 'caps_mode', opt.value)}
+                                                    value={opt.value}
+                                                />
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700">Estilo de Correção</label>
-                                        <Select
-                                            value={dna.linguistics.correction_style}
-                                            onValueChange={(v) => updateDna('linguistics', 'correction_style', v)}
-                                        >
-                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="ASTERISK_PRE">*palavra</SelectItem>
-                                                <SelectItem value="ASTERISK_POST">palavra*</SelectItem>
-                                                <SelectItem value="BARE_CORRECTION">Apenas a palavra</SelectItem>
-                                                <SelectItem value="EXPLANATORY">Explicativo</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700">Injeção de Typos</label>
-                                        <Select
-                                            value={dna.linguistics.typo_injection}
-                                            onValueChange={(v) => updateDna('linguistics', 'typo_injection', v)}
-                                        >
-                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="NONE">Nenhum</SelectItem>
-                                                <SelectItem value="LOW">Baixa</SelectItem>
-                                                <SelectItem value="MEDIUM">Média</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+
+                                    {/* TYPOS */}
+                                    <div className="space-y-4">
+                                        <label className="text-base font-bold text-gray-900 block">Erros de Digitação (Typos)</label>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            {[
+                                                { value: 'NONE', label: 'Perfeito', desc: 'Zero erros. Robótico.' },
+                                                { value: 'LOW', label: 'Realista (Baixo)', desc: 'Erra raramente, se corrige.' },
+                                                { value: 'MEDIUM', label: 'Desastrado', desc: 'Vários erros. Parece digitar correndo.' }
+                                            ].map(opt => (
+                                                <VisualOption
+                                                    key={opt.value}
+                                                    label={opt.label}
+                                                    description={opt.desc}
+                                                    selected={dna.linguistics.typo_injection === opt.value}
+                                                    onClick={() => updateDna('linguistics', 'typo_injection', opt.value)}
+                                                    value={opt.value}
+                                                />
+                                            ))}
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -485,42 +687,106 @@ export default function AgentDNAEditorPage() {
                         <TabsContent value="chronemics" className="mt-6">
                             <Card className="border-none shadow-md">
                                 <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Clock className="h-5 w-5 text-orange-500" />
-                                        Tempo e Ritmo
-                                    </CardTitle>
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="p-2 bg-orange-100 rounded-lg">
+                                            <Clock className="h-6 w-6 text-orange-600" />
+                                        </div>
+                                        <div>
+                                            <CardTitle>Comportamento de Digitação (Cronêmica)</CardTitle>
+                                            <p className="text-sm text-gray-500 font-normal mt-1">
+                                                Defina como a IA se comporta no tempo. Ela digita rápido? Manda várias mensagens?
+                                            </p>
+                                        </div>
+                                    </div>
                                 </CardHeader>
-                                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700">Velocidade (Latência)</label>
-                                        <Select
-                                            value={dna.chronemics.latency_profile}
-                                            onValueChange={(v) => updateDna('chronemics', 'latency_profile', v)}
-                                        >
-                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="VERY_FAST">Muito Rápido</SelectItem>
-                                                <SelectItem value="FAST">Rápido</SelectItem>
-                                                <SelectItem value="MODERATE">Moderado (Humano)</SelectItem>
-                                                <SelectItem value="SLOW">Lento (Pensativo)</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700">Explosão (Burstiness)</label>
-                                        <Select
-                                            value={dna.chronemics.burstiness}
-                                            onValueChange={(v) => updateDna('chronemics', 'burstiness', v)}
-                                        >
-                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="NONE">Nenhuma (Robótico)</SelectItem>
-                                                <SelectItem value="LOW">Baixa</SelectItem>
-                                                <SelectItem value="MEDIUM">Média</SelectItem>
-                                                <SelectItem value="HIGH">Alta (Caótico)</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
+                                <CardContent className="space-y-6">
+                                    <Accordion type="single" collapsible className="w-full">
+
+                                        {/* LATENCY */}
+                                        <AccordionItem value="latency" className="border-b-0 space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div className="space-y-1">
+                                                    <label className="text-base font-semibold text-gray-900">Velocidade de Resposta</label>
+                                                    <p className="text-sm text-gray-500">Quanto tempo a IA "finge" que está digitando antes de enviar.</p>
+                                                </div>
+                                                <Select
+                                                    value={dna.chronemics.latency_profile}
+                                                    onValueChange={(v) => updateDna('chronemics', 'latency_profile', v)}
+                                                >
+                                                    <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="VERY_FAST">⚡ Instantâneo (Bot)</SelectItem>
+                                                        <SelectItem value="FAST">🚀 Rápido (Suporte Ágil)</SelectItem>
+                                                        <SelectItem value="MODERATE">👤 Moderado (Humano)</SelectItem>
+                                                        <SelectItem value="SLOW">🐢 Lento (Pensativo)</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <AccordionTrigger className="text-sm text-blue-600 hover:text-blue-700 py-2">
+                                                Ver detalhes e impacto
+                                            </AccordionTrigger>
+                                            <AccordionContent className="bg-gray-50 p-4 rounded-lg text-sm text-gray-600 space-y-2">
+                                                <p><strong>Impacto na Percepção:</strong></p>
+                                                <ul className="list-disc pl-5 space-y-1">
+                                                    <li><strong>Instantâneo:</strong> Bom para suporte técnico, mas deixa claro que é um robô.</li>
+                                                    <li><strong>Moderado (Recomendado):</strong> Simula o tempo real de leitura e digitação de um humano. Aumenta a confiança.</li>
+                                                    <li><strong>Lento:</strong> Útil para vendas complexas, parecer que está "consultando o sistema".</li>
+                                                </ul>
+                                            </AccordionContent>
+                                        </AccordionItem>
+
+                                        <div className="h-px bg-gray-100 my-6" />
+
+                                        {/* BURSTINESS */}
+                                        <AccordionItem value="burstiness" className="border-b-0 space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div className="space-y-1">
+                                                    <label className="text-base font-semibold text-gray-900">Quebra de Mensagens (Burstiness)</label>
+                                                    <p className="text-sm text-gray-500">Divide textos longos em vários balões curtos, como no WhatsApp real.</p>
+                                                </div>
+                                                <Select
+                                                    value={dna.chronemics.burstiness}
+                                                    onValueChange={(v) => updateDna('chronemics', 'burstiness', v)}
+                                                >
+                                                    <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="NONE">🤖 Não dividir</SelectItem>
+                                                        <SelectItem value="LOW">🔹 Baixa</SelectItem>
+                                                        <SelectItem value="MEDIUM">✨ Média (Natural)</SelectItem>
+                                                        <SelectItem value="HIGH">💥 Alta (Dinâmico)</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <AccordionTrigger className="text-sm text-blue-600 hover:text-blue-700 py-2">
+                                                Ver simulação visual
+                                            </AccordionTrigger>
+                                            <AccordionContent className="bg-gray-50 p-4 rounded-lg space-y-4">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div className="border border-gray-200 bg-white p-3 rounded-lg">
+                                                        <p className="text-xs font-semibold text-gray-400 mb-2 uppercase">Sem Quebra (Robótico)</p>
+                                                        <div className="bg-gray-100 p-2 rounded-r-lg rounded-bl-lg text-sm text-gray-800">
+                                                            Oi João, tudo bem? Vi que você tem interesse no plano. Podemos agendar uma call amanhã às 14h para conversar melhor?
+                                                        </div>
+                                                    </div>
+                                                    <div className="border border-blue-100 bg-blue-50/50 p-3 rounded-lg">
+                                                        <p className="text-xs font-semibold text-blue-400 mb-2 uppercase">Com Quebra (Humano)</p>
+                                                        <div className="space-y-1">
+                                                            <div className="bg-white border border-gray-100 p-2 rounded-r-lg rounded-bl-lg text-sm text-gray-800 w-fit">
+                                                                Oi João, tudo bem?
+                                                            </div>
+                                                            <div className="bg-white border border-gray-100 p-2 rounded-r-lg rounded-bl-lg text-sm text-gray-800 w-fit">
+                                                                Vi seu interesse no plano 👀
+                                                            </div>
+                                                            <div className="bg-white border border-gray-100 p-2 rounded-r-lg rounded-bl-lg text-sm text-gray-800 w-fit">
+                                                                Bora agendar um papo amanhã 14h?
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </AccordionContent>
+                                        </AccordionItem>
+
+                                    </Accordion>
                                 </CardContent>
                             </Card>
                         </TabsContent>

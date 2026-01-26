@@ -1,5 +1,6 @@
 const { resolveDNA, SAFETY_DEFAULTS } = require('../../../config/AgentDNA');
 const { NodeExecutionStateEnum } = require('../../../types/CampaignEnums');
+const logger = require('../../../../shared/Logger').createModuleLogger('agent-node');
 
 /**
  * AgentNode - Executor for AI Agent nodes.
@@ -31,7 +32,7 @@ class AgentNode {
         const _nodeConfig = nodeConfig || arguments[2];
         const _graph = graph || arguments[3];
 
-        console.log(`[AgentNode] Executing for lead ${_lead.phone || 'Unknown'}`);
+        logger.info({ leadId: _lead.id, phone: _lead.phone }, 'Executing AgentNode');
 
         // Resolve DNA Configuration
         const dna = resolveDNA(_campaign.agents?.dna_config);
@@ -54,7 +55,7 @@ class AgentNode {
 
         // 3. Decision: Should we reply?
         if (lastMsg && lastMsg.role === 'assistant') {
-            console.log(`[AgentNode] Last message was from assistant. Waiting for lead.`);
+            logger.debug({ leadId: _lead.id }, 'Last message was from assistant. Waiting for lead.');
             return { status: NodeExecutionStateEnum.AWAITING_ASYNC };
         }
 
@@ -70,7 +71,8 @@ class AgentNode {
         const nodeModel = _nodeConfig?.model;
         const targetModel = nodeModel || (this.modelService ? this.modelService.getModelFromCampaignObject(_campaign) : 'gemini-pro');
 
-        console.log(`[AgentNode] Usando modelo${nodeModel ? ' do Node' : ' do DB'}: ${targetModel}`);
+        logger.debug({ model: targetModel, nodeModel: !!nodeModel }, 'Using model for generation');
+
         let response;
         let attempts = 0;
         const maxAttempts = 3;
@@ -96,9 +98,9 @@ class AgentNode {
 
                 if (validation.valid) break;
 
-                console.warn(`[AgentNode] Guardrail failure (Attempt ${attempts}): ${validation.reason}`);
+                logger.warn({ attempt: attempts, reason: validation.reason }, 'Guardrail failure');
             } catch (e) {
-                console.error("[AgentNode] Failed to parse AI response:", e);
+                logger.error({ error: e.message, attempt: attempts }, 'Failed to parse AI response');
                 if (attempts >= maxAttempts) return { status: NodeExecutionStateEnum.FAILED, error: 'JSON Parse Failure' };
             }
         } while (attempts < maxAttempts);
@@ -133,6 +135,9 @@ class AgentNode {
      * Orchestrates the sending of messages with human-like characteristics.
      */
     async sendResponseWithPhysics(lead, campaign, chatId, dbChatId, aiResponse, physics) {
+        // Convert to WAHA-compatible @c.us format for sending messages
+        const wahaChatId = this.getSendChatId(lead.phone);
+
         let messagesToSend = [];
 
         // 1. Resolve response content (Array or Single String)
@@ -154,8 +159,8 @@ class AgentNode {
 
             // 2a. Voice Note Support
             if (isFirst && aiResponse.audio_base64) {
-                console.log(`[AgentNode] Sending AI-generated Voice Note for lead ${lead.id}`);
-                await this.wahaClient.sendVoiceBase64(campaign.session_id, chatId, aiResponse.audio_base64);
+                logger.info({ leadId: lead.id }, 'Sending AI-generated Voice Note');
+                await this.wahaClient.sendVoiceBase64(campaign.waha_session_name || campaign.session_name, wahaChatId, aiResponse.audio_base64);
                 await this.logMessage(lead, chatId, '[AUDIO_VOICE_NOTE]', true);
                 continue;
             }
@@ -167,7 +172,7 @@ class AgentNode {
             const delay = this.calculateTypingDelay(msgText, physics?.typing, isFirst);
             const isSimulation = campaign.mode === 'simulation';
 
-            console.log(`[AgentNode] Human Physics: Waiting ${delay}ms before sending chunk ${i + 1}/${messagesToSend.length} (Simulation=${isSimulation})`);
+            logger.debug({ leadId: lead.id, delay, chunkIndex: i, isSimulation }, 'Human Physics Wait');
 
             if (delay > 1000 && !isSimulation) {
                 // await this.wahaClient.sendTypingState(campaign.session_id, chatId, true);
@@ -176,12 +181,13 @@ class AgentNode {
             await new Promise(resolve => setTimeout(resolve, delay));
 
             let sentId = `sim_${Date.now()}`;
+            const sessionName = campaign.waha_session_name || campaign.session_name;
             if (!isSimulation) {
-                console.log(`[AgentNode] Sending to WAHA: Session=${campaign.session_id}, Chat=${chatId}, Body=${msgText.substring(0, 30)}...`);
-                const sent = await this.wahaClient.sendText(campaign.session_id, chatId, msgText);
+                logger.debug({ session: sessionName, wahaChatId, bodyPreview: msgText.substring(0, 30) }, 'Sending to WAHA');
+                const sent = await this.wahaClient.sendText(sessionName, wahaChatId, msgText);
                 sentId = sent?.id;
             } else {
-                console.log(`[AgentNode] SIMULATION MODE: Skipping real send for Session=${campaign.session_id}`);
+                logger.info({ session: sessionName }, 'SIMULATION MODE: Skipping real send');
             }
 
             // 2c. Log Message
@@ -225,7 +231,7 @@ class AgentNode {
     }
 
     async handleHandoff(lead, campaign, reason) {
-        console.warn(`[AgentNode] Handoff required for lead ${lead.id}: ${reason}`);
+        logger.warn({ leadId: lead.id, reason }, 'Handoff required');
 
         await this.supabase.from('leads').update({
             status: 'manual_intervention',
@@ -245,7 +251,18 @@ class AgentNode {
     getChatId(phone) {
         let clean = phone.replace(/\D/g, '');
         if (clean.length >= 10 && clean.length <= 11) clean = '55' + clean;
+        // Use @s.whatsapp.net for database consistency (how messages are stored)
         return clean.endsWith('@s.whatsapp.net') ? clean : `${clean}@s.whatsapp.net`;
+    }
+
+    /**
+     * Get the WAHA-compatible chatId for SENDING messages.
+     * WAHA expects @c.us format.
+     */
+    getSendChatId(phone) {
+        let clean = phone.replace(/\D/g, '');
+        if (clean.length >= 10 && clean.length <= 11) clean = '55' + clean;
+        return `${clean}@c.us`;
     }
 
     prepareContext(lead, campaign, node, graph) {
@@ -315,7 +332,7 @@ class AgentNode {
         const variance = (Math.random() * 0.4) + 0.8;
 
         const result = Math.floor(totalDelay * variance);
-        // console.log(`[DEBUG] wpm=${safeWpm}, chars=${charCount}, ms=${result}`);
+        // logger.debug({ wpm: safeWpm, chars: charCount, ms: result }, 'Calculated typing delay');
         return result;
     }
 
@@ -364,7 +381,7 @@ class AgentNode {
                 });
             }
         } catch (error) {
-            console.error('[AgentNode] Failed to log message:', error);
+            logger.error({ error: error.message }, 'Failed to log message');
         }
     }
 }

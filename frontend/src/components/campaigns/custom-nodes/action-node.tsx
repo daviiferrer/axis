@@ -1,60 +1,110 @@
 'use client'
 
 import React, { memo } from 'react';
-import { Handle, Position } from '@xyflow/react';
-import { MessageSquare, Image, Mic } from 'lucide-react';
+import { NodeProps } from '@xyflow/react';
+import { MessageSquare, Image, Mic, Tag, Globe, Megaphone } from 'lucide-react';
+import { BaseNode, NODE_PRESETS } from './base-node';
+import { Badge } from '@/components/ui/badge';
 
-export const ActionNode = memo(({ data, isConnectable }: any) => {
+// ============================================================================
+// ACTION NODE: Message/Action step (Premium Version)
+// ============================================================================
+
+export const ActionNode = memo(({ data, isConnectable, selected }: NodeProps) => {
+
+    // Determine icon based on action type
+    const getIcon = () => {
+        switch (data.actionType) {
+            case 'webhook': return Globe;
+            case 'update_tag':
+            case 'remove_tag': return Tag;
+            case 'broadcast': return Megaphone;
+            default: return MessageSquare;
+        }
+    };
+
+    // Determine preset based on action type
+    const getPreset = () => {
+        if (data.actionType === 'broadcast') {
+            return {
+                gradientFrom: 'from-orange-50',
+                gradientTo: 'to-amber-50/50',
+                iconColor: 'text-orange-600',
+                accentColor: '!bg-orange-500',
+            };
+        }
+        return NODE_PRESETS.action;
+    };
+
+    const Icon = getIcon();
+    const preset = getPreset();
+
     return (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm min-w-[220px] hover:ring-2 hover:ring-gray-900/10 transition-all group">
-            <Handle
-                type="target"
-                position={Position.Left}
-                isConnectable={isConnectable}
-                className="w-2 h-2 bg-gray-400 border-2 border-white -ml-1 transition-all group-hover:w-3 group-hover:h-3 group-hover:bg-gray-900"
-            />
+        <BaseNode
+            {...preset}
+            icon={Icon}
+            title={data.label || 'Nova Ação'}
+            subtitle={data.actionType === 'broadcast' ? 'Broadcast' : 'Ação'}
+            showInputHandle={true}
+            showOutputHandle={true}
+            selected={selected}
+            isConnectable={isConnectable}
+            data={data}
+        >
+            <div className="space-y-3">
+                {/* Message Preview */}
+                {(data.actionType === 'message' || !data.actionType) && data.messageContent && (
+                    <div className="relative">
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-gray-50 to-white border border-gray-100">
+                            <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">
+                                {data.messageContent}
+                            </p>
+                        </div>
+                        {/* Media indicators */}
+                        {(data.hasImage || data.hasAudio) && (
+                            <div className="flex gap-1.5 mt-2">
+                                {data.hasImage && (
+                                    <Badge variant="secondary" className="h-5 text-[10px] gap-1 bg-blue-50 text-blue-600 border-0">
+                                        <Image size={10} /> Imagem
+                                    </Badge>
+                                )}
+                                {data.hasAudio && (
+                                    <Badge variant="secondary" className="h-5 text-[10px] gap-1 bg-purple-50 text-purple-600 border-0">
+                                        <Mic size={10} /> Áudio
+                                    </Badge>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
 
-            {/* Header */}
-            <div className="p-4 border-b border-gray-100 flex items-center gap-2">
-                <div className="p-1.5 bg-gray-50 rounded-md border border-gray-100">
-                    <MessageSquare size={14} className="text-gray-900" strokeWidth={1.5} />
-                </div>
-                <div className="flex-1">
-                    <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">Ação do Sistema</h3>
-                </div>
+                {/* Webhook Preview */}
+                {data.actionType === 'webhook' && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50/50 border border-indigo-100">
+                        <Globe size={12} className="text-indigo-500 shrink-0" />
+                        <span className="text-xs font-mono text-indigo-700 truncate">
+                            {data.webhookUrl || 'URL não configurada'}
+                        </span>
+                    </div>
+                )}
+
+                {/* Tag Preview */}
+                {data.actionType?.includes('tag') && data.tagPayload && (
+                    <Badge className="bg-emerald-100 text-emerald-700 border-0 text-xs">
+                        {data.actionType === 'update_tag' ? '+ ' : '- '}
+                        {data.tagPayload}
+                    </Badge>
+                )}
+
+                {/* Empty state */}
+                {!data.messageContent && !data.webhookUrl && !data.tagPayload && (
+                    <p className="text-xs text-gray-400 italic text-center py-2">
+                        Clique para configurar
+                    </p>
+                )}
             </div>
-
-            {/* Body */}
-            <div className="p-4">
-                <p className="text-sm font-medium text-gray-700 line-clamp-2">
-                    {data.label || 'Configurar Ação'}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                    {data.actionType === 'update_tag' && (
-                        <div className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-600 border border-gray-200 uppercase tracking-wider">
-                            🏷️ {data.tagPayload || 'Tag'}
-                        </div>
-                    )}
-                    {data.actionType === 'update_status' && (
-                        <div className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-600 border border-gray-200 uppercase tracking-wider">
-                            🔄 Status
-                        </div>
-                    )}
-                    {data.actionType === 'webhook' && (
-                        <div className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-600 border border-gray-200 uppercase tracking-wider">
-                            🔗 Webhook
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Handles */}
-            <Handle
-                type="source"
-                position={Position.Right}
-                isConnectable={isConnectable}
-                className="w-2 h-2 bg-gray-400 border-2 border-white -mr-1 transition-all group-hover:w-3 group-hover:h-3 group-hover:bg-gray-900"
-            />
-        </div>
+        </BaseNode>
     );
 });
+
+ActionNode.displayName = 'ActionNode';

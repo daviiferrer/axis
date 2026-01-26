@@ -1,32 +1,53 @@
 'use client'
 
 import React, { memo } from 'react';
-import { Handle, Position } from '@xyflow/react';
-import { Clock } from 'lucide-react';
+import { NodeProps } from '@xyflow/react';
+import { Clock, Timer } from 'lucide-react';
+import { BaseNode, NODE_PRESETS } from './base-node';
 
-export const DelayNode = memo(({ data, isConnectable }: any) => {
+// ============================================================================
+// DELAY NODE: Wait/Timer step (Premium Version)
+// ============================================================================
+
+export const DelayNode = memo(({ data, isConnectable, selected }: NodeProps) => {
+
+    const getUnitLabel = (unit: string) => {
+        switch (unit) {
+            case 's': return 'segundos';
+            case 'm': return 'minutos';
+            case 'h': return 'horas';
+            case 'd': return 'dias';
+            default: return 'minutos';
+        }
+    };
+
+    const value = data.delayValue || data.duration || 0;
+    const unit = data.delayUnit || data.unit || 'm';
+
     return (
-        <div className="shadow-sm rounded-full border border-gray-200 bg-white min-w-[120px] flex items-center justify-between px-3 py-2 hover:ring-2 hover:ring-gray-900/10 transition-all group">
-            <Handle
-                type="target"
-                position={Position.Left}
-                isConnectable={isConnectable}
-                className="w-2 h-2 bg-gray-400 border-2 border-white transition-all group-hover:bg-gray-900"
-            />
-
-            <div className="flex items-center gap-2">
-                <Clock size={14} className="text-gray-900" strokeWidth={1.5} />
-                <span className="text-xs font-mono font-medium text-gray-600">
-                    {data.time || data.delayValue || data.duration || '0'} {data.unit || data.delayUnit || 'min'}
-                </span>
+        <BaseNode
+            {...NODE_PRESETS.delay}
+            icon={Clock}
+            title={data.label || 'Aguardar'}
+            subtitle="Temporizador"
+            showInputHandle={true}
+            showOutputHandle={true}
+            selected={selected}
+            isConnectable={isConnectable}
+            data={data}
+        >
+            <div className="flex items-center justify-center py-4">
+                <div className="flex items-baseline gap-2 px-6 py-4 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100">
+                    <span className="text-4xl font-bold text-amber-600 tabular-nums">
+                        {value || '?'}
+                    </span>
+                    <span className="text-sm font-medium text-amber-500">
+                        {getUnitLabel(unit)}
+                    </span>
+                </div>
             </div>
-
-            <Handle
-                type="source"
-                position={Position.Right}
-                isConnectable={isConnectable}
-                className="w-2 h-2 bg-gray-400 border-2 border-white transition-all group-hover:bg-gray-900"
-            />
-        </div>
+        </BaseNode>
     );
 });
+
+DelayNode.displayName = 'DelayNode';

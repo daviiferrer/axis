@@ -2,7 +2,7 @@
  * LeadController - Handles lead-specific API requests.
  */
 class LeadController {
-    constructor(workflowEngine, leadService, csvParserService) {
+    constructor({ workflowEngine, leadService, csvParserService }) {
         this.workflowEngine = workflowEngine;
         this.leadService = leadService;
         this.csvParserService = csvParserService;

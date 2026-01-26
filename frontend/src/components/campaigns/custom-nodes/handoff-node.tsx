@@ -1,28 +1,72 @@
 'use client'
 
 import React, { memo } from 'react';
-import { Handle, Position } from '@xyflow/react';
-import { Users } from 'lucide-react';
+import { NodeProps } from '@xyflow/react';
+import { Users, MessageCircle, Headphones, ExternalLink } from 'lucide-react';
+import { BaseNode, NODE_PRESETS } from './base-node';
+import { Badge } from '@/components/ui/badge';
 
-export const HandoffNode = memo(({ data, isConnectable }: any) => {
+// ============================================================================
+// HANDOFF NODE: Transfer to human agent (Premium Version)
+// ============================================================================
+
+export const HandoffNode = memo(({ data, isConnectable, selected }: NodeProps) => {
+    const targetType = data.target || 'human';
+
     return (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm min-w-[200px] hover:ring-2 hover:ring-gray-900/10 transition-all group">
-            <Handle
-                type="target"
-                position={Position.Left}
-                isConnectable={isConnectable}
-                className="w-2 h-2 bg-gray-400 border-2 border-white transition-all group-hover:w-3 group-hover:h-3 group-hover:bg-gray-900"
-            />
-
-            <div className="p-4 flex flex-col items-center text-center">
-                <div className="bg-gray-50 p-2 rounded-lg mb-2 border border-gray-100">
-                    <Users size={18} className="text-gray-900" strokeWidth={1.5} />
+        <BaseNode
+            {...NODE_PRESETS.handoff}
+            icon={Users}
+            title={data.label || 'Transbordo'}
+            subtitle={targetType === 'campaign' ? 'Para Campanha' : 'Para Humano'}
+            showInputHandle={true}
+            showOutputHandle={true}
+            selected={selected}
+            isConnectable={isConnectable}
+            data={data}
+        >
+            <div className="space-y-3">
+                {/* Target Type Indicator */}
+                <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl ${targetType === 'campaign'
+                        ? 'bg-indigo-50 border border-indigo-100'
+                        : 'bg-rose-50 border border-rose-100'
+                    }`}>
+                    {targetType === 'campaign' ? (
+                        <>
+                            <ExternalLink size={14} className="text-indigo-500" />
+                            <span className="text-sm font-medium text-indigo-900">
+                                {data.targetCampaignId ? `Campanha: ${data.targetCampaignId.slice(0, 8)}...` : 'Selecionar Campanha'}
+                            </span>
+                        </>
+                    ) : (
+                        <>
+                            <Headphones size={14} className="text-rose-500" />
+                            <span className="text-sm font-medium text-rose-900">Atendente Humano</span>
+                        </>
+                    )}
                 </div>
-                <h3 className="font-semibold text-sm text-gray-900">Transbordo Humano</h3>
-                <p className="text-[10px] text-gray-500 mt-1 max-w-[150px] leading-tight">
-                    {data.reason || 'Encaminhar para atendimento'}
-                </p>
+
+                {/* Reason */}
+                {data.reason && (
+                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                            Motivo
+                        </p>
+                        <p className="text-xs text-gray-600 line-clamp-2">
+                            {data.reason}
+                        </p>
+                    </div>
+                )}
+
+                {/* AI Summary Indicator */}
+                {data.enableSummary && (
+                    <Badge className="bg-purple-100 text-purple-700 border-0 text-[10px]">
+                        ✨ Resumo AI ativo
+                    </Badge>
+                )}
             </div>
-        </div>
+        </BaseNode>
     );
 });
+
+HandoffNode.displayName = 'HandoffNode';
