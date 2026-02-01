@@ -144,10 +144,16 @@ export default function SessionsPage() {
 
             await mutate();
             if (action === 'delete' && selectedSessionForQR === sessionName) setSelectedSessionForQR(null);
-        } catch (error) {
+        } catch (error: any) {
             console.error(`Failed to ${action} session`, error);
             await mutate();
-            alert(`Erro ao executar ação: ${action}`);
+
+            // Handle 404 specifically
+            if (error.response?.status === 404) {
+                alert(`Sessão não encontrada (404). Ela pode ter sido removida do servidor. Tente excluí-la e criar novamente.`);
+            } else {
+                alert(`Erro ao executar ação: ${action}`);
+            }
         }
     }
 

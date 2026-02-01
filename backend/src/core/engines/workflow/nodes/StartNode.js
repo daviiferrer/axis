@@ -2,10 +2,12 @@
  * StartNode - The entry point for specific campaigns.
  * Configures WHICH session (WhatsApp Number) executes this flow.
  */
+const { NodeExecutionStateEnum } = require('../../../types/CampaignEnums');
+
 class StartNode {
     constructor() { }
 
-    async execute(lead, campaign, nodeConfig) {
+    async execute(lead, campaign, nodeConfig, graph, context) {
         // 1. Session Binding
         // If node defines a specific Waha Session, we log it.
         // Future: Could trigger a context switch if the lead came from a different session.
@@ -23,7 +25,7 @@ class StartNode {
                 console.warn(`[StartNode] ⛔ Blocked Lead ${lead.id} from Source '${leadSource}'. Allowed: ${allowedSources.join(', ')}`);
 
                 return {
-                    status: 'blocked',
+                    status: NodeExecutionStateEnum.FAILED, // Standardized Enum
                     markExecuted: false, // Do not mark as "Success"
                     reason: `Source '${leadSource}' not allowed by Start Node configuration.`
                 };
@@ -31,7 +33,7 @@ class StartNode {
         }
 
         return {
-            status: 'success',
+            status: NodeExecutionStateEnum.EXITED, // Standardized Enum (replaces 'success')
             markExecuted: true,
             nodeState: {
                 entered_at: new Date().toISOString(),

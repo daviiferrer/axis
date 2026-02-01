@@ -1,6 +1,8 @@
 /**
  * SocketService - Handles real-time communication with clients.
  */
+const logger = require('./Logger').createModuleLogger('socket');
+
 class SocketService {
     constructor() {
         this.io = null;
@@ -8,14 +10,14 @@ class SocketService {
 
     initialize(ioInstance) {
         this.io = ioInstance;
-        console.log('[SocketService] Real-time updates initialized.');
+        logger.info('Real-time updates initialized');
 
         this.io.on('connection', (socket) => {
             // Simple room join logic for user (assuming client sends userId on join or auth middleware handles it)
             // For now, trusting client to join room 'user:ID'
             socket.on('join:user', (userId) => {
                 socket.join(`user:${userId}`);
-                console.log(`Socket ${socket.id} joined user:${userId}`);
+                logger.debug({ socketId: socket.id, userId }, 'Socket joined user room');
             });
         });
     }

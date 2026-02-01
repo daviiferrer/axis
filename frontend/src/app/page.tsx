@@ -5,25 +5,20 @@ import Image from "next/image";
 import { HeroText } from "@/components/landing/sections/hero/hero-text";
 import { WhatsappDemo } from "@/components/landing/sections/hero/whatsapp-demo";
 import { SolutionSection } from "@/components/landing/sections/solution-section";
+import { DynamicHeader } from "../components/landing/layout/dynamic-header";
 
 export default function Home() {
     return (
         <main className="w-full text-slate-900 selection:bg-blue-100 relative bg-white">
+            <DynamicHeader />
 
             {/* 1. HERO SECTION (Restored) */}
-            <section className="relative min-h-screen w-full flex flex-col pt-6 md:pt-12 overflow-hidden z-10">
-                {/* Header */}
-                <div className="w-full max-w-[1400px] mx-auto px-4 md:px-12 flex justify-between items-center relative z-50">
-                    <Link href="/">
-                        <Image src="/assets/brand/logo.svg" alt="AXIS Logo" width={120} height={40} className="h-8 md:h-10 w-auto" />
-                    </Link>
-                    <Link href="/auth/login" className="px-6 py-2 rounded-full bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl">
-                        Entrar
-                    </Link>
-                </div>
+            {/* 1. HERO SECTION (Restored) */}
+            <section className="relative min-h-screen w-full flex flex-col overflow-hidden z-10">
+
 
                 {/* Hero Content */}
-                <div className="flex-1 flex items-center w-full max-w-[1400px] mx-auto px-4 md:px-12 relative z-10 pt-10 md:pt-0">
+                <div className="flex-1 flex items-center w-full max-w-[1400px] mx-auto px-4 md:px-12 relative z-10 pb-12 md:pb-48">
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12 items-center w-full">
                         <div className="md:col-span-7 lg:col-span-8 flex justify-center md:justify-start">
                             <HeroText />

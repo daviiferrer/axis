@@ -168,6 +168,15 @@ function FlowBuilderCanvasInner({ campaignId, initialFlow }: FlowBuilderCanvasPr
     };
 
     const handlePublish = async () => {
+        // Validation: Ensure at least one Trigger Node has a session configured
+        const triggerNodes = nodes.filter(n => n.type === 'trigger');
+        const hasSession = triggerNodes.some(n => n.data?.sessionName && n.data?.sessionName !== 'default');
+
+        if (!hasSession) {
+            toast.error('Erro de Validação: Adicione um "Gatilho Inicial" com uma sessão de WhatsApp conectada para publicar.');
+            return;
+        }
+
         if (!confirm('Tem certeza? Isso ativará a nova versão do fluxo para esta campanha. Deseja continuar?')) return;
 
         setIsPublishing(true);

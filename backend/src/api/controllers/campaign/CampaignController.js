@@ -90,7 +90,17 @@ class CampaignController {
             const { id } = req.params;
             const flowData = req.body; // Expecting { nodes: [], edges: [], viewport: {} }
 
+            console.log(`[CampaignController] 💾 Saving flow for campaign ${id}`);
+            console.log(`[CampaignController] Nodes count: ${flowData?.nodes?.length}`);
+            if (flowData?.nodes) {
+                const trigger = flowData.nodes.find(n => n.type === 'trigger');
+                if (trigger) {
+                    console.log(`[CampaignController] 🔍 Trigger Node Data:`, JSON.stringify(trigger.data, null, 2));
+                }
+            }
+
             const result = await this.campaignService.saveFlow(id, flowData);
+            console.log(`[CampaignController] ✅ Flow saved successfully.`);
             res.json({ success: true, flow: result });
         } catch (error) {
             console.error('[CampaignController] saveFlow Error:', error);

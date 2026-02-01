@@ -11,11 +11,13 @@ class GotoNode {
         this.dependencies = dependencies;
     }
 
-    async execute({ instance, lead, campaign, nodeConfig }) {
+    async execute(lead, campaign, nodeConfig, graph, context) {
+        // Unpack instance from context if needed, or rely on lead.instance_id logic in engine
+        const instanceId = lead.instance_id || 'stateless';
         const targetNodeId = nodeConfig?.data?.targetNodeId;
 
         if (!targetNodeId) {
-            logger.warn({ instanceId: instance.id }, 'GotoNode: No target node configured');
+            logger.warn({ leadId: lead.id }, 'GotoNode: No target node configured');
             return {
                 status: NodeExecutionStateEnum.FAILED,
                 error: 'No target node configured'
@@ -23,7 +25,7 @@ class GotoNode {
         }
 
         logger.info({
-            instanceId: instance.id,
+            leadId: lead.id,
             targetNodeId
         }, 'GotoNode: Jumping to target');
 

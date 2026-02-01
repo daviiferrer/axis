@@ -47,29 +47,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     console.error('[AuthContext] Error fetching profile:', profileError.message)
                 }
 
-                let companyId = profile?.company_id
-
-                // Fallback: Check if user owns a company directly
-                if (!companyId) {
-                    const { data: ownedCompany } = await supabase
-                        .from('companies')
-                        .select('id')
-                        .eq('owner_id', currentSession.user.id)
-                        .maybeSingle()
-
-                    if (ownedCompany) {
-                        companyId = ownedCompany.id
-                    }
-                }
+                // Company logic removed for flexibility
+                let companyId = null;
 
                 // Construct final user object with profile data
                 const userWithProfile = {
                     ...currentSession.user,
-                    company_id: companyId,
                     role: profile?.role || 'owner'
                 }
 
-                setUser(userWithProfile as User & { company_id?: string, role: string })
+                setUser(userWithProfile as User & { role: string })
             } catch (error) {
                 console.error('[AuthContext] Unexpected error fetching profile:', error)
                 setUser(currentSession.user)

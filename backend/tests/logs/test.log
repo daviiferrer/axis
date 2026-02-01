@@ -24,3 +24,110 @@
 {"level":"info","time":"2026-01-12T03:32:29.952Z","service":"prospecao-fria","module":"agentic-node","leadId":"lead_demo","oldTemp":0.5,"newTemp":0.5800000000000001,"label":"🌡️ WARM","msg":"🌡️ Lead Temperature Updated"}
 {"level":"info","time":"2026-01-12T03:32:29.952Z","service":"prospecao-fria","module":"agentic-node","leadId":"lead_demo","intent":"UNKNOWN","sentiment":"VERY_POSITIVE","confidence":0.98,"msg":"🏷️ Agent Classification (Campaign will read this)"}
 {"level":"info","time":"2026-01-12T03:32:30.959Z","service":"prospecao-fria","module":"demo","msg":"✅ Demo Completed"}
+{"level":"error","time":"2026-01-27T04:32:10.485Z","service":"prospecao-fria","module":"webhook","error":"Cannot read properties of undefined (reading 'from')","msg":"Failed to update message ack"}
+{"level":"error","time":"2026-01-27T04:35:27.194Z","service":"prospecao-fria","module":"webhook","error":"Cannot read properties of undefined (reading 'from')","msg":"Failed to update message ack"}
+{"level":"info","time":"2026-01-27T04:35:27.897Z","service":"prospecao-fria","module":"billing-controller","type":"checkout.session.completed","msg":"Stripe webhook received"}
+{"level":"info","time":"2026-01-27T04:35:27.930Z","service":"prospecao-fria","module":"billing-controller","type":"customer.subscription.updated","msg":"Stripe webhook received"}
+{"level":"info","time":"2026-01-27T04:35:27.933Z","service":"prospecao-fria","module":"billing-controller","type":"checkout.session.completed","msg":"Stripe webhook received"}
+{"level":"warn","time":"2026-01-27T04:35:27.933Z","service":"prospecao-fria","module":"billing-controller","msg":"No userId found in webhook. Using fallback for testing?"}
+{"level":"error","time":"2026-01-27T04:35:27.933Z","service":"prospecao-fria","module":"billing-controller","error":"Missing userId in metadata or client_reference_id. Session ID: undefined","msg":"Webhook handler failed"}
+{"level":"warn","time":"2026-01-27T04:35:28.227Z","service":"prospecao-fria","module":"guardrail","nodeType":"closing","msg":"⚠️ CTA missing in closing node - injecting"}
+{"level":"info","time":"2026-01-27T04:35:28.302Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"msg":"Executing AgenticNode"}
+{"level":"info","time":"2026-01-27T04:35:28.304Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"model":"gemini-pro","msg":"🧠 Calling Gemini... (Sandwich Pattern Applied)"}
+{"level":"info","time":"2026-01-27T04:35:28.304Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"thought":"Thinking","msg":"💭 AI Internal Reasoning"}
+{"level":"info","time":"2026-01-27T04:35:28.306Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"msg":"📤 AI Final Response Generated"}
+{"level":"info","time":"2026-01-27T04:35:28.307Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"oldTemp":0.5,"newTemp":0.56,"label":"🌡️ WARM","msg":"🌡️ Lead Temperature Updated"}
+{"level":"info","time":"2026-01-27T04:35:28.360Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"msg":"Executing AgenticNode"}
+{"level":"info","time":"2026-01-27T04:35:28.360Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"model":"gemini-pro","msg":"🧠 Calling Gemini... (Sandwich Pattern Applied)"}
+{"level":"info","time":"2026-01-27T04:35:28.361Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"thought":"Thinking","msg":"💭 AI Internal Reasoning"}
+{"level":"info","time":"2026-01-27T04:35:28.362Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"msg":"📤 AI Final Response Generated"}
+{"level":"info","time":"2026-01-27T04:35:28.362Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"oldTemp":0.5,"newTemp":0.56,"label":"🌡️ WARM","msg":"🌡️ Lead Temperature Updated"}
+{"level":"error","time":"2024-01-08T10:00:00.000Z","service":"prospecao-fria","module":"workflow","error":"Cannot read properties of undefined (reading 'from')","msg":"Pulse Error"}
+{"level":"info","time":"2026-01-27T04:35:28.730Z","service":"prospecao-fria","module":"lead-transformer","total":2,"unique":1,"duplicates":1,"msg":"Deduplication complete"}
+{"level":"info","time":"2026-01-27T04:35:28.733Z","service":"prospecao-fria","module":"lead-transformer","total":2,"unique":1,"duplicates":1,"msg":"Deduplication complete"}
+{"level":"info","time":"2026-01-27T04:35:28.736Z","service":"prospecao-fria","module":"lead-transformer","total":1,"unique":0,"duplicates":1,"msg":"Deduplication complete"}
+{"level":"info","time":"2026-01-27T04:35:28.813Z","service":"prospecao-fria","module":"ads-reporting","leadId":"lead_123","eventName":"Purchase","fbTraceId":"test_trace_id","msg":"✅ CAPI Event Sent"}
+{"level":"info","time":"2026-01-27T04:35:28.824Z","service":"prospecao-fria","module":"ads-reporting","leadId":"lead_123","eventName":"Lead","payload":{"data":[{"event_name":"Lead","event_time":1769488528,"action_source":"chat","user_data":{"em":["973dfe463ec85785f5f95af5ba3906eedb2d931c24e69824a89ea65dba4e813b"],"ph":[null],"fn":[null],"ln":[null],"external_id":[null]},"custom_data":{"value":0,"currency":"BRL"}}]},"msg":"🔌 DEV MODE: CAPI Mock Send"}
+{"level":"info","time":"2026-01-27T04:35:29.000Z","service":"prospecao-fria","module":"queue","msg":"🔗 Redis connected"}
+{"level":"error","time":"2026-01-27T04:35:29.001Z","service":"prospecao-fria","module":"queue","error":"q.on is not a function","msg":"Failed to initialize QueueService"}
+{"level":"warn","time":"2026-01-27T04:35:29.001Z","service":"prospecao-fria","module":"queue","queueName":"whatsappSend","msg":"Queue not found"}
+{"level":"info","time":"2026-01-27T04:35:29.002Z","service":"prospecao-fria","module":"queue","msg":"Shutting down QueueService..."}
+{"level":"info","time":"2026-01-27T04:35:29.002Z","service":"prospecao-fria","module":"queue","msg":"QueueService shutdown complete"}
+{"level":"info","time":"2026-01-27T04:35:29.011Z","service":"prospecao-fria","module":"queue","msg":"🔗 Redis connected"}
+{"level":"error","time":"2026-01-27T04:35:29.011Z","service":"prospecao-fria","module":"queue","error":"q.on is not a function","msg":"Failed to initialize QueueService"}
+{"level":"error","time":"2026-01-27T04:35:29.012Z","service":"prospecao-fria","module":"queue","error":"Cannot read properties of null (reading 'add')","leadId":"1","msg":"Failed to add lead job"}
+{"level":"info","time":"2026-01-27T04:35:29.012Z","service":"prospecao-fria","module":"queue","msg":"Shutting down QueueService..."}
+{"level":"info","time":"2026-01-27T04:35:29.014Z","service":"prospecao-fria","module":"queue","msg":"QueueService shutdown complete"}
+{"level":"info","time":"2026-01-27T04:35:29.209Z","service":"prospecao-fria","module":"broadcast-node","leadId":1,"node":"node-1","msg":"Executing BroadcastNode"}
+{"level":"error","time":"2026-01-27T04:35:29.211Z","service":"prospecao-fria","module":"broadcast-node","error":"Cannot read properties of undefined (reading 'from')","msg":"Broadcast send failed"}
+{"level":"info","time":"2026-01-27T04:35:29.216Z","service":"prospecao-fria","module":"broadcast-node","leadId":1,"msg":"Executing BroadcastNode"}
+{"level":"error","time":"2026-01-27T04:35:29.222Z","service":"prospecao-fria","module":"broadcast-node","error":"Cannot read properties of undefined (reading 'from')","msg":"Broadcast send failed"}
+{"level":"info","time":"2026-01-27T04:35:29.342Z","service":"prospecao-fria","module":"trigger-service","phone":"123456","sessionName":"session_1","msg":"🎯 Sniper Triggered"}
+{"level":"error","time":"2026-01-27T04:35:29.342Z","service":"prospecao-fria","module":"trigger-service","error":"Cannot read properties of undefined (reading 'from')","msg":"Error triggering AI"}
+{"level":"info","time":"2026-01-27T04:35:29.390Z","service":"prospecao-fria","module":"llm-factory","userId":"user-1","provider":"gemini","defaultModel":"gemini-pro","msg":"LLM client created"}
+{"level":"info","time":"2026-01-27T04:35:29.392Z","service":"prospecao-fria","module":"llm-factory","userId":"user-1","provider":"openai","defaultModel":"gemini-pro","msg":"LLM client created"}
+{"level":"info","time":"2026-01-27T04:35:29.600Z","service":"prospecao-fria","module":"handoff-node","leadId":1,"target":"human","msg":"Executing HandoffNode"}
+{"level":"info","time":"2026-01-27T04:35:29.718Z","service":"prospecao-fria","module":"closing-node","leadId":1,"finalStatus":"lost","msg":"Executing ClosingNode"}
+{"level":"info","time":"2026-01-27T04:35:29.952Z","service":"prospecao-fria","module":"logic-node","leadId":1,"lastIntent":"UNKNOWN","msg":"LogicNode: Routing based on intent"}
+{"level":"error","time":"2026-01-27T04:36:21.559Z","service":"prospecao-fria","module":"webhook","error":"Cannot read properties of undefined (reading 'from')","msg":"Failed to update message ack"}
+{"level":"error","time":"2026-01-27T04:36:31.710Z","service":"prospecao-fria","module":"webhook","error":"Cannot read properties of undefined (reading 'from')","msg":"Failed to update message ack"}
+{"level":"info","time":"2026-01-27T04:49:28.430Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"msg":"Executing AgenticNode"}
+{"level":"info","time":"2026-01-27T04:49:28.434Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"model":"gemini-pro","msg":"🧠 Calling Gemini... (Sandwich Pattern Applied)"}
+{"level":"info","time":"2026-01-27T04:49:28.434Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"thought":"Thinking","msg":"💭 AI Internal Reasoning"}
+{"level":"info","time":"2026-01-27T04:49:28.434Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"msg":"📤 AI Final Response Generated"}
+{"level":"info","time":"2026-01-27T04:49:28.434Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"oldTemp":0.5,"newTemp":0.56,"label":"🌡️ WARM","msg":"🌡️ Lead Temperature Updated"}
+{"level":"info","time":"2026-01-27T04:49:28.476Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"msg":"Executing AgenticNode"}
+{"level":"info","time":"2026-01-27T04:49:28.476Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"model":"gemini-pro","msg":"🧠 Calling Gemini... (Sandwich Pattern Applied)"}
+{"level":"info","time":"2026-01-27T04:49:28.476Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"thought":"Thinking","msg":"💭 AI Internal Reasoning"}
+{"level":"info","time":"2026-01-27T04:49:28.476Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"msg":"📤 AI Final Response Generated"}
+{"level":"info","time":"2026-01-27T04:49:28.476Z","service":"prospecao-fria","module":"agentic-node","leadId":1,"oldTemp":0.5,"newTemp":0.56,"label":"🌡️ WARM","msg":"🌡️ Lead Temperature Updated"}
+{"level":"error","time":"2024-01-08T10:00:00.000Z","service":"prospecao-fria","module":"workflow","error":"Cannot read properties of undefined (reading 'from')","msg":"Pulse Error"}
+{"level":"info","time":"2026-01-27T04:49:28.761Z","service":"prospecao-fria","module":"queue","msg":"🔗 Redis connected"}
+{"level":"error","time":"2026-01-27T04:49:28.762Z","service":"prospecao-fria","module":"queue","error":"q.on is not a function","msg":"Failed to initialize QueueService"}
+{"level":"warn","time":"2026-01-27T04:49:28.763Z","service":"prospecao-fria","module":"queue","queueName":"whatsappSend","msg":"Queue not found"}
+{"level":"info","time":"2026-01-27T04:49:28.763Z","service":"prospecao-fria","module":"queue","msg":"Shutting down QueueService..."}
+{"level":"info","time":"2026-01-27T04:49:28.763Z","service":"prospecao-fria","module":"queue","msg":"QueueService shutdown complete"}
+{"level":"info","time":"2026-01-27T04:49:28.770Z","service":"prospecao-fria","module":"queue","msg":"🔗 Redis connected"}
+{"level":"error","time":"2026-01-27T04:49:28.770Z","service":"prospecao-fria","module":"queue","error":"q.on is not a function","msg":"Failed to initialize QueueService"}
+{"level":"error","time":"2026-01-27T04:49:28.771Z","service":"prospecao-fria","module":"queue","error":"Cannot read properties of null (reading 'add')","leadId":"1","msg":"Failed to add lead job"}
+{"level":"info","time":"2026-01-27T04:49:28.771Z","service":"prospecao-fria","module":"queue","msg":"Shutting down QueueService..."}
+{"level":"info","time":"2026-01-27T04:49:28.771Z","service":"prospecao-fria","module":"queue","msg":"QueueService shutdown complete"}
+{"level":"info","time":"2026-01-27T04:49:29.032Z","service":"prospecao-fria","module":"handoff-node","leadId":1,"target":"human","msg":"Executing HandoffNode"}
+{"level":"info","time":"2026-01-27T04:49:29.051Z","service":"prospecao-fria","module":"trigger-service","phone":"123456","sessionName":"session_1","msg":"🎯 Sniper Triggered"}
+{"level":"error","time":"2026-01-27T04:49:29.051Z","service":"prospecao-fria","module":"trigger-service","error":"Cannot read properties of undefined (reading 'from')","msg":"Error triggering AI"}
+{"level":"info","time":"2026-01-27T04:49:29.134Z","service":"prospecao-fria","module":"broadcast-node","leadId":1,"node":"node-1","msg":"Executing BroadcastNode"}
+{"level":"error","time":"2026-01-27T04:49:29.136Z","service":"prospecao-fria","module":"broadcast-node","error":"Cannot read properties of undefined (reading 'from')","msg":"Broadcast send failed"}
+{"level":"info","time":"2026-01-27T04:49:29.140Z","service":"prospecao-fria","module":"broadcast-node","leadId":1,"msg":"Executing BroadcastNode"}
+{"level":"error","time":"2026-01-27T04:49:29.140Z","service":"prospecao-fria","module":"broadcast-node","error":"Cannot read properties of undefined (reading 'from')","msg":"Broadcast send failed"}
+{"level":"info","time":"2026-01-27T04:49:29.770Z","service":"prospecao-fria","module":"presence","msg":"Periodic presence sync started (every 5m)"}
+{"level":"info","time":"2026-01-27T04:49:29.770Z","service":"prospecao-fria","module":"presence","msg":"Periodic sync stopped"}
+{"level":"info","time":"2026-01-27T04:49:30.874Z","service":"prospecao-fria","module":"apify-webhook","eventType":"ACTOR.RUN.SUCCEEDED","msg":"Apify webhook received"}
+{"level":"info","time":"2026-01-27T04:49:30.883Z","service":"prospecao-fria","module":"apify-webhook","runId":"run-id","campaignId":"camp-id","msg":"Processing successful run"}
+{"level":"info","time":"2026-01-27T04:49:30.883Z","service":"prospecao-fria","module":"apify-webhook","count":1,"msg":"Dataset downloaded"}
+{"level":"info","time":"2026-01-27T04:49:30.883Z","service":"prospecao-fria","module":"lead-transformer","actorId":"linkedin.harvest","sourceType":"linkedin","count":1,"msg":"Auto-detecting source type"}
+{"level":"info","time":"2026-01-27T04:49:30.890Z","service":"prospecao-fria","module":"lead-transformer","total":1,"unique":1,"duplicates":0,"msg":"Deduplication complete"}
+{"level":"info","time":"2026-01-27T04:49:30.890Z","service":"prospecao-fria","module":"apify-webhook","inserted":1,"msg":"Prospects saved"}
+{"level":"info","time":"2026-01-27T04:49:30.902Z","service":"prospecao-fria","module":"apify-webhook","runId":"run-id","campaignId":"camp-id","msg":"Processing successful run"}
+{"level":"info","time":"2026-01-27T04:49:30.902Z","service":"prospecao-fria","module":"apify-webhook","count":1,"msg":"Dataset downloaded"}
+{"level":"info","time":"2026-01-27T04:49:30.902Z","service":"prospecao-fria","module":"lead-transformer","actorId":"linkedin.harvest","sourceType":"linkedin","count":1,"msg":"Auto-detecting source type"}
+{"level":"info","time":"2026-01-27T04:49:30.905Z","service":"prospecao-fria","module":"lead-transformer","total":1,"unique":0,"duplicates":1,"msg":"Deduplication complete"}
+{"level":"warn","time":"2026-01-27T04:49:30.907Z","service":"prospecao-fria","module":"apify-webhook","runId":"run-id","msg":"Run failed"}
+{"level":"info","time":"2026-01-27T04:49:31.187Z","service":"prospecao-fria","module":"lead-transformer","total":2,"unique":1,"duplicates":1,"msg":"Deduplication complete"}
+{"level":"info","time":"2026-01-27T04:49:31.189Z","service":"prospecao-fria","module":"lead-transformer","total":2,"unique":1,"duplicates":1,"msg":"Deduplication complete"}
+{"level":"info","time":"2026-01-27T04:49:31.190Z","service":"prospecao-fria","module":"lead-transformer","total":1,"unique":0,"duplicates":1,"msg":"Deduplication complete"}
+{"level":"info","time":"2026-01-27T04:49:31.369Z","service":"prospecao-fria","module":"billing-controller","type":"checkout.session.completed","msg":"Stripe webhook received"}
+{"level":"info","time":"2026-01-27T04:49:31.374Z","service":"prospecao-fria","module":"billing-controller","type":"customer.subscription.updated","msg":"Stripe webhook received"}
+{"level":"info","time":"2026-01-27T04:49:31.375Z","service":"prospecao-fria","module":"billing-controller","type":"checkout.session.completed","msg":"Stripe webhook received"}
+{"level":"warn","time":"2026-01-27T04:49:31.375Z","service":"prospecao-fria","module":"billing-controller","msg":"No userId found in webhook. Using fallback for testing?"}
+{"level":"error","time":"2026-01-27T04:49:31.375Z","service":"prospecao-fria","module":"billing-controller","error":"Missing userId in metadata or client_reference_id. Session ID: undefined","msg":"Webhook handler failed"}
+{"level":"warn","time":"2026-01-27T04:49:32.050Z","service":"prospecao-fria","module":"guardrail","nodeType":"closing","msg":"⚠️ CTA missing in closing node - injecting"}
+{"level":"warn","time":"2026-01-27T04:49:32.175Z","service":"prospecao-fria","module":"rbac","userId":"test-user","msg":"No active membership context"}
+{"level":"warn","time":"2026-01-27T04:49:32.307Z","service":"prospecao-fria","module":"rbac","userId":"test-user","msg":"No active membership context"}
+{"level":"info","time":"2026-01-27T04:49:32.445Z","service":"prospecao-fria","module":"ads-reporting","leadId":"lead_123","eventName":"Purchase","fbTraceId":"test_trace_id","msg":"✅ CAPI Event Sent"}
+{"level":"info","time":"2026-01-27T04:49:32.448Z","service":"prospecao-fria","module":"ads-reporting","leadId":"lead_123","eventName":"Lead","payload":{"data":[{"event_name":"Lead","event_time":1769489372,"action_source":"chat","user_data":{"em":["973dfe463ec85785f5f95af5ba3906eedb2d931c24e69824a89ea65dba4e813b"],"ph":[null],"fn":[null],"ln":[null],"external_id":[null]},"custom_data":{"value":0,"currency":"BRL"}}]},"msg":"🔌 DEV MODE: CAPI Mock Send"}
+{"level":"info","time":"2026-01-27T04:49:32.640Z","service":"prospecao-fria","module":"llm-factory","userId":"user-1","provider":"gemini","defaultModel":"gemini-pro","msg":"LLM client created"}
+{"level":"info","time":"2026-01-27T04:49:32.659Z","service":"prospecao-fria","module":"closing-node","leadId":1,"finalStatus":"lost","msg":"Executing ClosingNode"}
+{"level":"info","time":"2026-01-27T04:49:32.659Z","service":"prospecao-fria","module":"llm-factory","userId":"user-1","provider":"openai","defaultModel":"gemini-pro","msg":"LLM client created"}
+{"level":"info","time":"2026-01-27T04:49:32.704Z","service":"prospecao-fria","module":"logic-node","leadId":1,"lastIntent":"UNKNOWN","msg":"LogicNode: Routing based on intent"}
+{"level":"error","time":"2024-01-08T10:00:00.000Z","service":"prospecao-fria","module":"workflow","error":"Cannot read properties of undefined (reading 'from')","msg":"Pulse Error"}
+{"level":"error","time":"2024-01-08T10:00:00.000Z","service":"prospecao-fria","module":"workflow","error":"Cannot read properties of undefined (reading 'from')","msg":"Pulse Error"}

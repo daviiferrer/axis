@@ -10,15 +10,9 @@ class LogicNode {
      * - DECIDE the next edge based on configured rules
      * - DO NOT call AI (AI classification happens in AgentNode)
      */
-    async execute(lead, campaign, nodeConfig, graph) {
-        // We use instance.context, but lead might have some of it
-        // In WorkflowEngine.js, we pass the instance context when calling nodes
-        // but currently we just pass lead and campaign.
-        // Let's assume the engine populates context in the lead object for convenience 
-        // or we check the lead's state.
-
-        const context = lead.context || {};
-        const lastIntent = context.lastIntent || IntentEnum.UNKNOWN;
+    async execute(lead, campaign, nodeConfig, graph, context) {
+        // Read intent directly from the propagated context
+        const lastIntent = context?.lastIntent || IntentEnum.UNKNOWN;
 
         logger.info({ leadId: lead.id, lastIntent }, 'LogicNode: Routing based on intent');
 

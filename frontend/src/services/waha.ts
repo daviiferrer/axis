@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1/waha';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_URL = `${BASE_URL.replace(/\/$/, '')}/waha`;
 
 import { supabase } from '@/lib/supabase/client';
 
@@ -112,6 +113,20 @@ export const wahaService = {
     // Auth
     getAuthQR: async (session: string) => {
         // Returns base64 string directly from backend logic
+        const response = await api.get(`/auth/${session}/qr`);
+        return response.data; // { data: 'base64...', mimetype: '...' }
+    },
+
+    // Alias for components usage
+    getQR: async (session: string) => {
+        const response = await api.get(`/auth/${session}/qr`);
+        return response.data;
+    },
+
+    getScreenshot: async (session: string) => {
+        // Legacy support for widget expecting blob? 
+        // Actually widget expects blob but backend returns JSON with base64.
+        // Let's return the JSON and update widget to handle it.
         const response = await api.get(`/auth/${session}/qr`);
         return response.data;
     },

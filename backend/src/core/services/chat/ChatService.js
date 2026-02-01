@@ -4,12 +4,13 @@ const logger = require('../../../shared/Logger').createModuleLogger('chat-servic
  * ChatService - Core Service for Chat Management and Persistence
  */
 class ChatService {
-    constructor({ supabaseClient, billingService, wahaClient, settingsService, jidService }) {
+    constructor({ supabaseClient, billingService, wahaClient, settingsService, jidService, campaignService }) {
         this.supabase = supabaseClient;
         this.billingService = billingService;
         this.wahaClient = wahaClient;
         this.settingsService = settingsService;
         this.jidService = jidService;
+        this.campaignService = campaignService;
     }
 
     /**
@@ -23,7 +24,7 @@ class ChatService {
             session_name: sessionName,
             user_id: userId,
             lead_id: additionalData.lead_id || null,
-            campaign_id: additionalData.campaign_id || null,
+            campaign_id: additionalData.campaign_id || null, // Will try to resolve below if null
             phone: cleanPhone,
             name: additionalData.name || cleanPhone,
             last_message_at: new Date().toISOString(),
@@ -36,6 +37,24 @@ class ChatService {
         // Let's do a quick check: if additionalData has it, good. If not, and it's a real user (not status), fetch it.
         // To avoid blocking, we could use a separate promise or just await it if fast.
         // User requested: "save to db"
+
+        // AUTO-LINK CAMPAIGN: If campaign_id is not provided, try to find it via session name
+        if (!chatPayload.campaign_id && this.campaignService) {
+            try {
+                const linkedCampaign = await this.campaignService.getCampaignBySession(sessionName);
+                if (linkedCampaign) {
+                    chatPayload.campaign_id = linkedCampaign.id;
+                    // Also use the campaign owner as user_id if not present (inbound case)
+                    if (!chatPayload.user_id) {
+                        chatPayload.user_id = linkedCampaign.user_id;
+                    }
+                    logger.info({ chatId, campaignId: linkedCampaign.id, sessionName }, '🔗 Auto-linked chat to campaign via session');
+                }
+            } catch (campError) {
+                logger.warn({ sessionName, error: campError.message }, 'Failed to auto-link campaign');
+            }
+        }
+
         if (!chatPayload.profile_pic_url && !chatId.includes('@broadcast') && !chatId.includes('@g.us')) {
             try {
                 logger.info({ chatId }, '🖼️ Attempting to fetch profile picture...');
@@ -125,10 +144,76 @@ class ChatService {
     /**
      * Processes an incoming message from WAHA webhook.
      * Persists chat and message, then returns structured data for WorkflowEngine.
+     * Supports text, voice/audio messages with automatic transcription.
      */
     async processIncomingMessage(payload, sessionName) {
-        // Ignore status updates or weird system messages
-        if (!payload.from || !payload.body) return null;
+        // Ignore status updates or system messages without content
+        if (!payload.from) return null;
+
+        // Voice/Audio Message Support
+        const isVoiceMessage = payload.hasMedia && (payload.media?.mimetype?.includes('audio') || payload._data?.type === 'audio' || payload._data?.type === 'ptt');
+
+        // If it's a voice message, use inline media and transcribe it
+        let body = payload.body;
+        if (isVoiceMessage && !body) {
+            try {
+                logger.info({ from: payload.from }, '🎤 Voice message detected, transcribing...');
+
+                // WAHA can send media in 2 ways:
+                // 1. Inline base64: payload.media.data
+                // 2. URL: payload.media.url
+                const mediaData = payload.media || payload._data?.media;
+
+                if (mediaData && mediaData.mimetype) {
+                    let audioBase64 = mediaData.data;
+
+                    // If no base64 but has URL, download it
+                    if (!audioBase64 && mediaData.url) {
+                        logger.info({ url: mediaData.url }, '📥 Downloading audio from URL...');
+                        try {
+                            const axios = require('axios');
+                            const response = await axios.get(mediaData.url, {
+                                responseType: 'arraybuffer',
+                                timeout: 10000
+                            });
+                            audioBase64 = Buffer.from(response.data).toString('base64');
+                            logger.info('✅ Audio downloaded successfully');
+                        } catch (downloadError) {
+                            logger.error({ error: downloadError.message }, '❌ Failed to download audio from URL');
+                        }
+                    }
+
+                    if (audioBase64) {
+                        // Transcribe using Gemini
+                        const transcription = await this._transcribeAudio({
+                            mimetype: mediaData.mimetype,
+                            data: audioBase64
+                        });
+
+                        if (transcription) {
+                            // Direct text format - AI understands better
+                            body = transcription;
+                            logger.info({ transcription: transcription.substring(0, 100) }, '✅ Audio transcribed successfully');
+                        } else {
+                            body = '[AUDIO_MESSAGE]';
+                            logger.warn('Failed to transcribe audio, using placeholder');
+                        }
+                    } else {
+                        body = '[AUDIO_MESSAGE]';
+                        logger.warn({ hasMedia: payload.hasMedia, mediaKeys: Object.keys(payload.media || {}) }, '⚠️ Voice message detected but no media data or URL available');
+                    }
+                } else {
+                    body = '[AUDIO_MESSAGE]';
+                    logger.warn({ hasMedia: payload.hasMedia }, '⚠️ Voice message detected but no media object in payload');
+                }
+            } catch (audioError) {
+                logger.error({ error: audioError.message, stack: audioError.stack }, '❌ Voice message processing failed');
+                body = '[AUDIO_MESSAGE]';
+            }
+        }
+
+        // If still no body, ignore the message
+        if (!body) return null;
 
         // PRE-PROCESSING: Normalize JID (LID -> Phone JID)
         // If message is from a Linked Device (LID), we try to resolve the real phone number JID.
@@ -140,7 +225,8 @@ class ChatService {
             if (payload.key) payload.key.remoteJid = normalizedFrom; // Update key if present
         }
 
-        let { from, to, body, fromMe, hasMedia, media, _data, id } = payload;
+        const { from, to, fromMe, hasMedia, media, _data, id } = payload;
+        // body is already declared above (line 157) for audio processing
 
         // Groups are still ignored as per request
         if (from.endsWith('@g.us') || to?.endsWith('@g.us') || payload.participant) {
@@ -221,6 +307,7 @@ class ChatService {
                     chat_id: chat.id,
                     body,
                     from_me: fromMe,
+                    is_voice_message: isVoiceMessage, // Track for metrics
                     created_at: new Date(payload.timestamp * 1000).toISOString()
                 }, { onConflict: 'message_id' })
                 .select()
@@ -258,6 +345,7 @@ class ChatService {
             fromMe,
             pushName,
             referral,
+            isVoiceMessage,
             message: message // This will be undefined if we don't lift it!
         };
 
@@ -328,6 +416,77 @@ class ChatService {
         } catch (error) {
             logger.error({ error: error.message }, 'Failed to send message after payment');
             throw error;
+        }
+    }
+
+    /**
+     * Transcribes audio using Gemini API
+     * @private
+     */
+    async _transcribeAudio(audioData) {
+        try {
+            // Get Gemini API key from settings
+            const settings = await this.settingsService.getSettings();
+            const apiKey = settings?.gemini_api_key;
+
+            if (!apiKey) {
+                logger.warn('No Gemini API key found, cannot transcribe audio');
+                return null;
+            }
+
+            const { GoogleGenerativeAI } = require('@google/generative-ai');
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
+
+            // Convert audio data to inline data format
+            const audioPart = {
+                inlineData: {
+                    mimeType: audioData.mimetype,
+                    data: audioData.data // Base64 string
+                }
+            };
+
+            logger.info({ mimetype: audioData.mimetype, dataLength: audioData.data?.length }, 'Sending audio to Gemini for transcription');
+
+            const result = await model.generateContent([
+                {
+                    text: `Você é um assistente de transcrição de áudio profissional.
+
+INSTRUÇÕES:
+1. Transcreva EXATAMENTE o que a pessoa está FALANDO no áudio
+2. Retorne APENAS o texto falado, sem timestamps, sem marcadores de tempo, sem formatação
+3. Se não conseguir entender algo, escreva [inaudível]
+4. Não adicione comentários, análises ou descrições
+5. IMPORTANTE: Não retorne timestamps como "00:00", "00:01", etc. Retorne apenas a FALA
+
+EXEMPLO CORRETO:
+Áudio: "Olá, gostaria de agendar uma reunião"
+Resposta: "Olá, gostaria de agendar uma reunião"
+
+EXEMPLO INCORRETO:
+Resposta: "00:00\n00:01\n00:02"
+
+Agora transcreva este áudio:`
+                },
+                audioPart
+            ]);
+
+            const transcription = result.response.text().trim();
+
+            // Validation: Check if response is just timestamps (common Gemini bug)
+            const isInvalidTimestamps = /^[\d:.\s\n]+$/.test(transcription);
+            const hasOnlyTimePatterns = (transcription.match(/\d{1,2}:\d{2}/g) || []).length > 5;
+
+            if (isInvalidTimestamps || hasOnlyTimePatterns) {
+                logger.warn({ transcription: transcription.substring(0, 200) }, '⚠️ Gemini returned timestamps instead of transcription');
+                return null;
+            }
+
+            logger.info({ length: transcription.length }, 'Transcription completed');
+            return transcription || null;
+        } catch (error) {
+            logger.error({ error: error.message, stack: error.stack }, 'Failed to transcribe audio with Gemini');
+            return null;
         }
     }
 }

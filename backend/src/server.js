@@ -17,6 +17,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
 const { scopePerRequest } = require('awilix-express');
+const logger = require('./shared/Logger').createModuleLogger('server');
 
 // DI Container
 const { configureContainer } = require('./container');
@@ -34,6 +35,13 @@ async function bootstrap() {
             origin: process.env.CORS_ORIGIN || "*",
             methods: ["GET", "POST"]
         }
+    });
+
+    io.on('connection', (socket) => {
+        logger.info({ socketId: socket.id }, '🔌 New Client Connected via WebSocket');
+        socket.on('disconnect', () => {
+            logger.info({ socketId: socket.id }, '🔌 Client Disconnected');
+        });
     });
 
     // 2. Configure Container
@@ -55,6 +63,10 @@ async function bootstrap() {
     }));
     app.use(express.json());
 
+    // Metrics Middleware (Native - low overhead)
+    const { metricsMiddleware, getMetrics } = require('./api/middlewares/metricsMiddleware');
+    app.use(metricsMiddleware);
+
     // Awilix Scope per Request - Injects 'req.container'
     app.use(scopePerRequest(container));
 
@@ -74,7 +86,7 @@ async function bootstrap() {
                 // This function grabs the request-scoped container and resolves the controller
                 return (req, res, next) => {
                     if (!req.container) {
-                        console.error('❌ [Server] scopePerRequest middleware missing! Cannot resolve', name);
+                        logger.error({ controller: name }, 'scopePerRequest middleware missing!');
                         return res.status(500).json({ error: 'Internal Server Error: DI Scope Missing' });
                     }
                     const controller = req.container.resolve(name);
@@ -82,7 +94,7 @@ async function bootstrap() {
                     // Allow for async methods or sync
                     // We assume it's a request handler: method(req, res, next)
                     if (typeof controller[prop] !== 'function') {
-                        console.error(`❌ [Server] Method ${prop} not found on controller ${name}`);
+                        logger.error({ controller: name, method: prop }, 'Method not found on controller');
                         return res.status(404).json({ error: 'Endpoint Not Found' });
                     }
 
@@ -95,6 +107,7 @@ async function bootstrap() {
     const controllers = {
         settingsController: makeLazyController('settingsController'),
         analyticsController: makeLazyController('analyticsController'),
+        dashboardController: makeLazyController('dashboardController'),
         adminController: makeLazyController('adminController'),
         campaignController: makeLazyController('campaignController'),
         oracleController: makeLazyController('oracleController'),
@@ -138,19 +151,26 @@ async function bootstrap() {
 
     // 5. Routes
     const router = createRouter(controllers);
+
+    // Metrics Endpoint (Public for monitoring)
+    app.get('/api/v1/metrics', (req, res) => {
+        res.json(getMetrics());
+    });
+
     app.use('/api', router);
 
     // 6. Global Error Handler
     app.use((err, req, res, next) => {
-        console.error('🔥 [Global Error]', err);
+        logger.error({ error: err.message, stack: err.stack }, 'Global error handler');
         res.status(err.statusCode || 500).json({ error: err.message });
     });
 
-    // 7. Start
+    // 7. Start Engine & Server
+    await controllers.workflowEngine.start();
+
     const PORT = process.env.PORT || 8000;
     server.listen(PORT, () => {
-        console.log(`🚀 ÁXIS SERVER STARTED (Clean Slate Build) on Port ${PORT}`);
-        console.log(`Container Mode: ${container.options.injectionMode} (Proxied)`);
+        logger.info({ port: PORT, mode: container.options.injectionMode }, '🚀 ÁXIS SERVER STARTED');
     });
 
     // Graceful Shutdown
@@ -162,6 +182,6 @@ async function bootstrap() {
 }
 
 bootstrap().catch(err => {
-    console.error('Fatal Error:', err);
+    logger.fatal({ error: err.message }, 'Fatal startup error');
     process.exit(1);
 });

@@ -13,40 +13,41 @@ const {
 const transitionResolver = require('../../services/workflow/TransitionResolver');
 
 class WorkflowEngine {
-    constructor({ nodeFactory, leadService, campaignService, supabaseClient, campaignSocket, queueService, stateCheckpointService }) {
+    constructor({ nodeFactory, leadService, campaignService, supabaseClient, campaignSocket, queueService, stateCheckpointService, redisLockClient }) {
         this.nodeFactory = nodeFactory;
         this.leadService = leadService;
         this.campaignService = campaignService;
         this.supabase = supabaseClient;
         this.campaignSocket = campaignSocket;
         this.queueService = queueService;
-        this.stateCheckpointService = stateCheckpointService; // NEW: Durable state persistence
+        this.stateCheckpointService = stateCheckpointService; // Durable state persistence
+        this.redisLockClient = redisLockClient; // NEW: Distributed locking for multi-instance
         this.runnerIntervalId = null;
-        this.timerRecoveryIntervalId = null; // NEW: Timer recovery loop
+        this.timerRecoveryIntervalId = null;
         this.useQueues = false;
 
-        // Anti-Race Condition Lock (kept for backward compatibility during transition)
+        // Legacy in-memory lock (fallback when Redis unavailable)
         this.processingPhones = new Set();
     }
 
     /**
      * Starts the workflow engine.
-     * Uses BullMQ if available, falls back to setInterval polling.
+     * Uses BullMQ if available and enabled, falls back to setInterval polling.
      */
     async start() {
-        // Try to initialize queue-based processing
-        /* 
-        // DISABLED FOR STABILITY - Using Polling Mode
-        if (this.queueService) {
+        const { ENABLE_BULLMQ } = require('../../../config/featureFlags');
+
+        // Try to initialize queue-based processing if enabled
+        if (ENABLE_BULLMQ && this.queueService) {
             const connected = await this.queueService.initialize();
             if (connected) {
                 this.useQueues = true;
-                // this.#registerWorkers(); // Implement when moving to full event-driven
+                this._registerWorkers();
                 logger.info('🚀 WorkflowEngine started (Queue Mode - BullMQ)');
                 return;
             }
-        } 
-        */
+            logger.warn('BullMQ enabled but failed to connect, falling back to polling');
+        }
 
         // Fallback to polling mode
         logger.info('🚀 WorkflowEngine started (Polling Mode - setInterval)');
@@ -138,7 +139,7 @@ class WorkflowEngine {
         }
 
         // For timer expiry, find the next node and transition
-        const nextNode = this.#getNextNode(currentNode.id, graph, 'default');
+        const nextNode = this._getNextNode(currentNode.id, graph, 'default');
 
         if (nextNode) {
             logger.info({
@@ -163,20 +164,63 @@ class WorkflowEngine {
 
     /**
      * A single "pulse" of the engine - processes all active campaigns.
+     * Optimized to batch load leads (eliminates N+1 query).
      */
     async pulse() {
         if (!this.isBusinessHours()) return;
 
         try {
+            // 1. Get all active campaigns
             const { data: campaigns } = await this.supabase
                 .from('campaigns')
-                .select('*, agents(*)')
+                .select('*')
                 .eq('status', 'active');
 
-            if (!campaigns) return;
+            if (!campaigns || campaigns.length === 0) return;
+
+            // Fetch agents manually (Schema fix)
+            const campaignIds = campaigns.map(c => c.id);
+            const { data: allAgents } = await this.supabase
+                .from('agents')
+                .select('*')
+                .in('campaign_id', campaignIds);
+
+            // Map agents to campaigns
+            const agentsByCampaign = (allAgents || []).reduce((acc, agent) => {
+                if (!acc[agent.campaign_id]) acc[agent.campaign_id] = [];
+                acc[agent.campaign_id].push(agent);
+                return acc;
+            }, {});
 
             for (const campaign of campaigns) {
-                const leads = await this.leadService.getLeadsForProcessing(campaign.id);
+                campaign.agents = agentsByCampaign[campaign.id] || [];
+            }
+
+            // 2. Batch load leads for ALL active campaigns at once (eliminates N+1)
+            const { data: allLeads, error: leadsError } = await this.supabase
+                .from('leads')
+                .select('*')
+                .in('campaign_id', campaignIds)
+                .in('status', ['new', 'contacted', 'interested', 'qualified'])
+                .order('updated_at', { ascending: true });
+
+            if (leadsError) {
+                logger.error({ error: leadsError.message }, 'Failed to batch load leads');
+                return;
+            }
+
+            if (!allLeads || allLeads.length === 0) return;
+
+            // 3. Group leads by campaign_id for O(1) lookup
+            const leadsByCampaign = allLeads.reduce((acc, lead) => {
+                if (!acc[lead.campaign_id]) acc[lead.campaign_id] = [];
+                acc[lead.campaign_id].push(lead);
+                return acc;
+            }, {});
+
+            // 4. Process campaigns with their pre-loaded leads
+            for (const campaign of campaigns) {
+                const leads = leadsByCampaign[campaign.id] || [];
                 for (const lead of leads) {
                     await this.processLead(lead, campaign);
                 }
@@ -194,12 +238,25 @@ class WorkflowEngine {
         // Standardize phone (remove non-digits)
         const cleanPhone = phone.replace(/\D/g, '');
 
-        if (this.processingPhones.has(cleanPhone)) {
-            logger.warn({ phone: cleanPhone }, '⏳ Race Condition: Already processing this phone. Skipping trigger.');
-            return;
+        // Try to acquire distributed lock first (Redis), fallback to in-memory
+        let lock = null;
+        // Distributed Lock (15s TTL - enough for AI, auto-releases if crash)
+        if (this.redisLockClient?.enabled) {
+            // Use phone-based locking to prevent parallel processing of same user
+            try {
+                lock = await this.redisLockClient.acquireLock(`phone:${cleanPhone}`, 15000);
+            } catch (err) {
+                logger.warn({ phone: cleanPhone }, '⏳ Race Condition: Phone locked by another instance. Skipping.');
+                return;
+            }
+        } else {
+            // Fallback to in-memory lock (single instance only)
+            if (this.processingPhones.has(cleanPhone)) {
+                logger.warn({ phone: cleanPhone }, '⏳ Race Condition: Already processing this phone. Skipping trigger.');
+                return;
+            }
+            this.processingPhones.add(cleanPhone);
         }
-
-        this.processingPhones.add(cleanPhone);
 
         try {
             // 1. Update Lead with latest message data (Last Inbound)
@@ -230,7 +287,7 @@ class WorkflowEngine {
             // 2. Find lead by phone
             let { data: leads, error: findError } = await this.supabase
                 .from('leads')
-                .select('*, campaigns(*, agents(*))')
+                .select('*, campaigns(*)')
                 .eq('phone', cleanPhone)
                 .limit(1);
 
@@ -240,36 +297,57 @@ class WorkflowEngine {
 
             let lead = leads?.[0];
 
-            // 3. Triage / New Lead Logic
-            if (!lead) {
-                // MULTI-TENANCY FIX: Find Campaign by Session Name First
-                let campaignId = null;
+            // RE-LINK FIX: If lead exists but has NO campaign, try to link it now (Self-Healing)
+            if (lead && !lead.campaign_id) {
+                logger.info({ leadId: lead.id, phone: cleanPhone }, '🩹 Orphaned Lead detected (No Campaign). Attempting to re-link via Session.');
 
-                // If we have a specific session (not default), try to find the linked campaign
+                // Re-use logic to find campaign by session
+                // Re-use logic to find campaign by session
                 if (sessionName && sessionName !== 'default') {
-                    const { data: sessionCampaign } = await this.supabase
-                        .from('campaigns')
-                        .select('id')
-                        .eq('waha_session_name', sessionName)
-                        .eq('status', 'active')
-                        .single();
+                    const sessionCampaign = await this.campaignService.getCampaignBySession(sessionName);
 
                     if (sessionCampaign) {
+                        // Update the lead with the found campaign
+                        await this.supabase
+                            .from('leads')
+                            .update({ campaign_id: sessionCampaign.id })
+                            .eq('id', lead.id);
+
+                        // Refetch lead with new campaign relation
+                        const { data: refreshedLead } = await this.supabase
+                            .from('leads')
+                            .select('*, campaigns(*)')
+                            .eq('id', lead.id)
+                            .single();
+
+                        if (refreshedLead) {
+                            lead = refreshedLead;
+                            logger.info({ leadId: lead.id, campaignName: sessionCampaign.name }, '✅ Successfully re-linked Orphaned Lead to Campaign');
+                        }
+                    } else {
+                        logger.warn({ sessionName }, '⚠️ Could not find campaign for session to re-link orphaned lead.');
+                    }
+                }
+            }
+
+            // 3. Triage / New Lead Logic
+            if (!lead) {
+                // MULTI-TENANCY FIX: Find Campaign by Session Name (Node-Based Routing)
+                let campaignId = null;
+
+                if (sessionName && sessionName !== 'default') {
+                    const sessionCampaign = await this.campaignService.getCampaignBySession(sessionName);
+                    if (sessionCampaign) {
                         campaignId = sessionCampaign.id;
-                        logger.info({ sessionName, campaignId }, '📍 Routing Lead based on Waha Session');
+                        logger.info({ sessionName, campaignId, campaignName: sessionCampaign.name }, '📍 Routing Lead based on Trigger Node Session Config');
                     }
                 }
 
-                // If no session-specific campaign, fall back to Triage/Inbox
+                // If no session-specific campaign, we DO NOT fall back to Triage/Inbox.
+                // Strict One-to-One mapping as requested.
                 if (!campaignId) {
-                    const { data: inboxParams } = await this.supabase
-                        .from('campaigns')
-                        .select('id')
-                        .or('name.ilike.%Triagem%,name.ilike.%Inbox%')
-                        .eq('status', 'active')
-                        .limit(1)
-                        .maybeSingle();
-                    campaignId = inboxParams?.id || null;
+                    logger.warn({ sessionName, phone: cleanPhone }, '⚠️ No campaign linked to this session. Lead will be saved but NO flow triggered.');
+                    // We continue to save the lead below, but without a campaign_id, logic later will skip AI.
                 }
 
                 // Prepare Ad Context
@@ -325,23 +403,129 @@ class WorkflowEngine {
 
             logger.info({ phone: cleanPhone, leadId: lead.id }, '🤖 Processing incoming message for lead');
 
-            const campaigns = lead.campaigns || (lead.campaign_id ? await this.campaignService.getCampaign(lead.campaign_id) : null);
+            let campaigns = lead.campaigns;
+            if (Array.isArray(campaigns)) campaigns = campaigns[0];
+
+            if (!campaigns && lead.campaign_id) {
+                campaigns = await this.campaignService.getCampaign(lead.campaign_id);
+            }
+
+            // FIX: Check if campaign is ACTIVE before processing
+            if (campaigns && campaigns.status !== 'active' && campaigns.status !== 'RUNNING') {
+                logger.warn({
+                    phone: cleanPhone,
+                    campaignId: campaigns.id,
+                    campaignName: campaigns.name,
+                    status: campaigns.status
+                }, '🛑 Campaign is PAUSED/INACTIVE. Skipping processing.');
+                return;
+            }
+
+            logger.info({
+                leadCampaignId: lead.campaign_id,
+                campaignsType: typeof campaigns,
+                hasGraph: campaigns ? !!(campaigns.graph || campaigns.strategy_graph) : false
+            }, '🔍 Debugging Campaign Extraction');
 
             if (campaigns) {
-                // Check if campaign has FSM graph - use new FSM path
-                const graph = campaigns.strategy_graph || campaigns.graph;
-                if (graph && graph.nodes && graph.nodes.length > 0) {
-                    logger.info({ leadId: lead.id, campaignId: campaigns.id }, '🔄 Using FSM path (handleUserReply)');
-                    await this.handleUserReply(lead, campaigns, messageBody);
-                } else {
-                    // Legacy path - use processLead
-                    await this.processLead(lead, campaigns);
+                // INJECT SESSION NAME FROM WEBHOOK (Fix for WAHA 422)
+                if (sessionName && sessionName !== 'default') {
+                    campaigns.session_name = sessionName;
+                    campaigns.waha_session_name = sessionName; // Dual compatibility
+                    logger.info({ sessionName }, '💉 Injected sessionName into Campaign Context');
+                }
+
+                // QUEUE MODE: Offload to BullMQ for robustness + Debounce Buffer
+                if (this.useQueues) {
+                    const bufferKey = `buffer:lead:${lead.id}:messages`;
+                    const jobId = `debounce-lead-${lead.id}`;
+                    const typingKey = `lead:${lead.id}:is_typing`;
+
+                    // 1. Append message to Redis Buffer (List)
+                    if (messageBody) {
+                        await this.queueService.connection.rpush(bufferKey, messageBody);
+                        await this.queueService.connection.expire(bufferKey, 300); // 5 min TTL safety
+                    }
+
+                    // 2. Add Delayed Job (Debounce + Smart Presence)
+                    try {
+                        // Remove existing job to "reset" the timer
+                        const existingJob = await this.queueService.queues.leadProcessing.getJob(jobId);
+                        if (existingJob) {
+                            await existingJob.remove().catch(() => { });
+                        }
+
+                        // Check typing status to determine delay
+                        // If typing: Wait long (10s)
+                        // If not typing: Wait window (5s) for follow-up messages
+                        const isTyping = await this.queueService.connection.get(typingKey);
+                        const delay = isTyping ? 10000 : 5000;
+
+                        logger.info({ leadId: lead.id, queue: 'lead-processing', isTyping: !!isTyping, delay }, '📥 Buffering Lead Message');
+
+                        await this.queueService.queues.leadProcessing.add('process-message', {
+                            leadId: lead.id,
+                            campaignId: campaigns.id,
+                            sessionName
+                        }, {
+                            jobId: jobId, // Deduplication Key
+                            delay,
+                            attempts: 3,
+                            backoff: { type: 'exponential', delay: 1000 },
+                            removeOnComplete: true
+                        });
+                    } catch (err) {
+                        logger.warn({ error: err.message }, '⚠️ Error managing job debounce, buffering anyway.');
+                    }
+
+                    return; // Exit, worker will pick it up
+                }
+
+                // SYNC MODE PROTECTION
+                let syncLock = null;
+                try {
+                    if (this.redisLockClient) {
+                        // Use a distinct lock key for sync execution
+                        syncLock = await this.redisLockClient.acquireLock(`sync:lead:${lead.id}`, 30000);
+                        if (!syncLock) {
+                            logger.warn({ leadId: lead.id }, '🔒 Sync Lock busy. Skipping concurrent trigger.');
+                            return;
+                        }
+                    }
+
+                    // Check if campaign has FSM graph - use new FSM path
+                    const graph = campaigns.strategy_graph || campaigns.graph;
+                    if (graph && graph.nodes && graph.nodes.length > 0) {
+                        logger.info({ leadId: lead.id, campaignId: campaigns.id }, '🔄 Using FSM path (handleUserReply)');
+                        await this.handleUserReply(lead, campaigns, messageBody);
+                    } else {
+                        // Legacy path - use processLead
+                        await this.processLead(lead, campaigns);
+                    }
+                } finally {
+                    if (syncLock) {
+                        await this.redisLockClient?.releaseLock(syncLock);
+                    }
                 }
             }
         } catch (error) {
+            // Suppress Redlock errors for concurrency (debounce handles it)
+            if (error.message && (error.message.includes('Redlock') || error.message.includes('0 of the 1 requested resources'))) {
+                logger.debug({ phone: cleanPhone }, '🔒 Concurrency lock active (skipping duplicate trigger)');
+                return;
+            }
             logger.error({ error: error.message, phone: cleanPhone }, 'triggerAiForLead failed');
         } finally {
-            this.processingPhones.delete(cleanPhone);
+            // Release lock (distributed or in-memory)
+            if (lock) {
+                try {
+                    await this.redisLockClient?.releaseLock(lock);
+                } catch (e) {
+                    // Ignore release errors
+                }
+            } else {
+                this.processingPhones.delete(cleanPhone);
+            }
         }
     }
 
@@ -355,26 +539,93 @@ class WorkflowEngine {
             const phone = rawId?.split('@')?.[0];
             if (!phone) return;
 
-            // Update lead presence in DB (optional, for analytics)
+            // 1. Fetch Lead (Minimal fields needed)
             const { data: lead } = await this.supabase
                 .from('leads')
                 .select('id, name, campaign_id')
                 .eq('phone', phone)
                 .single();
 
-            if (lead) {
-                logger.debug({ phone, status, leadId: lead.id }, 'Presence update');
+            if (!lead) return;
 
-                // Emit real-time presence
-                if (this.campaignSocket) {
-                    this.campaignSocket.emit('lead.presence', {
-                        leadId: lead.id,
-                        phone,
-                        status,
-                        session: sessionName
-                    });
+            logger.debug({ phone, status, leadId: lead.id }, 'Presence update');
+
+            // 2. Emit Socket Event (Visuals)
+            if (this.campaignSocket) {
+                this.campaignSocket.emit('lead.presence', {
+                    leadId: lead.id,
+                    phone,
+                    status, // 'composing' | 'paused' | 'available' | 'recording'
+                    session: sessionName,
+                    lastSeen: Date.now()
+                });
+            }
+
+            // 3. Cognitive Concurrency (Smart Buffer)
+            if (this.useQueues) {
+                // Access the queue instance (assuming getter or direct property)
+                const queue = this.queueService.queues?.leadProcessing || this.queueService.leadProcessingQueue;
+                if (!queue) return;
+
+                const typingKey = `lead:${lead.id}:is_typing`;
+                const jobId = `debounce-lead-${lead.id}`;
+                const bufferKey = `buffer:lead:${lead.id}:messages`;
+
+                if (status === 'composing' || status === 'recording') {
+                    // USER STARTED TYPING/RECORDING
+                    // Mark state (TTL 30s safety net)
+                    await this.queueService.connection.set(typingKey, 'true', 'EX', 30);
+
+                    // Check if there's a pending trigger
+                    const existingJob = await queue.getJob(jobId);
+                    if (existingJob) {
+                        // User is typing, so PAUSE execution (extend delay significantly)
+                        // We remove the current countdown and restart with a long buffer (10s)
+                        await existingJob.remove().catch(() => { });
+
+                        await queue.add('process-message', {
+                            leadId: lead.id,
+                            campaignId: lead.campaign_id, // Best effort
+                            sessionName
+                        }, {
+                            jobId,
+                            delay: 10000, // Wait 10s while typing
+                            removeOnComplete: true
+                        });
+
+                        logger.info({ leadId: lead.id }, '⏳ User typing... Extending AI wait window (10s)');
+                    }
+
+                } else if (status === 'paused' || status === 'available') {
+                    // USER STOPPED TYPING
+                    // Clear typing state
+                    await this.queueService.connection.del(typingKey);
+
+                    // If we were waiting for them to finish, now is the time to trigger (with small grace period)
+                    const existingJob = await queue.getJob(jobId);
+                    const bufferLen = await this.queueService.connection.llen(bufferKey);
+
+                    // Trigger if we have a job pending OR unassigned messages in buffer
+                    if (existingJob || bufferLen > 0) {
+                        if (existingJob) await existingJob.remove().catch(() => { });
+
+                        // Short debounce (2s) to catch "broken typing" (typing... pause... typing)
+                        // This corresponds to the "Silence Window"
+                        await queue.add('process-message', {
+                            leadId: lead.id,
+                            campaignId: lead.campaign_id,
+                            sessionName
+                        }, {
+                            jobId,
+                            delay: 2000,
+                            removeOnComplete: true
+                        });
+
+                        logger.info({ leadId: lead.id }, '⚡ User stopped typing. Scheduling processing (2s Silence Window)');
+                    }
                 }
             }
+
         } catch (error) {
             logger.error({ error: error.message }, 'handlePresenceUpdate failed');
         }
@@ -389,8 +640,19 @@ class WorkflowEngine {
 
         try {
             const fullCampaign = campaign || await this.campaignService.getCampaign(lead.campaign_id);
+
+            // FIX: Enforce Campaign Status Check in Core Processor
+            if (fullCampaign && fullCampaign.status !== 'active' && fullCampaign.status !== 'RUNNING') {
+                logger.warn({
+                    leadId: lead.id,
+                    campaignId: fullCampaign.id,
+                    status: fullCampaign.status
+                }, '🛑 ProcessLead aborted: Campaign is PAUSED/INACTIVE.');
+                return;
+            }
+
             logger.info({ leadId: lead.id, campaign: fullCampaign.name }, '⚙️ Workflow processing started');
-            const graph = this.#loadGraph(fullCampaign);
+            const graph = this._loadGraph(fullCampaign);
 
             // FIX: Prevent execution of empty/invalid graphs (User Request: "se os fluxos não estiverem certos não deveria funcionar")
             if (!graph || !graph.nodes || graph.nodes.length === 0) {
@@ -406,29 +668,10 @@ class WorkflowEngine {
                 if (!currentNodeId) {
                     const entryNode = graph.nodes.find(n => n.type === 'leadEntry' || n.type === 'trigger' || n.data?.isEntry);
                     if (entryNode) {
-                        // --- SOURCE VALIDATION (Node-Based Authority) ---
-                        const leadSource = lead.source || 'imported';
-                        const campaignType = fullCampaign.type || 'inbound';
-
-                        // 1. Check Node Configuration (The Authority)
-                        const nodeAllowedSources = entryNode.data?.allowedSources;
-
-                        if (nodeAllowedSources && Array.isArray(nodeAllowedSources)) {
-                            // Node explicitly defines what is allowed. Obey the Node.
-                            // FIX: Treat 'inbound' as 'whatsapp' for compatibility or just allow it if present.
-                            if (!nodeAllowedSources.includes(leadSource) && leadSource !== 'inbound') {
-                                logger.warn({ leadId: lead.id, source: leadSource, allowed: nodeAllowedSources }, '⛔ Lead Entry rejected by Node Source Filter');
-                                break;
-                            }
-                            logger.info({ leadId: lead.id, source: leadSource }, '✅ Lead Entry approved by Node Configuration');
-                        } else {
-                            // 2. Fallback: Strict Type Enforcement (Safety for unconfigured nodes)
-                            // Inbound Campaigns (Ads) should NOT process Cold Leads (Apify) automatically unless explicitly allowed by the node.
-                            if (campaignType === 'inbound' && (leadSource === 'imported' || leadSource === 'apify')) {
-                                logger.warn({ leadId: lead.id, source: leadSource, campaignType }, '⛔ Strict Block: Cold Lead in Inbound Campaign (No Node Override)');
-                                break;
-                            }
-                        }
+                        // --- SOURCE VALIDATION REMOVED (User Request: "remova essa logica") ---
+                        // We now allow ANY lead source to enter the flow if it hits the entry node.
+                        // The responsibility for filtering is now delegated to the logic nodes or conditional edges if needed.
+                        logger.info({ leadId: lead.id, source: lead.source || 'unknown' }, '✅ Lead Entry Allowed (Triage Logic Disabled)');
 
                         // 3. Transition to Entry Node
                         await this.leadService.transitionToNode(lead.id, entryNode.id);
@@ -440,14 +683,31 @@ class WorkflowEngine {
                     }
                 }
 
-                const node = graph.nodes.find(n => n.id === currentNodeId);
-                if (!node) break;
+                let node = graph.nodes.find(n => n.id === currentNodeId);
+
+                // SELF-HEALING: If current node is invalid (e.g. graph changed), reset to Entry Node
+                if (!node && currentNodeId) {
+                    logger.warn({ leadId: lead.id, staleNodeId: currentNodeId }, '⚠️ Stale State Detected (Node missing). Restarting flow from Entry.');
+
+                    const entryNode = graph.nodes.find(n => n.type === 'leadEntry' || n.type === 'trigger' || n.data?.isEntry);
+                    if (entryNode) {
+                        await this.leadService.transitionToNode(lead.id, entryNode.id);
+                        lead.current_node_id = entryNode.id;
+                        currentNodeId = entryNode.id;
+                        node = entryNode;
+                    }
+                }
+
+                if (!node) {
+                    logger.warn({ leadId: lead.id, currentNodeId }, '⛔ Node not found and no entry fallback available. Aborting.');
+                    break;
+                }
 
                 // 2. Lead Entry bypass
                 if (node.type === 'leadEntry') {
-                    const next = this.#getNextNode(node.id, graph);
+                    const next = this._getNextNode(node.id, graph);
                     if (next) {
-                        await this.#transition(lead, next.id, fullCampaign.id);
+                        await this._transitionLegacy(lead, next.id, fullCampaign.id);
                         lead.current_node_id = next.id;
                         continue;
                     }
@@ -462,8 +722,47 @@ class WorkflowEngine {
                 }
 
                 // 4. Execution context
+                // Initialize execution context from lead or DB
+                let executionContext = lead.context || {};
+
                 logger.info({ leadId: lead.id, node: node.id, type: node.type }, '▶️ Executing Node');
-                const result = await executor.execute(lead, fullCampaign, node, graph);
+
+                // CORRECTED SIGNATURE CALL: execute(lead, campaign, node, graph, context)
+                const result = await executor.execute(lead, fullCampaign, node, graph, executionContext);
+
+                logger.info({
+                    leadId: lead.id,
+                    nodeId: node.id,
+                    resultStatus: result.status,
+                    resultAction: result.action
+                }, '✅ Node Executed. Transitioning...');
+
+                // CONTEXT PROPAGATION: Update context from node output
+                if (result.output) {
+                    executionContext = { ...executionContext, ...result.output };
+
+                    // Persist updated context to DB
+                    await this.supabase.from('leads').update({
+                        context: executionContext,
+                        // Optional: Save snapshot of current node context for debugging
+                        current_node_context: {
+                            tenantId: node.data?.tenantId,
+                            sessionName: node.data?.sessionName,
+                            timestamp: new Date().toISOString()
+                        }
+                    }).eq('id', lead.id);
+
+                    // Update local lead reference so next node sees it if we loop
+                    lead.context = executionContext;
+                }
+
+                // GOTO SUPPORT: Handle Direct Transition
+                if (result.status === NodeExecutionStateEnum.EXITED && result.gotoTarget) {
+                    logger.info({ leadId: lead.id, from: node.id, to: result.gotoTarget }, '🦘 Executing GOTO Jump');
+                    await this._transitionLegacy(lead, result.gotoTarget, fullCampaign.id);
+                    lead.current_node_id = result.gotoTarget;
+                    continue; // Loop continues to execute destination node immediately
+                }
 
                 // PERSIST NODE STATE (if provided by executor)
                 if (result.nodeState) {
@@ -506,14 +805,14 @@ class WorkflowEngine {
                     break;
                 }
 
-                if (result.status === 'success' || result.status === 'complete') {
+                if (result.status === 'success' || result.status === 'complete' || result.status === NodeExecutionStateEnum.EXITED) {
                     if (result.markExecuted) {
                         await this.leadService.markNodeExecuted(lead.id, lead.node_state);
                     }
 
                     // 5. Hierarchy of Scopes (Action/Transition Logic)
                     const actionLabel = result.action || (result.response?.crm_actions?.[0]);
-                    let next = this.#getNextNode(node.id, graph, actionLabel);
+                    let next = this._getNextNode(node.id, graph, actionLabel);
 
                     // 6. Semantic Routing / Fallback
                     if (!next && result.action !== 'default') {
@@ -524,7 +823,7 @@ class WorkflowEngine {
                     }
 
                     if (next) {
-                        await this.#transition(lead, next.id, fullCampaign.id);
+                        await this._transitionLegacy(lead, next.id, fullCampaign.id);
                         lead.current_node_id = next.id;
 
                         // If we just executed an agentic node, we usually stop and wait for reply
@@ -568,8 +867,8 @@ class WorkflowEngine {
         }
     }
 
-    #loadGraph(campaign) {
-        let strategy = campaign.strategy_graph || campaign.strategy || { nodes: [], edges: [] };
+    _loadGraph(campaign) {
+        let strategy = campaign.strategy_graph || campaign.graph || campaign.strategy || { nodes: [], edges: [] };
         if (typeof strategy === 'string') {
             try {
                 strategy = JSON.parse(strategy);
@@ -578,14 +877,18 @@ class WorkflowEngine {
             }
         }
 
-        // Ensure structure exists to prevent crashes
         if (!strategy.nodes) strategy.nodes = [];
         if (!strategy.edges) strategy.edges = [];
+
+
 
         return strategy;
     }
 
-    #getNextNode(currentNodeId, graph, actionLabel = null) {
+    _getNextNode(currentNodeId, graph, actionLabel = null) {
+        // Debug Log
+        // logger.info({ currentNodeId, actionLabel, edges: graph.edges.length }, '🔍 _getNextNode Lookup');
+
         if (actionLabel) {
             // Case-insensitive semantic match
             const smartEdge = graph.edges.find(e =>
@@ -597,11 +900,16 @@ class WorkflowEngine {
 
         // Default transition (first matching edge or labeled 'default')
         const edge = graph.edges.find(e => e.source === currentNodeId && (!e.label || e.label === 'default'));
-        if (!edge) return null;
+
+        if (!edge) {
+            logger.warn({ currentNodeId, availableEdges: graph.edges.filter(e => e.source === currentNodeId) }, '⚠️ No edge found from node');
+            return null;
+        }
+
         return graph.nodes.find(n => n.id === edge.target);
     }
 
-    async #transition(lead, nextNodeId, campaignId) {
+    async _transitionLegacy(lead, nextNodeId, campaignId) {
         await this.leadService.transitionToNode(lead.id, nextNodeId, campaignId);
         if (this.campaignSocket) {
             this.campaignSocket.emitLeadUpdate(lead.id, { current_node_id: nextNodeId }, campaignId);
@@ -611,8 +919,74 @@ class WorkflowEngine {
     /**
      * Register BullMQ workers for queue-based processing.
      */
-    #registerWorkers() {
-        // Worker for AI generation
+    _registerWorkers() {
+        if (!this.queueService) return;
+
+        // Worker for Lead Processing (Inbound Messages)
+        this.queueService.registerWorker('lead-processing', async (job) => {
+            const { leadId, campaignId, sessionName } = job.data;
+            logger.info({ leadId, jobId: job.id }, '📨 Processing Buffered Messages (Debounce Complete)');
+
+            try {
+                // 1. Fetch buffered messages
+                const bufferKey = `buffer:lead:${leadId}:messages`;
+                const messages = await this.queueService.connection.lrange(bufferKey, 0, -1);
+
+                // 2. Clear buffer immediately (atomic-ish)
+                await this.queueService.connection.del(bufferKey);
+
+                const finalMessageBody = messages.length > 0 ? messages.join('\n') : job.data.messageBody;
+
+                if (!finalMessageBody) {
+                    logger.warn({ leadId }, '⚠️ Job executed but no messages found in buffer. Skipping.');
+                    return;
+                }
+
+                logger.info({ leadId, count: messages.length, finalBody: finalMessageBody }, '📦 Aggregated Messages');
+
+                // 3. Re-fetch fresh lead data
+                const { data: lead } = await this.supabase
+                    .from('leads')
+                    .select('*, campaigns(*)')
+                    .eq('id', leadId)
+                    .single();
+
+                if (!lead) throw new Error(`Lead ${leadId} not found`);
+
+                // 4. Update Lead with FINAL Aggregated Text (Important for AI Context)
+                await this.supabase.from('leads').update({
+                    last_message_body: finalMessageBody,
+                    last_message_at: new Date().toISOString()
+                }).eq('id', leadId);
+
+                lead.last_message_body = finalMessageBody; // Local update
+
+                // 5. Route to Logic
+                // INJECT SESSION NAME FROM WEBHOOK (Fix for WAHA 422)
+                if (sessionName && sessionName !== 'default') {
+                    if (lead.campaigns) {
+                        lead.campaigns.session_name = sessionName;
+                        lead.campaigns.waha_session_name = sessionName;
+                    }
+                }
+
+                const campaigns = lead.campaigns;
+                const graph = campaigns?.strategy_graph || campaigns?.graph;
+
+                if (graph && graph.nodes && graph.nodes.length > 0) {
+                    logger.info({ leadId: lead.id }, '🔄 resuming FSM logic with aggregated text');
+                    await this.handleUserReply(lead, campaigns, finalMessageBody);
+                } else {
+                    await this.processLead(lead, campaigns);
+                }
+
+            } catch (err) {
+                logger.error({ error: err.message, leadId }, '❌ Worker Failed');
+                throw err;
+            }
+        });
+
+        // Worker for AI generation (Future use / specific tasks)
         this.queueService.registerWorker('ai-generation', async (job) => {
             const { leadId, campaignId, agentId } = job.data;
             logger.info({ leadId, jobId: job.id }, '🧠 Processing AI generation job');
@@ -641,13 +1015,6 @@ class WorkflowEngine {
             // The actual sending is handled by the node executor
             // This worker just ensures the flow completes
             return { status: 'completed', leadId };
-        });
-
-        // Worker for on-demand lead processing
-        this.queueService.registerWorker('lead-processing', async (job) => {
-            const { phone } = job.data;
-            await this.triggerAiForLead(phone);
-            return { status: 'completed' };
         });
 
         logger.info('📋 Queue workers registered');
@@ -994,6 +1361,10 @@ class WorkflowEngine {
         } else {
             // Instance is in another state, use processLead for now
             logger.info({ instanceId: instance.id, state: instance.node_state }, 'FSM: Instance not awaiting, using processLead');
+
+            // SYNC: Ensure lead has the instance's node pointer
+            lead.current_node_id = instance.current_node_id;
+
             return this.processLead(lead, campaign);
         }
     }

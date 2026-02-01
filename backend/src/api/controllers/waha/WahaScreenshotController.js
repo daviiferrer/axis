@@ -1,5 +1,5 @@
 class WahaScreenshotController {
-    constructor(wahaClient) {
+    constructor({ wahaClient }) {
         this.waha = wahaClient;
     }
 

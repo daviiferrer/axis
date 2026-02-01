@@ -16,6 +16,8 @@ function createRouter(controllers) {
         adminController,
         healthController,
         analyticsController,
+        dashboardController,
+        schedulingController,
         billingController,
         apifyController,
         apifyWebhookHandler,
@@ -29,6 +31,8 @@ function createRouter(controllers) {
     v1Router.use('/campaigns', authMiddleware, require('./routes/v1/campaign/campaign.routes')(campaignController, authMiddleware, riskMiddleware));
     v1Router.use('/agents', authMiddleware, require('./routes/v1/agents/agent.routes')(agentController, authMiddleware));
     v1Router.use('/analytics', require('./routes/v1/analytics/AnalyticsRoutes')(analyticsController));
+    v1Router.use('/dashboard', require('./routes/v1/analytics/dashboard.routes')(dashboardController, authMiddleware));
+    v1Router.use('/scheduling', require('./routes/v1/scheduling/scheduling.routes')(schedulingController, authMiddleware));
     v1Router.use('/leads', require('./routes/v1/campaign/lead.routes')(leadController));
     v1Router.use('/chats', require('./routes/v1/chat/chat.routes')(chatController));
     v1Router.use('/prospects', require('./routes/v1/campaign/prospect.routes')(prospectController));

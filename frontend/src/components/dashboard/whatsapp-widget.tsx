@@ -25,8 +25,10 @@ export function WhatsAppWidget() {
             if (primary) {
                 setSession(primary);
                 if (primary.status === 'SCAN_QR_CODE') {
-                    const qr = await wahaService.getScreenshot(primary.name);
-                    setQrCode(qr ? URL.createObjectURL(qr) : null);
+                    const qrData = await wahaService.getQR(primary.name);
+                    // Handle { data: 'base64...' } or raw base64 string
+                    const base64 = typeof qrData === 'string' ? qrData : qrData?.data;
+                    setQrCode(base64 ? `data:image/png;base64,${base64}` : null);
                 } else {
                     setQrCode(null);
                 }
@@ -84,7 +86,15 @@ export function WhatsAppWidget() {
                 {!session ? (
                     <div className="flex flex-col items-center justify-center h-[140px] gap-2 text-center">
                         <p className="text-muted-foreground text-sm">Nenhuma sessão encontrada.</p>
-                        <Button size="sm" onClick={() => wahaService.startSession('default')}>Iniciar Sessão</Button>
+                        <Button size="sm" onClick={async () => {
+                            try {
+                                await wahaService.startSession('default');
+                            } catch (e: any) {
+                                if (e.response?.status === 404) {
+                                    alert("Sessão 'default' não encontrada. Crie uma nova sessão no painel.");
+                                }
+                            }
+                        }}>Iniciar Sessão</Button>
                     </div>
                 ) : (
                     <div className="flex flex-col gap-4">

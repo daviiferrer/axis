@@ -44,9 +44,9 @@ class TriggerService {
             // Find lead and campaign
             const { data: lead, error } = await this.supabase
                 .from('leads')
-                .select('*, campaigns(*, agents(*))')
+                .select('*, campaigns!inner(id, graph, status, user_id)') // Join campaigns to get graph
                 .or(`phone.eq.${phone},phone.ilike.%${phone.slice(-8)}`)
-                .eq('campaigns.session_name', sessionName)
+                .eq('campaigns.status', 'active') // Only look for leads in active campaigns
                 .single();
 
             if (error || !lead) return;

@@ -8,7 +8,7 @@ const logger = require('../../../../shared/Logger').createModuleLogger('delay-no
 const { NodeExecutionStateEnum } = require('../../../types/CampaignEnums');
 
 class DelayNode {
-    async execute(lead, campaign, nodeConfig, graph) {
+    async execute(lead, campaign, nodeConfig, graph, context) {
         const state = lead.node_state || {};
 
         // 1. Check for Interruptions (User Reply during wait)

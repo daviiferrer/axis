@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Node } from '@xyflow/react';
-import { X, Save, Settings, AlertTriangle, MessageSquare, Clock, Split, GitBranch, ArrowRight, Flag, Brain, Bot, MousePointerClick, Hourglass, CornerUpRight, ExternalLink, Users, CheckCircle2, XCircle, Archive, Megaphone, Globe, Tag } from 'lucide-react';
+import { X, Save, Settings, AlertTriangle, MessageSquare, Clock, Split, GitBranch, ArrowRight, Flag, Brain, Bot, MousePointerClick, Hourglass, CornerUpRight, ExternalLink, Users, CheckCircle2, XCircle, Archive, Megaphone, Globe, Tag, Building2, Scale, Smartphone, Car } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,7 @@ import {
     SelectValue,
 } from "@/components/ui/forms/select";
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { Badge } from '@/components/ui/badge';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -110,7 +110,7 @@ export function NodeEditorPanel({ selectedNode, onClose, onUpdateNode }: NodeEdi
                     </Button>
                 </div>
 
-                <ScrollArea className="flex-1 p-6">
+                <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
                     <div className="space-y-8">
                         {/* Common: Label */}
                         <div className="space-y-3">
@@ -616,6 +616,138 @@ export function NodeEditorPanel({ selectedNode, onClose, onUpdateNode }: NodeEdi
                                     </div>
                                 )}
 
+                                {/* Node Goal Configuration (NEW) */}
+                                {['agent', 'agentic', 'qualification', 'outreach', 'objection'].includes(type || '') && (
+                                    <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100 space-y-4">
+                                        <div className="flex items-center gap-2">
+                                            <Brain className="w-4 h-4 text-blue-600" />
+                                            <Label className="text-sm font-semibold text-blue-900">Objetivo do Nó</Label>
+                                        </div>
+                                        <p className="text-[11px] text-gray-500 leading-tight">
+                                            O que este passo específico deve alcançar?
+                                        </p>
+
+                                        <div className="space-y-2">
+                                            <Label className="text-xs text-gray-500">Meta Principal</Label>
+                                            <Select
+                                                value={formData.goal || 'PROVIDE_INFO'}
+                                                onValueChange={(v) => handleChange('goal', v)}
+                                            >
+                                                <SelectTrigger className="h-11 rounded-xl bg-white/80 border-blue-200">
+                                                    <SelectValue placeholder="Selecione o objetivo..." />
+                                                </SelectTrigger>
+                                                <SelectContent className="max-h-64">
+                                                    <SelectItem value="QUALIFY_LEAD">
+                                                        <span className="font-medium">🎯 Qualificar Lead</span>
+                                                        <span className="block text-[10px] text-gray-400">Descobrir necessidades, orçamento, etc.</span>
+                                                    </SelectItem>
+                                                    <SelectItem value="CLOSE_SALE">
+                                                        <span className="font-medium">💰 Fechar Venda</span>
+                                                        <span className="block text-[10px] text-gray-400">Conduzir para conversão</span>
+                                                    </SelectItem>
+                                                    <SelectItem value="SCHEDULE_MEETING">
+                                                        <span className="font-medium">📅 Agendar Reunião</span>
+                                                        <span className="block text-[10px] text-gray-400">Propor horários de call</span>
+                                                    </SelectItem>
+                                                    <SelectItem value="HANDLE_OBJECTION">
+                                                        <span className="font-medium">🛡️ Tratar Objeção</span>
+                                                        <span className="block text-[10px] text-gray-400">Contornar resistências</span>
+                                                    </SelectItem>
+                                                    <SelectItem value="PROVIDE_INFO">
+                                                        <span className="font-medium">💬 Responder Dúvidas</span>
+                                                        <span className="block text-[10px] text-gray-400">Fornecer informações</span>
+                                                    </SelectItem>
+                                                    <SelectItem value="RECOVER_COLD">
+                                                        <span className="font-medium">🔥 Recuperar Lead Frio</span>
+                                                        <span className="block text-[10px] text-gray-400">Reengajar leads inativos</span>
+                                                    </SelectItem>
+                                                    <SelectItem value="ONBOARD_USER">
+                                                        <span className="font-medium">🚀 Onboarding</span>
+                                                        <span className="block text-[10px] text-gray-400">Guiar primeiros passos</span>
+                                                    </SelectItem>
+                                                    <SelectItem value="SUPPORT_TICKET">
+                                                        <span className="font-medium">🎧 Suporte</span>
+                                                        <span className="block text-[10px] text-gray-400">Resolver problemas</span>
+                                                    </SelectItem>
+                                                    <SelectItem value="CUSTOM">
+                                                        <span className="font-medium">⚙️ Personalizado</span>
+                                                        <span className="block text-[10px] text-gray-400">Objetivo customizado</span>
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        {/* Custom Objective Text (only shows for CUSTOM) */}
+                                        {formData.goal === 'CUSTOM' && (
+                                            <div className="space-y-2 animate-in fade-in">
+                                                <Label className="text-xs text-gray-500">Objetivo Personalizado</Label>
+                                                <Textarea
+                                                    rows={2}
+                                                    value={formData.custom_objective || ''}
+                                                    onChange={(e) => handleChange('custom_objective', e.target.value)}
+                                                    placeholder="Descreva o objetivo específico deste passo..."
+                                                    className="bg-white/80 border-blue-200 text-sm resize-none rounded-xl"
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* Allowed CTAs */}
+                                        <div className="space-y-2 pt-2">
+                                            <Label className="text-xs text-gray-500">CTAs Permitidos</Label>
+                                            <p className="text-[10px] text-gray-400">Ações que o agente pode sugerir</p>
+                                            <ToggleGroup
+                                                type="multiple"
+                                                variant="outline"
+                                                value={formData.allowed_ctas || []}
+                                                onValueChange={(val) => handleChange('allowed_ctas', val)}
+                                                className="justify-start flex-wrap gap-2"
+                                            >
+                                                {[
+                                                    { value: 'ASK_QUESTION', label: 'Pergunta' },
+                                                    { value: 'PROPOSE_DEMO', label: 'Demo' },
+                                                    { value: 'SEND_PROPOSAL', label: 'Proposta' },
+                                                    { value: 'SCHEDULE_CALL', label: 'Agendar' },
+                                                    { value: 'CONFIRM_INTEREST', label: 'Confirmar' },
+                                                    { value: 'REQUEST_HANDOFF', label: 'Humano' },
+                                                ].map(cta => (
+                                                    <ToggleGroupItem
+                                                        key={cta.value}
+                                                        value={cta.value}
+                                                        aria-label={`Toggle ${cta.label}`}
+                                                        className="h-8 px-3 text-xs data-[state=on]:bg-blue-100 data-[state=on]:text-blue-700 data-[state=on]:border-blue-200 hover:bg-white hover:text-blue-600"
+                                                    >
+                                                        {cta.label}
+                                                    </ToggleGroupItem>
+                                                ))}
+                                            </ToggleGroup>
+                                        </div>
+
+                                        {/* Success Criteria (only if slots are selected) */}
+                                        {(formData.criticalSlots?.length > 0) && (
+                                            <div className="space-y-2 pt-2 animate-in fade-in">
+                                                <Label className="text-xs text-gray-500">Critério de Sucesso</Label>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-xs text-gray-500">Avançar quando</span>
+                                                    <Select
+                                                        value={String(formData.success_criteria?.min_slots_filled || formData.criticalSlots?.length || 1)}
+                                                        onValueChange={(v) => handleChange('success_criteria', { min_slots_filled: parseInt(v) })}
+                                                    >
+                                                        <SelectTrigger className="w-16 h-8 rounded-lg bg-white/80 text-center">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {[1, 2, 3, 4, 5].filter(n => n <= (formData.criticalSlots?.length || 5)).map(n => (
+                                                                <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <span className="text-xs text-gray-500">slots preenchidos</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 <div className="space-y-2">
                                     <Label className="text-xs text-gray-500 pl-1">Instrução Extra (Opcional)</Label>
                                     <Textarea
@@ -627,64 +759,281 @@ export function NodeEditorPanel({ selectedNode, onClose, onUpdateNode }: NodeEdi
                                     />
                                 </div>
 
-                                {/* Product Configuration (New Feature) */}
-                                <Separator className="bg-gray-100" />
-                                <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-bottom-1 delay-100">
+                                {/* Business Context Configuration (Node-Local) */}
+                                <div className="space-y-4 pt-4 border-t border-gray-100">
                                     <div className="flex items-center gap-2">
-                                        <Tag className="w-4 h-4 text-purple-600" />
-                                        <Label className="text-sm font-semibold text-gray-900">Venda de Produto/Serviço</Label>
+                                        <Building2 className="w-4 h-4 text-gray-600" />
+                                        <Label className="text-sm font-semibold text-gray-900">Contexto do Negócio</Label>
                                     </div>
-                                    <p className="text-[11px] text-gray-500 leading-tight">
-                                        Ensine o Agente sobre o que ele deve vender NESTE passo.
+                                    <p className="text-[11px] text-gray-500">
+                                        Quem você é neste momento da conversa? (Ramo, experiência, diferencial da empresa)
                                     </p>
 
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-3">
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <Label className="text-[10px] text-gray-400 uppercase">Nome Comercial</Label>
+                                                <Input
+                                                    value={formData.company_context?.name || ''}
+                                                    onChange={(e) => handleChange('company_context', {
+                                                        ...formData.company_context,
+                                                        name: e.target.value
+                                                    })}
+                                                    placeholder="Ex: Oficina do Carlos"
+                                                    className="h-9 text-xs bg-white/50"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-[10px] text-gray-400 uppercase">Ramo/Atividade</Label>
+                                                <Input
+                                                    value={formData.company_context?.industry || ''}
+                                                    onChange={(e) => handleChange('company_context', {
+                                                        ...formData.company_context,
+                                                        industry: e.target.value
+                                                    })}
+                                                    placeholder="Ex: Centro Automotivo"
+                                                    className="h-9 text-xs bg-white/50"
+                                                />
+                                            </div>
+                                        </div>
+
                                         <div className="space-y-1">
-                                            <Label className="text-[10px] text-gray-400 uppercase">Nome do Item</Label>
-                                            <Input
-                                                value={formData.product?.name || ''}
-                                                onChange={(e) => handleChange('product', { ...formData.product, name: e.target.value })}
-                                                placeholder="ex: Troca de Óleo"
-                                                className="h-9 text-xs bg-white/50"
+                                            <Label className="text-[10px] text-gray-400 uppercase">Proposta de Valor (Pitch)</Label>
+                                            <Textarea
+                                                rows={3}
+                                                value={formData.company_context?.value_proposition || ''}
+                                                onChange={(e) => handleChange('company_context', {
+                                                    ...formData.company_context,
+                                                    value_proposition: e.target.value
+                                                })}
+                                                placeholder="Ex: Especialistas em injeção eletrônica com diagnóstico em 15min. Atendemos todas as marcas com garantia de 6 meses."
+                                                className="text-xs resize-none bg-white/50"
                                             />
                                         </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-[10px] text-gray-400 uppercase">Preço</Label>
-                                            <Input
-                                                value={formData.product?.price || ''}
-                                                onChange={(e) => handleChange('product', { ...formData.product, price: e.target.value })}
-                                                placeholder="ex: R$ 150,00"
-                                                className="h-9 text-xs bg-white/50"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <Label className="text-[10px] text-gray-400 uppercase">Argumento de Venda (Benefício)</Label>
-                                        <Textarea
-                                            rows={2}
-                                            value={formData.product?.description || ''}
-                                            onChange={(e) => handleChange('product', { ...formData.product, description: e.target.value })}
-                                            placeholder="O que o cliente ganha com isso? (ex: Economia de combustível)"
-                                            className="min-h-[60px] text-xs resize-none bg-white/50"
-                                        />
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <Label className="text-[10px] text-gray-400 uppercase">Diferenciais (Separe por vírgula)</Label>
-                                        <Input
-                                            value={Array.isArray(formData.product?.differentials) ? formData.product.differentials.join(', ') : (formData.product?.differentials || '')}
-                                            onChange={(e) => handleChange('product', { ...formData.product, differentials: e.target.value.split(',').map((s: string) => s.trim()) })}
-                                            placeholder="Garantia estendida, Café grátis, Parcelamento em 10x..."
-                                            className="h-9 text-xs bg-white/50"
-                                        />
                                     </div>
                                 </div>
 
+                                {/* Industry Vertical Selection (NEW) */}
+                                <div className="space-y-4 pt-4 border-t border-gray-100">
+                                    <div className="space-y-3">
+                                        <Label className="text-xs font-semibold text-gray-500 uppercase tracking-widest">
+                                            Vertical de Negócio
+                                        </Label>
+                                        <Select
+                                            value={formData.industry_vertical || 'oficina_mecanica'}
+                                            onValueChange={(v) => handleChange('industry_vertical', v)}
+                                        >
+                                            <SelectTrigger className="h-10 text-xs bg-white/50 border-gray-200">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="oficina_mecanica">
+                                                    <div className="flex items-center gap-2">
+                                                        <Car className="w-4 h-4 text-blue-600" />
+                                                        <span>Oficina Mecânica</span>
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="advocacia">
+                                                    <div className="flex items-center gap-2">
+                                                        <Scale className="w-4 h-4 text-yellow-600" />
+                                                        <span>Advocacia</span>
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="assistencia_tecnica">
+                                                    <div className="flex items-center gap-2">
+                                                        <Smartphone className="w-4 h-4 text-green-600" />
+                                                        <span>Assistência Técnica</span>
+                                                    </div>
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {/* Conditional Vertical Fields */}
+                                    {(formData.industry_vertical === 'advocacia') && (
+                                        <div className="space-y-4 p-4 bg-yellow-50/50 border border-yellow-100 rounded-xl animate-in fade-in zoom-in-95 duration-200">
+                                            <h4 className="text-sm font-semibold text-yellow-900 flex items-center gap-2">
+                                                <Scale className="w-4 h-4" /> Configuração Jurídica
+                                            </h4>
+
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] text-gray-400 uppercase">Área do Direito</Label>
+                                                <Select
+                                                    value={formData.offer?.context?.area_of_law || ''}
+                                                    onValueChange={(v) => handleChange('offer', {
+                                                        ...formData.offer,
+                                                        context: { ...formData.offer?.context, area_of_law: v }
+                                                    })}
+                                                >
+                                                    <SelectTrigger className="h-9 text-xs bg-white/50"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="trabalhista">Trabalhista</SelectItem>
+                                                        <SelectItem value="civel">Cível</SelectItem>
+                                                        <SelectItem value="previdenciario">Previdenciário</SelectItem>
+                                                        <SelectItem value="familia">Família</SelectItem>
+                                                        <SelectItem value="tributario">Tributário</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] text-gray-400 uppercase">Estrutura de Honorários</Label>
+                                                <Select
+                                                    value={formData.offer?.context?.fee_structure || ''}
+                                                    onValueChange={(v) => handleChange('offer', {
+                                                        ...formData.offer,
+                                                        context: { ...formData.offer?.context, fee_structure: v }
+                                                    })}
+                                                >
+                                                    <SelectTrigger className="h-9 text-xs bg-white/50"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="contingency">Êxito (Só paga se ganhar)</SelectItem>
+                                                        <SelectItem value="hourly">Hora Técnica</SelectItem>
+                                                        <SelectItem value="fixed">Valor Fechado</SelectItem>
+                                                        <SelectItem value="hybrid">Híbrido</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div className="flex gap-2 p-3 bg-yellow-100/50 rounded-lg text-yellow-800 text-[10px] items-start">
+                                                <AlertTriangle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                                                <p>O agente respeitará o Código de Ética da OAB (sem promessa de resultado).</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {(formData.industry_vertical === 'assistencia_tecnica') && (
+                                        <div className="space-y-4 p-4 bg-green-50/50 border border-green-100 rounded-xl animate-in fade-in zoom-in-95 duration-200">
+                                            <h4 className="text-sm font-semibold text-green-900 flex items-center gap-2">
+                                                <Smartphone className="w-4 h-4" /> Configuração Técnica
+                                            </h4>
+
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] text-gray-400 uppercase">Modelo do Aparelho (Contexto)</Label>
+                                                <Input
+                                                    value={formData.offer?.context?.device_model || ''}
+                                                    onChange={(e) => handleChange('offer', {
+                                                        ...formData.offer,
+                                                        context: { ...formData.offer?.context, device_model: e.target.value }
+                                                    })}
+                                                    placeholder="ex: iPhone 15 Pro, Samsung S23"
+                                                    className="h-9 text-xs bg-white/50"
+                                                />
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] text-gray-400 uppercase">Flags de Serviço</Label>
+                                                <ToggleGroup
+                                                    type="multiple"
+                                                    variant="outline"
+                                                    className="justify-start flex-wrap gap-2"
+                                                    value={formData.offer?.context?.flags || []}
+                                                    onValueChange={(vals) => handleChange('offer', {
+                                                        ...formData.offer,
+                                                        context: { ...formData.offer?.context, flags: vals }
+                                                    })}
+                                                >
+                                                    <ToggleGroupItem value="warranty" className="h-7 text-[10px]">Garantia Ativa</ToggleGroupItem>
+                                                    <ToggleGroupItem value="original_parts" className="h-7 text-[10px]">Peça Original</ToggleGroupItem>
+                                                    <ToggleGroupItem value="express" className="h-7 text-[10px]">Expresso</ToggleGroupItem>
+                                                </ToggleGroup>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <Label className="text-[10px] text-gray-400 uppercase">Tempo (Est.)</Label>
+                                                    <Input
+                                                        value={formData.offer?.context?.estimated_time || ''}
+                                                        onChange={(e) => handleChange('offer', {
+                                                            ...formData.offer,
+                                                            context: { ...formData.offer?.context, estimated_time: e.target.value }
+                                                        })}
+                                                        placeholder="ex: 2h"
+                                                        className="h-9 text-xs bg-white/50"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label className="text-[10px] text-gray-400 uppercase">Taxa Diag.</Label>
+                                                    <Input
+                                                        value={formData.offer?.context?.diagnostic_fee || ''}
+                                                        onChange={(e) => handleChange('offer', {
+                                                            ...formData.offer,
+                                                            context: { ...formData.offer?.context, diagnostic_fee: e.target.value }
+                                                        })}
+                                                        placeholder="ex: Grátis"
+                                                        className="h-9 text-xs bg-white/50"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {(!formData.industry_vertical || formData.industry_vertical === 'oficina_mecanica') && (
+                                        <div className="animate-in fade-in zoom-in-95 duration-200">
+                                            {/* Standard Product Config (Already implemented below, just wrapped or kept outside) */}
+                                            {/* We leave the existing product config visible for 'oficina_mecanica' or default */}
+                                        </div>
+                                    )}
+
+                                    {/* Product Configuration (New Feature) */}
+                                    <Separator className="bg-gray-100" />
+                                    <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-bottom-1 delay-100">
+                                        <div className="flex items-center gap-2">
+                                            <Tag className="w-4 h-4 text-purple-600" />
+                                            <Label className="text-sm font-semibold text-gray-900">Venda de Produto/Serviço</Label>
+                                        </div>
+                                        <p className="text-[11px] text-gray-500 leading-tight">
+                                            Ensine o Agente sobre o que ele deve vender NESTE passo.
+                                        </p>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <Label className="text-[10px] text-gray-400 uppercase">Nome do Item</Label>
+                                                <Input
+                                                    value={formData.product?.name || ''}
+                                                    onChange={(e) => handleChange('product', { ...formData.product, name: e.target.value })}
+                                                    placeholder="ex: Troca de Óleo"
+                                                    className="h-9 text-xs bg-white/50"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-[10px] text-gray-400 uppercase">Preço</Label>
+                                                <Input
+                                                    value={formData.product?.price || ''}
+                                                    onChange={(e) => handleChange('product', { ...formData.product, price: e.target.value })}
+                                                    placeholder="ex: R$ 150,00"
+                                                    className="h-9 text-xs bg-white/50"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <Label className="text-[10px] text-gray-400 uppercase">Argumento de Venda (Benefício)</Label>
+                                            <Textarea
+                                                rows={2}
+                                                value={formData.product?.description || ''}
+                                                onChange={(e) => handleChange('product', { ...formData.product, description: e.target.value })}
+                                                placeholder="O que o cliente ganha com isso? (ex: Economia de combustível)"
+                                                className="min-h-[60px] text-xs resize-none bg-white/50"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <Label className="text-[10px] text-gray-400 uppercase">Diferenciais (Separe por vírgula)</Label>
+                                            <Input
+                                                value={Array.isArray(formData.product?.differentials) ? formData.product.differentials.join(', ') : (formData.product?.differentials || '')}
+                                                onChange={(e) => handleChange('product', { ...formData.product, differentials: e.target.value.split(',').map((s: string) => s.trim()) })}
+                                                placeholder="Garantia estendida, Café grátis, Parcelamento em 10x..."
+                                                className="h-9 text-xs bg-white/50"
+                                            />
+                                        </div>
+                                    </div>
+
+                                </div>
                             </div>
                         )}
                     </div>
-                </ScrollArea>
+                </div>
 
                 {/* Footer */}
                 <div className="p-4 border-t border-gray-100 bg-gray-50/50 backdrop-blur-sm flex justify-between items-center">

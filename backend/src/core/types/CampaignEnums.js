@@ -304,6 +304,49 @@ const RecoveryStrategyEnum = {
 };
 
 // ============================================================================
+// 14. NODE GOAL ENUMS (What the node wants to achieve)
+// ============================================================================
+const NodeGoalEnum = {
+    QUALIFY_LEAD: 'QUALIFY_LEAD',           // Fill BANT/SPIN slots
+    CLOSE_SALE: 'CLOSE_SALE',               // Close the deal
+    SCHEDULE_MEETING: 'SCHEDULE_MEETING',   // Schedule a meeting/call
+    HANDLE_OBJECTION: 'HANDLE_OBJECTION',   // Handle objection
+    PROVIDE_INFO: 'PROVIDE_INFO',           // Answer questions
+    RECOVER_COLD: 'RECOVER_COLD',           // Re-engage cold lead
+    ONBOARD_USER: 'ONBOARD_USER',           // User onboarding
+    SUPPORT_TICKET: 'SUPPORT_TICKET',       // Customer support
+    CUSTOM: 'CUSTOM'                        // Custom objective (freetext)
+};
+
+// ============================================================================
+// 15. ALLOWED CTA ENUMS (What actions the node can suggest)
+// ============================================================================
+const AllowedCtaEnum = {
+    ASK_QUESTION: 'ASK_QUESTION',
+    PROPOSE_DEMO: 'PROPOSE_DEMO',
+    SEND_PROPOSAL: 'SEND_PROPOSAL',
+    SCHEDULE_CALL: 'SCHEDULE_CALL',
+    CONFIRM_INTEREST: 'CONFIRM_INTEREST',
+    REQUEST_HANDOFF: 'REQUEST_HANDOFF',
+    CLOSE_CONVERSATION: 'CLOSE_CONVERSATION',
+    NONE: 'NONE'  // Just continue conversation
+};
+
+// ============================================================================
+// 16. QUALIFICATION SLOT ENUMS (Standard qualification fields)
+// ============================================================================
+const QualificationSlotEnum = {
+    BUDGET: 'budget',
+    AUTHORITY: 'authority',
+    NEED: 'need',
+    TIMELINE: 'timeline',
+    SOLUTION: 'solution',
+    COMPETITOR: 'competitor',
+    PAIN_POINT: 'pain_point',
+    DECISION_PROCESS: 'decision_process'
+};
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 module.exports = {
@@ -342,5 +385,10 @@ module.exports = {
     // Errors
     WindowStatusEnum,
     WhatsAppErrorEnum,
-    RecoveryStrategyEnum
+    RecoveryStrategyEnum,
+
+    // Node Objectives (NEW)
+    NodeGoalEnum,
+    AllowedCtaEnum,
+    QualificationSlotEnum
 };

@@ -1,5 +1,5 @@
 class WahaProfileController {
-    constructor(wahaClient) {
+    constructor({ wahaClient }) {
         this.waha = wahaClient;
     }
 

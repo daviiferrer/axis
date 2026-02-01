@@ -11,12 +11,8 @@ class ActionNode {
         this.dependencies = dependencies;
     }
 
-    async execute({ instance, lead, campaign, nodeConfig }) {
-        // Fallback for legacy calls
-        const _lead = lead || arguments[0];
-        const _nodeConfig = nodeConfig || arguments[2];
-
-        logger.info({ leadId: _lead?.id, action: _nodeConfig?.data?.action }, 'Executing ActionNode');
+    async execute(lead, campaign, nodeConfig, graph, context) {
+        logger.info({ leadId: lead?.id, action: nodeConfig?.data?.action }, 'Executing ActionNode');
 
         // Example: If action is "update_crm", do it.
         // For now, it's a pass-through.

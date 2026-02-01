@@ -2,6 +2,7 @@ const { createContainer, asClass, asValue, asFunction, InjectionMode, Lifetime }
 const logger = require('./shared/Logger').createModuleLogger('di-container');
 
 // --- Infrastructure ---
+const RedisLockClient = require('./infra/clients/RedisLockClient');
 const { SupabaseClientFactory } = require('./infra/database/SupabaseClientFactory');
 const WahaClient = require('./infra/clients/WahaClient');
 const GeminiClient = require('./infra/clients/GeminiClient');
@@ -21,10 +22,15 @@ const PromptService = require('./core/services/ai/PromptService');
 const CsvParserService = require('./core/services/system/CsvParserService');
 const HealthService = require('./core/services/system/HealthService');
 const AnalyticsService = require('./core/services/analytics/AnalyticsService');
+const DashboardService = require('./core/services/analytics/DashboardService');
+const SchedulingService = require('./core/services/scheduling/SchedulingService');
+const EmbeddingService = require('./core/services/rag/EmbeddingService');
+const HybridSearchService = require('./core/services/rag/HybridSearchService');
 
 // --- Controllers ---
 const SettingsController = require('./api/controllers/system/SettingsController');
 const AnalyticsController = require('./api/controllers/analytics/AnalyticsController');
+const DashboardController = require('./api/controllers/analytics/DashboardController');
 const AdminController = require('./api/controllers/system/AdminController');
 const CampaignController = require('./api/controllers/campaign/CampaignController');
 const OracleController = require('./api/controllers/chat/OracleController');
@@ -46,6 +52,7 @@ const WahaMediaController = require('./api/controllers/waha/WahaMediaController'
 const WahaObservabilityController = require('./api/controllers/waha/WahaObservabilityController');
 const WahaScreenshotController = require('./api/controllers/waha/WahaScreenshotController');
 const CompanyController = require('./api/controllers/system/CompanyController');
+const SchedulingController = require('./api/controllers/scheduling/SchedulingController');
 
 // --- Engines ---
 const WorkflowEngine = require('./core/engines/workflow/WorkflowEngine');
@@ -88,6 +95,9 @@ function configureContainer() {
         geminiClient: asClass(GeminiClient).singleton(),
         ragClient: asClass(RagClient).singleton(),
 
+        // Distributed Locking (for multi-instance scalability)
+        redisLockClient: asClass(RedisLockClient).singleton(),
+
         // 3. Core Services (Scoped by default for user context isolation if needed)
         // If they are strictly stateless, singleton is fine, but Scoped is safer for future context.
         companyService: asClass(CompanyService).scoped(),
@@ -112,6 +122,12 @@ function configureContainer() {
         // System & Analytics
         healthService: asClass(HealthService).singleton(),
         analyticsService: asClass(AnalyticsService).scoped(),
+        dashboardService: asClass(DashboardService).scoped(),
+        schedulingService: asClass(SchedulingService).scoped(),
+
+        // RAG Services (optional - disabled without API keys)
+        embeddingService: asClass(EmbeddingService).singleton(),
+        hybridSearchService: asClass(HybridSearchService).singleton(),
 
         // Singletons (Stateful/Global)
         // Singletons (Stateful/Global)
@@ -146,6 +162,8 @@ function configureContainer() {
         // 4. Controllers (Registered as PROXY by default in this container)
         settingsController: asClass(SettingsController),
         analyticsController: asClass(AnalyticsController),
+        dashboardController: asClass(DashboardController),
+        schedulingController: asClass(SchedulingController),
         adminController: asClass(AdminController),
         campaignController: asClass(CampaignController),
         oracleController: asClass(OracleController),

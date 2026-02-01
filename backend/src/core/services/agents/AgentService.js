@@ -2,6 +2,7 @@
  * AgentService - Core Service for AI Agent Management
  */
 const logger = require('../../../shared/Logger').createModuleLogger('agent-service');
+const { AgentModels } = require('../../../config/AgentModels');
 
 class AgentService {
     constructor({ supabaseClient, settingsService }) {
@@ -152,8 +153,12 @@ class AgentService {
      * Atualizado para Gemini 2.5 Flash (Melhor custo-benefício)
      */
     #getDefaultModel(provider) {
+        // Simple mapping for now, assuming Gemini is main focus
+        if (provider === 'gemini') {
+            return AgentModels.GEMINI_2_5_FLASH;
+        }
+
         const defaults = {
-            'gemini': 'gemini-2.5-flash',
             'openai': 'gpt-4o-mini',
             'anthropic': 'claude-3-sonnet'
         };
@@ -163,8 +168,8 @@ class AgentService {
             return defaultModel;
         }
 
-        // Se não houver default configurado, lança erro
-        throw new Error(`ERRO: Modelo não especificado. Informe 'model' ao criar o agente.`);
+        // Default global fallback
+        return AgentModels.GEMINI_2_5_FLASH;
     }
 }
 

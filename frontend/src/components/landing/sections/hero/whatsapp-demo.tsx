@@ -335,14 +335,44 @@ export function WhatsappDemo() {
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="pointer-events-auto relative z-20 w-full max-w-[340px] h-auto flex flex-col gap-4 font-sans"
+            className="pointer-events-auto relative z-20 w-full max-w-[300px] h-auto flex flex-col gap-4 font-sans"
         >
+
+            {/* Thinking Background Ambient Effect */}
+            <AnimatePresence>
+                {currentThinking && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.8 }}
+                        className="absolute inset-0 -z-10 overflow-hidden pointer-events-none"
+                    >
+                        <motion.div
+                            animate={{
+                                background: [
+                                    "radial-gradient(circle at 50% 120%, rgba(168, 85, 247, 0.4) 0%, transparent 50%)", // Purple hint from bottom
+                                    "radial-gradient(circle at 10% 120%, rgba(59, 130, 246, 0.4) 0%, transparent 50%)", // Blue hint from left-bottom
+                                    "radial-gradient(circle at 90% 120%, rgba(16, 185, 129, 0.4) 0%, transparent 50%)", // Emerald hint from right-bottom
+                                ]
+                            }}
+                            transition={{
+                                duration: 2.5,
+                                repeat: Infinity,
+                                repeatType: "mirror",
+                                ease: "easeInOut"
+                            }}
+                            className="absolute inset-0 w-full h-full blur-3xl opacity-70"
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Floating Header Removed */}
 
             {/* Infinite Scroll Area */}
             <div
-                className="flex flex-col gap-3 relative h-[400px] overflow-hidden justify-end pb-2"
+                className="flex flex-col gap-3 relative h-[380px] overflow-hidden justify-end pb-2"
                 style={{
                     maskImage: 'linear-gradient(to bottom, transparent 0%, black 25%, black 100%)',
                     WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 25%, black 100%)'
@@ -360,18 +390,23 @@ export function WhatsappDemo() {
                             layout
                             className={`flex flex-col max-w-[90%] z-10 ${msg.type === 'bot' ? 'self-start' : 'self-end items-end'}`}
                         >
-                            <span className={`text-[10px] text-gray-500 mb-1 px-1 ${msg.type === 'bot' ? 'text-left' : 'text-right'}`}>
+                            <span className={`text-[9px] text-gray-500 mb-1 px-1 ${msg.type === 'bot' ? 'text-left' : 'text-right'}`}>
                                 {msg.type === 'bot' ? `Áxis AI • ${msg.agentRole} ${msg.agentName}` : msg.sender}
                             </span>
-                            <div className={`p-3 rounded-2xl max-w-full ${msg.type === 'bot' ? 'bg-gray-100 rounded-tl-sm text-gray-800 text-left' : 'bg-[#155dfc]/10 rounded-tr-sm text-gray-900 text-right'}`}>
-                                <p className="text-sm font-normal leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                            <div className={`p-2.5 rounded-2xl max-w-full ${msg.type === 'bot' ? 'bg-gray-100 rounded-tl-sm text-gray-800 text-left' : 'bg-[#155dfc]/10 rounded-tr-sm text-gray-900 text-right'}`}>
+                                <p className="text-[13px] font-normal leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                             </div>
                         </motion.div>
                     ))}
 
                     {/* Thinking Text - Text Generate Effect */}
                     {currentThinking && (
-                        <div className="flex flex-col gap-1 self-start px-2 mt-2 max-w-[85%]">
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            className="flex flex-col gap-1 self-start px-2 mt-2 max-w-[85%]"
+                        >
                             <div className="flex items-center gap-2 mb-1">
                                 <div className="relative flex h-1.5 w-1.5">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
@@ -391,7 +426,7 @@ export function WhatsappDemo() {
                                     className="text-[11px] text-gray-500 font-light leading-snug italic"
                                 />
                             </div>
-                        </div>
+                        </motion.div>
                     )}
 
                 </AnimatePresence>

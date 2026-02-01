@@ -1,6 +1,8 @@
 /**
  * PresenceService - Core Service for Presence Monitoring
  */
+const logger = require('../../../shared/Logger').createModuleLogger('presence');
+
 class PresenceService {
     constructor(supabaseClient, wahaClient) {
         this.supabase = supabaseClient;
@@ -28,9 +30,6 @@ class PresenceService {
      * Subscribes to all leads' presence updates.
      */
     async syncAllLeadsPresence() {
-        // console.log('[PresenceService] 🔄 Starting bulk presence subscription...');
-
-
         try {
             const { data: leads, error } = await this.supabase
                 .from('leads')
@@ -42,7 +41,7 @@ class PresenceService {
                 .not('phone', 'is', null);
 
             if (error) {
-                console.error('[PresenceService] DB Error:', error.message);
+                logger.error({ error: error.message }, 'DB error in presence sync');
                 return;
             }
 
@@ -82,11 +81,11 @@ class PresenceService {
             }
 
             if (failCount > 0) {
-                console.log(`[PresenceService] ⚠️ Bulk subscription completed. Success: ${successCount}, Failed: ${failCount}`);
+                logger.warn({ successCount, failCount }, 'Bulk subscription completed with errors');
             }
 
         } catch (error) {
-            console.error('[PresenceService] Error in bulk subscription:', error.message);
+            logger.error({ error: error.message }, 'Error in bulk subscription');
         }
     }
 
@@ -104,7 +103,7 @@ class PresenceService {
             this.syncAllLeadsPresence();
         }, this.SYNC_INTERVAL_MS * 10); // 30s * 10 = 5 min
 
-        console.log(`[PresenceService] ⏰ Periodic sync started (every 5m)`);
+        logger.info('Periodic presence sync started (every 5m)');
     }
 
     /**
@@ -114,9 +113,10 @@ class PresenceService {
         if (this.syncIntervalId) {
             clearInterval(this.syncIntervalId);
             this.syncIntervalId = null;
-            console.log('[PresenceService] Periodic sync stopped.');
+            logger.info('Periodic sync stopped');
         }
     }
 }
 
 module.exports = PresenceService;
+

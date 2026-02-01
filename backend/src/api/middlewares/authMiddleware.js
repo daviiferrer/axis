@@ -2,6 +2,8 @@
  * Authentication Middleware (Refactored for Clean Slate)
  * Uses SupabaseClientFactory and Memberships table.
  */
+const logger = require('../../shared/Logger').createModuleLogger('auth');
+
 const createAuthMiddleware = () => async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
@@ -24,7 +26,7 @@ const createAuthMiddleware = () => async (req, res, next) => {
         const { data: { user }, error } = await supabase.auth.getUser();
 
         if (error || !user) {
-            console.warn('[Auth] Invalid Token:', error?.message);
+            logger.warn({ error: error?.message }, 'Invalid token');
             return res.status(401).json({ error: 'Invalid Token' });
         }
 
@@ -48,7 +50,7 @@ const createAuthMiddleware = () => async (req, res, next) => {
         // We always need the Profile to know System Roles (admin/owner/member)
         const { data: profile } = await supabase
             .from('profiles')
-            .select('id, role, company_id')
+            .select('id, role')
             .eq('id', user.id)
             .single();
 
@@ -56,76 +58,19 @@ const createAuthMiddleware = () => async (req, res, next) => {
             req.user.profile = profile;
         }
 
-        // 5. Fetch Memberships (Context)
-        // We expect the frontend to send 'x-company-id' header if they want a specific context.
-        const targetCompanyId = req.headers['x-company-id'];
-
-        const { data: memberships, error: memError } = await supabase
-            .from('memberships')
-            .select('*')
-            .eq('user_id', user.id);
-
-        if (memError) {
-            console.error('[Auth] Failed to fetch memberships:', memError);
-            return res.status(500).json({ error: 'Failed to load user context' });
+        // 5. User Context (Simplified - No Company/Membership Logic)
+        // We simply trust the user is the OWNER of their own data.
+        if (req.user.profile) {
+            req.user.role = (req.user.profile.role || 'OWNER').toUpperCase();
+        } else {
+            req.user.role = 'OWNER'; // Default to Owner if no profile role
         }
 
-        // Determine Active Membership
-        let activeMembership = null;
-        if (targetCompanyId) {
-            activeMembership = memberships.find(m => m.company_id === targetCompanyId);
-        } else if (memberships.length > 0) {
-            activeMembership = memberships[0];
-        }
-
-        // FALLBACK 1: Profile Link
-        if (!activeMembership && memberships.length === 0 && profile?.company_id) {
-            console.warn(`[Auth] Check 1: Profile Link found ${profile.company_id}`);
-            activeMembership = {
-                user_id: user.id,
-                company_id: profile.company_id,
-                role: profile.role || 'owner',
-                status: 'active'
-            };
-            memberships.push(activeMembership);
-        }
-
-        // FALLBACK 2: Deep Lookup (Check if they own any company directly)
-        if (!activeMembership && memberships.length === 0) {
-            const { data: ownedCompany } = await supabase
-                .from('companies')
-                .select('id')
-                .eq('owner_id', user.id)
-                .limit(1)
-                .single();
-
-            if (ownedCompany) {
-                console.warn(`[Auth] Check 2: Found owned company ${ownedCompany.id} (Healing Context)`);
-                activeMembership = {
-                    user_id: user.id,
-                    company_id: ownedCompany.id,
-                    role: 'owner',
-                    status: 'active'
-                };
-                memberships.push(activeMembership);
-            }
-        }
-
-        if (memberships.length > 0 && !activeMembership) {
-            console.warn(`[Auth] User ${user.email} requested company ${targetCompanyId} but has no membership.`);
-            // Allow Viewer access? or Denial? 
-            // Ideally deny if explicit header is wrong.
-            if (targetCompanyId) return res.status(403).json({ error: 'Access Denied to this Company' });
-        }
-
-        req.user.membership = activeMembership;
-        req.user.allMemberships = memberships;
-
-        console.log(`✅ [Auth] User ${user.email} | Company: ${activeMembership?.company_id || 'NONE'}`);
+        logger.debug({ userId: user.id, role: req.user.role }, 'Auth successful');
 
         next();
     } catch (err) {
-        console.error('[Auth] Unexpected error:', err);
+        logger.error({ error: err.message }, 'Unexpected auth error');
         res.status(500).json({ error: 'Internal Authentication Error' });
     }
 };

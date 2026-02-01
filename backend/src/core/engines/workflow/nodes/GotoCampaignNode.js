@@ -2,17 +2,19 @@
  * GotoCampaignNode - Transfers the lead to a different campaign.
  * Useful for Triage -> Sales Funnel transitions.
  */
+const { NodeExecutionStateEnum } = require('../../../types/CampaignEnums');
+
 class GotoCampaignNode {
     constructor({ leadService }) {
         this.leadService = leadService;
     }
 
-    async execute(lead, campaign, nodeConfig) {
+    async execute(lead, campaign, nodeConfig, graph, context) {
         const targetCampaignId = nodeConfig.data?.target_campaign_id;
 
         if (!targetCampaignId) {
             return {
-                status: 'error',
+                status: NodeExecutionStateEnum.FAILED,
                 error: 'Target Campaign ID is required for GotoCampaignNode'
             };
         }
@@ -22,7 +24,7 @@ class GotoCampaignNode {
         // Instead, we return a special action/state that the Engine understands.
 
         return {
-            status: 'success',
+            status: NodeExecutionStateEnum.EXITED,
             markExecuted: true,
             // The Engine will see this action and handle the DB migration
             action: 'transfer_campaign',

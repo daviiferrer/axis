@@ -13,7 +13,7 @@ import {
     SelectValue,
 } from "@/components/ui/forms/select"
 import { Switch } from "@/components/ui/switch"
-import { ArrowLeft, Save, Bot, Brain, Activity, Clock, MessageSquare, Zap } from "lucide-react"
+import { ArrowLeft, Save, Bot, Brain, Activity, Clock, MessageSquare, Zap, Users, GitBranch, Briefcase } from "lucide-react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
@@ -28,6 +28,10 @@ import {
 
 // Default DNA Config
 const DEFAULT_DNA: DNAConfig = {
+    identity: {
+        role: 'SDR',
+        company: 'Sua Empresa'
+    },
     psychometrics: {
         openness: 'MEDIUM',
         conscientiousness: 'HIGH',
@@ -274,28 +278,37 @@ export default function AgentDNAEditorPage() {
                                 </div>
 
                                 <div>
-                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Função Principal</label>
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Função Principal (Cargo)</label>
                                     <div className="grid grid-cols-1 gap-2">
                                         {[
-                                            { id: 'Sales Development Representative', label: 'SDR / Vendas', icon: Zap },
-                                            { id: 'Customer Support Specialist', label: 'Suporte / SAC', icon: MessageSquare },
-                                        ].map(role => (
-                                            <div
-                                                key={role.id}
-                                                onClick={() => setDescription(role.id)}
-                                                className={`
-                                                    cursor-pointer p-2.5 rounded-lg border flex items-center gap-3 transition-all
-                                                    ${description === role.id ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-200' : 'bg-white hover:bg-gray-50 border-gray-200'}
-                                                `}
-                                            >
-                                                <div className={`p-1.5 rounded-md ${description === role.id ? 'bg-blue-200 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
-                                                    <role.icon className="h-4 w-4" />
+                                            { id: 'SDR', label: 'SDR / Vendas', icon: Zap, desc: 'Qualificação e Agendamento' },
+                                            { id: 'SUPPORT', label: 'Suporte / SAC', icon: MessageSquare, desc: 'Resolução de Problemas' },
+                                            { id: 'CONCIERGE', label: 'Triagem / Recepção', icon: GitBranch, desc: 'Direcionamento de Fluxo' },
+                                            { id: 'CONSULTANT', label: 'Consultor Técnico', icon: Brain, desc: 'Educação Profunda' },
+                                            { id: 'EXECUTIVE', label: 'Executivo / Closer', icon: Briefcase, desc: 'Negociação e Fechamento' },
+                                        ].map(role => {
+                                            const isSelected = (dna.identity?.role === role.id) || (!dna.identity?.role && role.id === 'SDR');
+                                            return (
+                                                <div
+                                                    key={role.id}
+                                                    onClick={() => updateDna('identity', 'role', role.id)}
+                                                    className={`
+                                                        cursor-pointer p-2.5 rounded-lg border flex items-center gap-3 transition-all
+                                                        ${isSelected ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-200' : 'bg-white hover:bg-gray-50 border-gray-200'}
+                                                    `}
+                                                >
+                                                    <div className={`p-1.5 rounded-md ${isSelected ? 'bg-blue-200 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                        <role.icon className="h-4 w-4" />
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className={`text-sm font-medium ${isSelected ? 'text-blue-900' : 'text-gray-600'}`}>
+                                                            {role.label}
+                                                        </span>
+                                                        <span className="text-[10px] text-gray-400 leading-none mt-0.5">{role.desc}</span>
+                                                    </div>
                                                 </div>
-                                                <span className={`text-sm font-medium ${description === role.id ? 'text-blue-900' : 'text-gray-600'}`}>
-                                                    {role.label}
-                                                </span>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </CardContent>

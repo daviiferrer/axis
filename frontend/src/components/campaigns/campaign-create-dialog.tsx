@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,7 +14,7 @@ export function CampaignCreateDialog({ onSuccess }: { onSuccess: () => void }) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [name, setName] = useState('');
-    const [sessionName, setSessionName] = useState(''); // New State for Session
+
 
     const handleCreate = async () => {
         if (!name.trim()) {
@@ -27,12 +27,11 @@ export function CampaignCreateDialog({ onSuccess }: { onSuccess: () => void }) {
             await campaignService.createCampaign({
                 name,
                 type: 'inbound',
-                waha_session_name: sessionName || 'default' // Fallback to default if empty
             });
             toast.success('Campanha criada com sucesso! 🚀');
             setOpen(false);
             setName('');
-            setSessionName('');
+
             onSuccess();
         } catch (error) {
             console.error(error);
@@ -62,7 +61,7 @@ export function CampaignCreateDialog({ onSuccess }: { onSuccess: () => void }) {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.1 }}
                         >
-                            <h2 className="text-2xl font-bold text-white tracking-tight">Nova Campanha</h2>
+                            <DialogTitle className="text-2xl font-bold text-white tracking-tight">Nova Campanha</DialogTitle>
                             <p className="text-blue-100 text-sm mt-1 font-medium">Configure a Inteligência da Campanha</p>
                         </motion.div>
                     </div>
@@ -81,17 +80,7 @@ export function CampaignCreateDialog({ onSuccess }: { onSuccess: () => void }) {
                         />
                     </div>
 
-                    <div className="space-y-3">
-                        <Label htmlFor="session" className="text-sm font-bold text-gray-500 uppercase tracking-wider">Sessão do WhatsApp (WAHA)</Label>
-                        <Input
-                            id="session"
-                            value={sessionName}
-                            onChange={(e) => setSessionName(e.target.value)}
-                            placeholder="Ex: franklyn_advogado"
-                            className="bg-gray-50 border-gray-200 focus:bg-white transition-all rounded-xl"
-                        />
-                        <p className="text-xs text-gray-400">Nome da sessão criada no painel do WAHA.</p>
-                    </div>
+
                 </div>
 
                 <div className="p-6 bg-gray-50/80 border-t border-gray-100 flex justify-end gap-3">

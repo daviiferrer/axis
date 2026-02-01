@@ -49,6 +49,8 @@ import {
 } from "@/components/ui/context-menu"
 import { useSocket } from "@/context/SocketContext"
 import { Trash2 } from "lucide-react"
+import { motion, useMotionValue, useSpring, useTransform, useMotionTemplate } from "framer-motion"
+import SentimentDisplay from "@/components/SentimentSlider/SentimentDisplay"
 
 import { wahaService, WahaSession, WahaChat } from "@/services/waha"
 
@@ -376,7 +378,10 @@ export default function ChatsPage() {
     // Initialize from localStorage if available to avoid loading flicker
     const [currentSession, setCurrentSession] = useState<string | null>(() => {
         if (typeof window !== 'undefined') {
-            return localStorage.getItem('lastSession')
+            const saved = localStorage.getItem('lastSession')
+            // FIX: Force clear 'Teste_2' if found (invalid session causing issues)
+            if (saved === 'Teste_2') return null
+            return saved
         }
         return null
     })
@@ -583,6 +588,7 @@ export default function ChatsPage() {
                         chat={selectedChat}
                         messages={messages || []}
                         onSendMessage={handleSendMessage}
+                        user={user}
                     />
                 )}
             </div>
@@ -599,19 +605,50 @@ function ChatWindow({
     session: string,
     chat: WahaChat,
     messages: WahaMessage[],
-    onSendMessage: (text: string) => void
+    onSendMessage: (text: string) => void,
+    user: any
 }) {
     const [input, setInput] = useState("")
-    const scrollRef = useRef<HTMLDivElement>(null)
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Dynamic User Info
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || "Usuário";
+    const userRole = user?.role || "Admin"; // Provided by AuthContext custom enrichment
+
+    // --- Sentiment Logic (Visual Integration) ---
+    const [aiSentiment, setAiSentiment] = useState(2);
+    const motionValue = useMotionValue(aiSentiment);
+    useEffect(() => { motionValue.set(aiSentiment); }, [aiSentiment, motionValue]);
+
+    const smoothValue = useSpring(motionValue, { stiffness: 300, damping: 30, mass: 0.8 });
+
+    // Map 0-4 to background colors
+    const headerBgColor = useTransform(
+        smoothValue,
+        [0, 1, 2, 3, 4],
+        ['#FEF2F2', '#FFFBEB', '#ffffff', '#F0FDF4', '#ECFDF5']
+    );
+
+    // Gradient bleed definition
+    const bodyGradientStart = useTransform(
+        smoothValue,
+        [0, 1, 2, 3, 4],
+        ['rgba(254, 242, 242, 1)', 'rgba(255, 251, 235, 1)', 'rgba(255, 255, 255, 0)', 'rgba(240, 253, 244, 1)', 'rgba(236, 253, 245, 1)']
+    );
+
+    // --- Scroll Fade Logic ---
+    const scrollTop = useMotionValue(0);
+    const distBottom = useMotionValue(0);
+
+    // Smooth opacity mapping
+    const maskTopColor = useTransform(scrollTop, [0, 60], ["black", "transparent"]);
+    const maskBottomColor = useTransform(distBottom, [0, 60], ["black", "transparent"]);
+
+    const maskImage = useMotionTemplate`linear-gradient(to bottom, ${maskTopColor} 0px, black 100px, black calc(100% - 100px), ${maskBottomColor} 100%)`;
 
     // Auto-scroll to bottom on new messages
     useEffect(() => {
-        if (scrollRef.current) {
-            const scrollContainer = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
-            if (scrollContainer) {
-                scrollContainer.scrollTop = scrollContainer.scrollHeight;
-            }
-        }
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages])
 
     const [presence, setPresence] = useState<{ status: 'online' | 'offline', lastSeen?: number }>({ status: 'offline' })
@@ -649,9 +686,11 @@ function ChatWindow({
     return (
         <div className="flex flex-col h-full w-full overflow-hidden">
             {/* Header */}
-            <div className="h-16 shrink-0 border-b border-border px-6 flex items-center justify-between bg-white/80 backdrop-blur sticky top-0 z-10">
+            <motion.div
+                className="h-16 shrink-0 border-b border-border px-6 flex items-center justify-between sticky top-0 z-50 transition-colors bg-white/80 backdrop-blur-md"
+            >
                 <div className="flex items-center gap-3">
-                    <Avatar className="size-9 ring-2 ring-white shadow-sm">
+                    <Avatar className="size-9 ring-2 ring-white/50 shadow-sm">
                         <AvatarImage src={chat.image} />
                         <AvatarFallback>{chat.name?.substring(0, 1)}</AvatarFallback>
                     </Avatar>
@@ -669,8 +708,7 @@ function ChatWindow({
                                 )}
                             </span>
                         ) : presence.status === 'online' ? (
-                            <span className="text-xs text-green-600 flex items-center gap-1.5 font-medium">
-                                <span className="size-1.5 rounded-full bg-green-500" />
+                            <span className="text-xs text-green-600 font-medium">
                                 Online
                             </span>
                         ) : (
@@ -680,36 +718,87 @@ function ChatWindow({
                         )}
                     </div>
                 </div>
+
+                {/* CENTER: Sentiment Display Integration */}
+                <div className="flex-1 flex justify-center mx-4 z-10">
+                    <div className="relative h-10 w-full max-w-[280px] flex items-center justify-center">
+                        <SentimentDisplay
+                            value={aiSentiment}
+                            variant="header"
+                            onManualSelect={setAiSentiment} // Allow tests/demos?
+                        />
+                    </div>
+                </div>
+
                 <Button variant="ghost" size="icon" className="text-gray-400 hover:text-gray-900">
                     <MoreVertical className="size-5" />
                 </Button>
-            </div>
+            </motion.div>
 
             {/* Messages */}
             <div className="flex-1 min-h-0 relative">
-                <ScrollArea ref={scrollRef} className="h-full w-full p-6 bg-slate-50/50">
-                    <div className="max-w-3xl mx-auto flex flex-col gap-4 pb-4">
-                        {messages.map((msg) => (
-                            <div key={msg.id} className={`flex ${msg.fromMe ? "justify-end" : "justify-start"}`}>
-                                <div className={`
-                                    max-w-[70%] rounded-2xl px-5 py-3 text-sm shadow-sm ring-1 ring-inset
-                                    ${msg.fromMe
-                                        ? "bg-blue-600 text-white ring-blue-600 rounded-tr-none"
-                                        : "bg-white text-gray-900 ring-gray-200 rounded-tl-none"
-                                    }
-                                `}>
-                                    <p className="leading-relaxed whitespace-pre-wrap">{msg.body}</p>
-                                    <div className="flex items-center justify-end gap-1 mt-1 opacity-70">
-                                        <span className={`text-[10px] ${msg.fromMe ? "text-blue-100" : "text-gray-400"}`}>
+                {/* Gradient Bleed Overlay */}
+                <motion.div
+                    className="absolute top-0 left-0 w-full h-32 pointer-events-none z-10"
+                    style={{
+                        background: useTransform(
+                            bodyGradientStart,
+                            color => `linear-gradient(to bottom, ${color} 0%, rgba(255,255,255,0) 100%)`
+                        )
+                    }}
+                />
+                {/* --- Messages Container (with fluid fade) --- */}
+                <motion.div
+                    className="flex-1 overflow-y-auto px-4 sm:px-6 pt-6 pb-20 z-10 scrollbar-hide flex flex-col gap-4"
+                    onScroll={(e) => {
+                        const { scrollTop: st, scrollHeight, clientHeight } = e.currentTarget;
+                        scrollTop.set(st);
+                        distBottom.set(scrollHeight - st - clientHeight);
+                    }}
+                    style={{
+                        maskImage,
+                        WebkitMaskImage: maskImage
+                    }}
+                >
+                    <div className="mt-auto" />
+                    {messages.map((msg) => (
+                        <div key={msg.id} className={`w-full max-w-3xl mx-auto flex items-end gap-2 ${msg.fromMe ? 'justify-end' : 'justify-start'}`}>
+
+                            <div className={`flex flex-col ${msg.fromMe ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[70%]`}>
+                                {/* Label */}
+                                {msg.fromMe ? (
+                                    <span className="text-[10px] text-gray-400 mb-1 px-1">
+                                        {userName}, Humano, {userRole}
+                                    </span>
+                                ) : null}
+
+                                {/* Bubble */}
+                                <div className={`p-2.5 rounded-2xl text-left shadow-sm ${msg.fromMe
+                                    ? 'bg-[#155dfc]/10 rounded-tr-sm text-gray-900 border border-[#155dfc]/20'
+                                    : 'bg-white rounded-tl-sm text-gray-800 border border-gray-100'
+                                    }`}>
+                                    <p className="text-[13px] font-normal leading-relaxed break-all">{msg.body}</p>
+                                    <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
+                                        <span className="text-[10px] text-gray-500">
                                             {new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </span>
                                         {msg.fromMe && <MessageTick ack={msg.ack || 1} />}
                                     </div>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                </ScrollArea>
+
+                            {/* Right Side: Avatar (User) */}
+                            {msg.fromMe && (
+                                <Avatar className="size-6 shrink-0 mb-1">
+                                    <AvatarImage src="https://github.com/shadcn.png" />
+                                    <AvatarFallback>U</AvatarFallback>
+                                </Avatar>
+                            )}
+                        </div>
+                    ))}
+                    {/* Invisible div to scroll to */}
+                    <div ref={messagesEndRef} />
+                </motion.div>
             </div>
 
             {/* Input */}

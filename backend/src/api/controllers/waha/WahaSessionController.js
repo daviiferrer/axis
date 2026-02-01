@@ -1,9 +1,10 @@
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../../../shared/Logger').createModuleLogger('waha-session');
 
 class WahaSessionController {
-    constructor(wahaClient, supabaseClient, billingService) {
+    constructor({ wahaClient, supabase, billingService }) {
         this.waha = wahaClient;
-        this.supabase = supabaseClient;
+        this.supabase = supabase;
         this.billingService = billingService;
     }
 
@@ -61,7 +62,7 @@ class WahaSessionController {
             const { data: dbSessions, error } = await query;
 
             if (error) {
-                console.error('[WahaSessionController] DB Fetch Error:', error);
+                logger.error({ error: error.message }, 'DB fetch error');
                 throw error;
             }
 
@@ -69,7 +70,7 @@ class WahaSessionController {
             // We return DB data immediately for speed/resilience.
             // If WAHA is up, we'll update DB statuses.
             this._syncSessionsWithWaha(all, dbSessions, req).catch(err => {
-                console.warn('[WahaSessionController] Background Sync Failed (WAHA likely down):', err.message);
+                logger.warn({ error: err.message }, 'Background sync failed (WAHA likely down)');
             });
 
             // 3. Return DB Sessions (UI won't break)
@@ -81,7 +82,7 @@ class WahaSessionController {
             })));
 
         } catch (error) {
-            console.error('[WahaSessionController] getSessions Critical Error:', error.message);
+            logger.error({ error: error.message }, 'getSessions critical error');
             res.status(500).json({ error: 'Failed to fetch sessions from DB' });
         }
     }
@@ -107,11 +108,11 @@ class WahaSessionController {
                 } else {
                     // Zombie Session Found (In WAHA, not in DB)
                     // Since DB is Source of Truth, remove from WAHA
-                    console.log(`[WahaSessionController] Found Zombie Session: ${wSession.name}. Deleting from WAHA...`);
+                    logger.info({ session: wSession.name }, 'Zombie session found, deleting from WAHA');
                     try {
                         await this.waha.deleteSession(wSession.name);
                     } catch (e) {
-                        console.error(`[WahaSessionController] Failed to cleanup zombie ${wSession.name}`, e);
+                        logger.error({ session: wSession.name, error: e.message }, 'Failed to cleanup zombie');
                     }
                 }
             }
@@ -158,7 +159,7 @@ class WahaSessionController {
                         sessionName = company.name;
                     }
                 } catch (dbError) {
-                    console.error('[WahaSessionController] Failed to fetch company name:', dbError);
+                    logger.error({ error: dbError.message }, 'Failed to fetch company name');
                     // Continue with default name if DB fails
                 }
             }
@@ -207,7 +208,7 @@ class WahaSessionController {
                 // If session already exists (likely 409 or specific error), we proceed to ensure DB sync.
                 // We'll treat it as success for the purpose of the flow, but log it.
                 if (wahaError.message && (wahaError.message.includes('409') || wahaError.message.includes('already exists'))) {
-                    console.log(`[WahaSessionController] Session '${sessionName}' already exists in WAHA. Syncing with DB...`);
+                    logger.debug({ session: sessionName }, 'Session already exists in WAHA, syncing with DB');
                     result = { name: sessionName, status: 'STOPPED' }; // Fallback result
                 } else {
                     throw wahaError; // Re-throw other errors
@@ -240,18 +241,18 @@ class WahaSessionController {
                         });
 
                     if (error) {
-                        console.error('[WahaSessionController] Failed to persist session:', error);
+                        logger.error({ error: error.message }, 'Failed to persist session');
                     }
                 } else {
                     // Optional: Update owner/company if needed, or just touch updated_at
                     // For now, we assume if it exists, it's fine.
-                    console.log(`[WahaSessionController] Session '${sessionName}' already exists in DB.`);
+                    logger.debug({ session: sessionName }, 'Session already exists in DB');
                 }
             }
 
             res.json(result);
         } catch (error) {
-            console.error('[WahaSessionController] createSession Error:', error);
+            logger.error({ error: error.message }, 'createSession error');
             res.status(500).json({ error: error.message });
         }
     }
@@ -285,7 +286,7 @@ class WahaSessionController {
                 .update({ status: status, updated_at: new Date() })
                 .eq('session_name', sessionName);
         } catch (e) {
-            console.error(`[WahaSessionController] Failed to sync status for ${sessionName}:`, e);
+            logger.error({ session: sessionName, error: e.message }, 'Failed to sync status');
         }
     }
 
@@ -297,7 +298,7 @@ class WahaSessionController {
             try {
                 await this.waha.deleteSession(session);
             } catch (wahaError) {
-                console.warn(`[WahaSessionController] Failed to delete from WAHA (likely offline). Proceeding to remove from DB. Error: ${wahaError.message}`);
+                logger.warn({ session, error: wahaError.message }, 'Failed to delete from WAHA (likely offline)');
             }
 
             // 2. Sync: Remove from DB always
@@ -315,17 +316,17 @@ class WahaSessionController {
     async startSession(req, res) {
         try {
             const { session } = req.params;
-            console.log(`🚀 [WahaSession] Attempting to start/recover session: ${session}`);
+            logger.info({ session }, 'Attempting to start/recover session');
 
             // 1. Check current status in WAHA
             try {
                 const current = await this.waha.getSession(session);
                 if (current.status === 'FAILED' || current.status === 'STOPPED') {
-                    console.log(`🛠️ [WahaSession] Session ${session} is ${current.status}. Forcing recovery (Stop -> Start)...`);
+                    logger.info({ session, status: current.status }, 'Forcing recovery (Stop -> Start)');
                     await this.waha.stopSession(session).catch(() => { });
                 }
             } catch (e) {
-                console.warn(`⚠️ [WahaSession] Could not check status before start: ${e.message}`);
+                logger.warn({ session, error: e.message }, 'Could not check status before start');
             }
 
             const result = await this.waha.startSession(session);
@@ -334,10 +335,19 @@ class WahaSessionController {
             const supabase = this._getRequestClient(req);
             await this._updateDbStatus(session, result.status || 'STARTING', supabase);
 
-            console.log(`✅ [WahaSession] Start command sent for ${session}. New status: ${result.status}`);
+            logger.info({ session, status: result.status }, 'Start command sent');
             res.json(result);
         } catch (error) {
-            console.error(`❌ [WahaSession] Start FAILED for ${session}:`, error.message);
+            // Check for 404 - Session not found in WAHA
+            if (error.response?.status === 404 || error.message.includes('404')) {
+                logger.warn({ session: req.params.session }, 'Session not found in WAHA (404), cannot start.');
+                return res.status(404).json({
+                    error: 'Session not found',
+                    message: 'This session does not exist in the engine. Please create it first.'
+                });
+            }
+
+            logger.error({ session: req.params.session, error: error.message }, 'Start failed');
             res.status(500).json({ error: error.message });
         }
     }
@@ -351,6 +361,10 @@ class WahaSessionController {
             await this._updateDbStatus(session, result.status || 'STOPPED', supabase);
             res.json(result);
         } catch (error) {
+            // Graceful 404
+            if (error.response?.status === 404) {
+                return res.status(404).json({ error: 'Session not found' });
+            }
             res.status(500).json({ error: error.message });
         }
     }
@@ -364,6 +378,10 @@ class WahaSessionController {
             await this._updateDbStatus(session, result.status || 'LOGGED_OUT', supabase);
             res.json(result);
         } catch (error) {
+            // Graceful 404
+            if (error.response?.status === 404) {
+                return res.status(404).json({ error: 'Session not found' });
+            }
             res.status(500).json({ error: error.message });
         }
     }
@@ -377,6 +395,10 @@ class WahaSessionController {
             await this._updateDbStatus(session, result.status || 'STARTING', supabase);
             res.json(result);
         } catch (error) {
+            // Graceful 404
+            if (error.response?.status === 404) {
+                return res.status(404).json({ error: 'Session not found' });
+            }
             res.status(500).json({ error: error.message });
         }
     }

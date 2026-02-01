@@ -52,7 +52,8 @@ const Identity = {
         SUPPORT: 'Customer Support Specialist',
         EXECUTIVE: 'Account Executive',
         ONBOARDING: 'Onboarding Specialist',
-        CONSULTANT: 'Technical Consultant'
+        CONSULTANT: 'Technical Consultant',
+        CONCIERGE: 'Concierge / Receptionist'
     }
 };
 

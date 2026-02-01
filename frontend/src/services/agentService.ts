@@ -27,11 +27,19 @@ export type PleasureLevel = 'NEGATIVE' | 'NEUTRAL' | 'POSITIVE';
 export type DominanceLevel = 'SUBMISSIVE' | 'EGALITARIAN' | 'DOMINANT';
 
 export type IdentityRole =
+    // Short Keys (Preferred)
+    | 'SDR'
+    | 'SUPPORT'
+    | 'CONCIERGE'
+    | 'CONSULTANT'
+    | 'EXECUTIVE'
+    // Legacy Values (Keep for compatibility)
     | 'Sales Development Representative'
     | 'Customer Support Specialist'
     | 'Account Executive'
     | 'Onboarding Specialist'
-    | 'Technical Consultant';
+    | 'Technical Consultant'
+    | 'Concierge / Receptionist';
 
 export type SalesFramework = 'SPIN' | 'BANT' | 'GPCT' | 'MEDDIC';
 

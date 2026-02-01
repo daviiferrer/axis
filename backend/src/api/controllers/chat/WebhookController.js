@@ -41,7 +41,14 @@ class WebhookController {
             const { event, payload, session } = req.body;
             const sessionName = session || 'default';
 
-            logger.debug({ event, session: sessionName }, 'Webhook received');
+            logger.info({
+                event,
+                session: sessionName,
+                payloadId: payload?.id,
+                ip: req.ip,
+                host: req.headers['host'],
+                userAgent: req.headers['user-agent']
+            }, '🔍 Webhook received (Detailed)');
 
             switch (event) {
                 case 'message':
@@ -144,7 +151,9 @@ class WebhookController {
                         // Actually, the main race is between persistence (line 53) and this trigger. 
                         // Since line 53 is awaited, we are good.
                         // But let's verify if triggerAiForLead should be awaited to handle errors properly here.
-                        await this.workflowEngine.triggerAiForLead(result.phone, result.body, result.referral, sessionName);
+                        // FIX: Async execution to avoid blocking webhook (Fire & Forget)
+                        this.workflowEngine.triggerAiForLead(result.phone, result.body, result.referral, sessionName)
+                            .catch(err => logger.error({ error: err.message, phone: result.phone }, '❌ Async Workflow Trigger Failed'));
                     }
                 }
             }

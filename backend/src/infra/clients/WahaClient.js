@@ -1,4 +1,5 @@
 const axios = require('axios');
+const logger = require('../../shared/Logger').createModuleLogger('waha-client');
 
 /**
  * WahaClient - Infrastructure Client for WAHA (WhatsApp HTTP API)
@@ -69,7 +70,7 @@ class WahaClient {
     #getUrl(path) {
         const url = `${this.baseUrl}${path}`;
         if (process.env.NODE_ENV === 'development') {
-            console.log(`📡 [WAHA Client] ${url}`);
+            logger.debug({ url }, 'WAHA request');
         }
         return url;
     }
@@ -164,9 +165,8 @@ class WahaClient {
     // --- Auth Methods ---
     async getAuthQR(session) {
         // WAHA usually returns QR buffer on /api/screenshot?session=xyz 
-        // We requested format=json but some versions might return binary anyway.
-        // To be safe, we request arraybuffer and parse manually.
-        const url = this.#getUrl(`${this.#endpoints.screenshot}?session=${session}&format=json`);
+        // We request binary (default) to avoid 422 on some versions that dislike format=json
+        const url = this.#getUrl(`${this.#endpoints.screenshot}?session=${session}`);
 
         try {
             const response = await this.http.get(url, {
@@ -174,25 +174,11 @@ class WahaClient {
                 responseType: 'arraybuffer'
             });
 
-            // Try to parse as JSON first
-            try {
-                const text = Buffer.from(response.data).toString('utf-8');
-                const json = JSON.parse(text);
-                return json; // It was JSON, likely { data: 'base64...' }
-            } catch (e) {
-                // Not JSON, likely binary image (PNG)
-                // Convert binary to base64
-                const base64 = Buffer.from(response.data).toString('base64');
-                // Return in the format frontend expects (Waha standard)
-                return { data: base64, mimetype: 'image/png' };
-            }
+            // Convert binary to base64
+            const base64 = Buffer.from(response.data).toString('base64');
+            // Return in the format frontend expects (Waha standard)
+            return { data: base64, mimetype: 'image/png' };
         } catch (error) {
-            // If 404/500, handle error normally (convert buffer to string for error message)
-            if (error.response && error.response.data instanceof Buffer) {
-                try {
-                    error.response.data = JSON.parse(error.response.data.toString());
-                } catch (ignore) { }
-            }
             this.#handleError(error);
         }
     }
@@ -237,7 +223,7 @@ class WahaClient {
         const url = this.#getUrl(`/api/${session}/chats/${encodeURIComponent(chatId)}/picture`);
 
         try {
-            console.log(`[WahaClient] GET Profile Pic: ${url}`);
+            logger.debug({ session, chatId }, 'Getting profile picture');
             const response = await this.http.get(url, { headers: await this.#getHeaders() });
             // WAHA typically returns { url: '...' } or just the image URL string? 
             return response.data;
@@ -246,7 +232,7 @@ class WahaClient {
             if (error.response && error.response.status === 404) {
                 return null;
             }
-            console.warn(`[WahaClient] Failed to get profile pic for ${chatId}: ${error.message}`);
+            logger.warn({ chatId, error: error.message }, 'Failed to get profile pic');
             throw error;
         }
     }
@@ -254,12 +240,12 @@ class WahaClient {
     // --- Chatting Methods ---
     async getChats(session) {
         const url = this.#getUrl(`${this.#endpoints.chatting.getChats}?session=${session}`);
-        console.log('[WahaClient] Requesting chats from:', url);
+        logger.debug({ session }, 'Requesting chats');
         try {
             const response = await this.http.get(url, { headers: await this.#getHeaders() });
             return response.data;
         } catch (error) {
-            console.error('[WahaClient] getChats raw error:', error.response?.status, error.response?.data || error.message);
+            logger.error({ session, status: error.response?.status, error: error.message }, 'getChats failed');
             throw error; // Let #handleError or controller catch it
         }
     }
@@ -272,8 +258,12 @@ class WahaClient {
 
     async sendText(session, chatId, text) {
         const url = this.#getUrl(this.#endpoints.chatting.sendText);
-        const response = await this.http.post(url, { session, chatId, text }, { headers: await this.#getHeaders() });
-        return response.data;
+        try {
+            const response = await this.http.post(url, { session, chatId, text }, { headers: await this.#getHeaders() });
+            return response.data;
+        } catch (error) {
+            this.#handleError(error);
+        }
     }
 
     /**
@@ -288,7 +278,7 @@ class WahaClient {
         const jitterFactor = 0.85 + (Math.random() * 0.30); // 0.85 to 1.15
         const delayMs = Math.round(baseDelay * jitterFactor);
 
-        console.log(`[WahaClient] Latency: ${delayMs}ms (jitter: ${Math.round((jitterFactor - 1) * 100)}%) for "${text.substring(0, 20)}..."`);
+        logger.debug({ delayMs, words }, 'Sending with latency');
 
         await this.setPresence(session, chatId, 'composing');
         await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -361,9 +351,13 @@ class WahaClient {
         const endpoint = state === 'paused' ? this.#endpoints.chatting.stopTyping : this.#endpoints.chatting.startTyping;
         const url = this.#getUrl(endpoint);
 
-        // WAHA startTyping payload
-        const response = await this.http.post(url, { session, chatId }, { headers: await this.#getHeaders() });
-        return response.data;
+        try {
+            // WAHA startTyping payload
+            const response = await this.http.post(url, { session, chatId }, { headers: await this.#getHeaders() });
+            return response.data;
+        } catch (error) {
+            this.#handleError(error);
+        }
     }
 
     async sendReaction(session, chatId, messageId, reaction) {

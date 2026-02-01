@@ -1,4 +1,5 @@
 const { hasPermission } = require('../../core/config/rbacConfig');
+const logger = require('../../shared/Logger').createModuleLogger('rbac');
 
 /**
  * RBAC Middleware (Refactored for Clean Slate)
@@ -14,27 +15,17 @@ const { hasPermission } = require('../../core/config/rbacConfig');
 const rbacMiddleware = (resource, action) => (req, res, next) => {
     try {
         if (!req.user) {
-            console.warn('⛔ [RBAC] Auth context missing. RBAC requires auth middleware to run first.');
+            logger.warn('Auth context missing. RBAC requires auth middleware to run first.');
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        // 1. Resolve Role from Active Membership Context
-        // If no membership (e.g. system user or error), deny.
-        const membership = req.user.membership;
-
-        if (!membership) {
-            // Edge case: Maybe it's a SuperAdmin without membership? 
-            // For now, we enforce Company Context for all RBAC routes.
-            console.warn(`⛔ [RBAC] No active membership context for user ${req.user.email}`);
-            return res.status(403).json({ error: 'Forbidden: No Active Company Context' });
-        }
-
-        // Normalize Role
-        const role = (membership.role || 'VIEWER').toUpperCase();
+        // 1. Resolve Role directly from User (set by AuthMiddleware)
+        // Default to 'VIEWER' if something goes wrong, but AuthMiddleware sets 'OWNER' by default.
+        const role = (req.user.role || 'VIEWER').toUpperCase();
 
         // 2. Developer/Environment Bypass (Optional, keep strict for now)
         if (process.env.NODE_ENV === 'development' && process.env.RBAC_BYPASS === 'true') {
-            console.log(`🔓 [RBAC] BYPASS: Allowing ${role} on ${resource}:${action}`);
+            logger.debug({ role, resource, action }, 'RBAC bypass (dev mode)');
             return next();
         }
 
@@ -42,7 +33,7 @@ const rbacMiddleware = (resource, action) => (req, res, next) => {
         const allowed = hasPermission(role, resource, action);
 
         if (!allowed) {
-            console.warn(`⛔ [RBAC] DENIED: User ${req.user.email} as ${role} tried ${action} on ${resource}`);
+            logger.warn({ userId: req.user.id, role, resource, action }, 'Permission denied');
             return res.status(403).json({
                 error: 'Permission Denied',
                 message: `You do not have permission to perform ${action} on ${resource}.`
@@ -51,9 +42,10 @@ const rbacMiddleware = (resource, action) => (req, res, next) => {
 
         next();
     } catch (err) {
-        console.error('[RBAC] Middleware error:', err);
+        logger.error({ error: err.message }, 'RBAC middleware error');
         res.status(500).json({ error: 'Internal Authorization Error' });
     }
 };
 
 module.exports = rbacMiddleware;
+

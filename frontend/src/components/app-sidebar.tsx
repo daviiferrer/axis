@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { LogOut, Settings, MessageSquare, Smartphone, Megaphone, Bot, CreditCard, Webhook, Shield, Building2, Check, ChevronsUpDown, Plus, Loader2 } from "lucide-react";
+import { LogOut, Settings, MessageSquare, Smartphone, Megaphone, Bot, CreditCard, Webhook, Shield, Building2, Check, ChevronsUpDown, Plus, Loader2, Calendar } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 export function AppSidebar() {
@@ -198,6 +198,19 @@ export function AppSidebar() {
             href: "/app/campaigns",
             icon: ({ isActive }: { isActive: boolean }) => (
                 <Megaphone
+                    className={cn(
+                        "h-5 w-5 shrink-0",
+                        isActive ? "text-blue-600 fill-blue-600" : "text-neutral-700 dark:text-neutral-200"
+                    )}
+                    strokeWidth={0.5}
+                />
+            ),
+        },
+        {
+            label: "Agendamentos",
+            href: "/app/scheduling",
+            icon: ({ isActive }: { isActive: boolean }) => (
+                <Calendar
                     className={cn(
                         "h-5 w-5 shrink-0",
                         isActive ? "text-blue-600 fill-blue-600" : "text-neutral-700 dark:text-neutral-200"

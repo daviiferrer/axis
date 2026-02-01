@@ -1,5 +1,5 @@
 class WahaMediaController {
-    constructor(wahaClient) {
+    constructor({ wahaClient }) {
         this.waha = wahaClient;
     }
 

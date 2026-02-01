@@ -25,28 +25,36 @@ class AgentNode {
         this.campaignSocket = dependencies.campaignSocket;
     }
 
-    async execute({ instance, lead, campaign, nodeConfig, graph }) {
-        // Fallback for legacy calls (if any)
-        const _lead = lead || arguments[0];
-        const _campaign = campaign || arguments[1];
-        const _nodeConfig = nodeConfig || arguments[2];
-        const _graph = graph || arguments[3];
+    async execute(lead, campaign, nodeConfig, graph, context) {
+        logger.info({
+            leadId: lead.id,
+            phone: lead.phone,
+            campaignKeys: Object.keys(campaign),
+            session_name: campaign.session_name,
+            waha_session_name: campaign.waha_session_name,
+            nodeConfigData: nodeConfig.data
+        }, '🔍 DEBUG: Executing AgentNode - Inspection');
 
-        logger.info({ leadId: _lead.id, phone: _lead.phone }, 'Executing AgentNode');
+        // Extract Node Configuration (Fluid Context)
+        const sessionName = nodeConfig.data?.sessionName || campaign.session_name || campaign.waha_session_name;
+        // Check legacy or new location for tenantId
+        const tenantId = nodeConfig.data?.tenantId || campaign.company_id || 'default';
+
+        logger.info({ sessionName, tenantId, nodeId: nodeConfig.id }, '✅ AgentNode Context Resolved');
 
         // Resolve DNA Configuration
-        const dna = resolveDNA(_campaign.agents?.dna_config);
+        const dna = resolveDNA(campaign.agents?.dna_config);
 
         // 1. Ensure Chat/JID exists
-        const chatId = this.getChatId(_lead.phone);
-        const chat = await this.chatService.ensureChat(chatId, _campaign.session_id, _campaign.user_id, {
-            lead_id: _lead.id,
-            campaign_id: _campaign.id,
-            name: _lead.name
+        const chatId = this.getChatId(lead.phone);
+        const chat = await this.chatService.ensureChat(chatId, campaign.session_id, campaign.user_id, {
+            lead_id: lead.id,
+            campaign_id: campaign.id,
+            name: lead.name
         });
 
         if (!chat) {
-            throw new Error(`[AgentNode] Failed to get or create chat for lead ${_lead.id}`);
+            throw new Error(`[AgentNode] Failed to get or create chat for lead ${lead.id}`);
         }
 
         // 2. Get History
@@ -55,21 +63,22 @@ class AgentNode {
 
         // 3. Decision: Should we reply?
         if (lastMsg && lastMsg.role === 'assistant') {
-            logger.debug({ leadId: _lead.id }, 'Last message was from assistant. Waiting for lead.');
+            logger.debug({ leadId: lead.id }, 'Last message was from assistant. Waiting for lead.');
             return { status: NodeExecutionStateEnum.AWAITING_ASYNC };
         }
 
         // 4. Build Context and Prompt
         const contextData = {
-            ...this.prepareContext(_lead, _campaign, _nodeConfig, _graph),
+            ...this.prepareContext(lead, campaign, nodeConfig, graph),
             chatHistory: history,
-            dna
+            dna,
+            nodeConfig: nodeConfig // <--- NEW: Pass node config for objectives layer
         };
         const systemInstruction = await this.promptService.buildStitchedPrompt(contextData);
 
         // 5. Generate Response
-        const nodeModel = _nodeConfig?.model;
-        const targetModel = nodeModel || (this.modelService ? this.modelService.getModelFromCampaignObject(_campaign) : 'gemini-pro');
+        const nodeModel = nodeConfig?.model;
+        const targetModel = nodeModel || (this.modelService ? this.modelService.getModelFromCampaignObject(campaign) : 'gemini-pro');
 
         logger.debug({ model: targetModel, nodeModel: !!nodeModel }, 'Using model for generation');
 
@@ -83,7 +92,7 @@ class AgentNode {
                 targetModel,
                 systemInstruction,
                 "Gere a próxima resposta baseada no histórico.",
-                { companyId: _campaign.company_id }
+                { companyId: campaign.company_id }
             );
 
             try {
@@ -93,7 +102,7 @@ class AgentNode {
                 }
                 response = JSON.parse(cleanText);
 
-                const mergedGuardrails = { ...dna.guardrailProfile, ..._nodeConfig.data?.guardrails };
+                const mergedGuardrails = { ...dna.guardrailProfile, ...nodeConfig.data?.guardrails };
                 const validation = this.validateResponse(response, contextData, mergedGuardrails);
 
                 if (validation.valid) break;
@@ -111,17 +120,18 @@ class AgentNode {
         const mergedGuardrails = { ...dna.guardrailProfile, ..._nodeConfig.data?.guardrails };
         const finalValidation = this.validateResponse(response, contextData, mergedGuardrails);
         if (finalValidation.handoff) {
-            await this.handleHandoff(_lead, _campaign, finalValidation.reason);
+            await this.handleHandoff(lead, campaign, finalValidation.reason);
             return { status: NodeExecutionStateEnum.EXITED, edge: 'handoff', reason: finalValidation.reason };
         }
 
         // 6. Send via WAHA with HUMANIZED PHYSICS
-        await this.sendResponseWithPhysics(_lead, _campaign, chatId, chat.id, response, dna.physics);
+        // Pass the resolved sessionName to the sender method
+        await this.sendResponseWithPhysics(lead, campaign, chatId, chat.id, response, dna.physics, sessionName);
 
         // 8. Update Lead Score
         if (this.leadService) {
             await this.leadService.updateLeadScore(
-                _lead.id,
+                lead.id,
                 response.qualification_slots || {},
                 response.sentiment_score
             );
@@ -134,9 +144,32 @@ class AgentNode {
     /**
      * Orchestrates the sending of messages with human-like characteristics.
      */
-    async sendResponseWithPhysics(lead, campaign, chatId, dbChatId, aiResponse, physics) {
-        // Convert to WAHA-compatible @c.us format for sending messages
-        const wahaChatId = this.getSendChatId(lead.phone);
+    async sendResponseWithPhysics(lead, campaign, chatId, dbChatId, aiResponse, physics, sessionNameOverride) {
+        // WAHA requires @c.us for sending messages to users
+        const wahaChatId = chatId.endsWith('@s.whatsapp.net')
+            ? chatId.replace('@s.whatsapp.net', '@c.us')
+            : chatId;
+
+        logger.info({
+            sessionNameOverride,
+            campaignSession: campaign.session_name,
+            wahaSession: campaign.waha_session_name,
+            wahaChatId
+        }, '🔍 DEBUG: sendResponseWithPhysics - Session Resolution');
+
+        // Resolve Session Name with fallback hierarchy
+        const sessionName = sessionNameOverride || campaign.waha_session_name || campaign.session_name;
+
+        if (!sessionName) {
+            logger.error({ leadId: lead.id, campaignId: campaign.id }, '❌ Missing Session Name for WAHA');
+            throw new Error('Session name is required to send messages (Method: sendResponseWithPhysics)');
+        }
+
+        // Ensure country code 55 for BR if missing (Robustness)
+        // If it starts with a 9 and len is 11, it might be raw local number. 
+        // But better to trust the `lead.phone` which should be normalized.
+
+        logger.debug({ wahaChatId, originalChatId: chatId }, '📤 Target JID Resolved');
 
         let messagesToSend = [];
 
@@ -160,7 +193,7 @@ class AgentNode {
             // 2a. Voice Note Support
             if (isFirst && aiResponse.audio_base64) {
                 logger.info({ leadId: lead.id }, 'Sending AI-generated Voice Note');
-                await this.wahaClient.sendVoiceBase64(campaign.waha_session_name || campaign.session_name, wahaChatId, aiResponse.audio_base64);
+                await this.wahaClient.sendVoiceBase64(sessionName, wahaChatId, aiResponse.audio_base64);
                 await this.logMessage(lead, chatId, '[AUDIO_VOICE_NOTE]', true);
                 continue;
             }
@@ -175,13 +208,16 @@ class AgentNode {
             logger.debug({ leadId: lead.id, delay, chunkIndex: i, isSimulation }, 'Human Physics Wait');
 
             if (delay > 1000 && !isSimulation) {
-                // await this.wahaClient.sendTypingState(campaign.session_id, chatId, true);
+                // VISUAL FEEDBACK: Show "Typing..." on WhatsApp
+                this.wahaClient.setPresence(sessionName, wahaChatId, 'composing').catch(err => {
+                    logger.warn({ error: err.message }, 'Failed to set typing presence');
+                });
             }
 
             await new Promise(resolve => setTimeout(resolve, delay));
 
             let sentId = `sim_${Date.now()}`;
-            const sessionName = campaign.waha_session_name || campaign.session_name;
+
             if (!isSimulation) {
                 logger.debug({ session: sessionName, wahaChatId, bodyPreview: msgText.substring(0, 30) }, 'Sending to WAHA');
                 const sent = await this.wahaClient.sendText(sessionName, wahaChatId, msgText);
@@ -266,7 +302,7 @@ class AgentNode {
     }
 
     prepareContext(lead, campaign, node, graph) {
-        let product = null;
+        let product = node.data?.product || null; // <--- Support embedded product config
         let methodology = null;
         const objectionPlaybook = [];
 
@@ -331,7 +367,16 @@ class AgentNode {
         // Add random variance +/- 20%
         const variance = (Math.random() * 0.4) + 0.8;
 
-        const result = Math.floor(totalDelay * variance);
+        let result = Math.floor(totalDelay * variance);
+
+        // 4. USABILITY GUARDRAIL: Cap delay to prevent "minutes of waiting"
+        // Even for long texts, users engaged with a bot expect faster replies.
+        // Cap at 12 seconds per message chunk.
+        const MAX_DELAY_MS = 12000;
+        if (result > MAX_DELAY_MS) {
+            result = MAX_DELAY_MS + Math.floor(Math.random() * 2000); // 12-14s max
+        }
+
         // logger.debug({ wpm: safeWpm, chars: charCount, ms: result }, 'Calculated typing delay');
         return result;
     }

@@ -4,12 +4,14 @@
  */
 const logger = require('../../../../shared/Logger').createModuleLogger('closing-node');
 
+const { NodeExecutionStateEnum } = require('../../../types/CampaignEnums');
+
 class ClosingNode {
     constructor({ leadService }) {
         this.leadService = leadService;
     }
 
-    async execute(lead, campaign, nodeConfig) {
+    async execute(lead, campaign, nodeConfig, graph, context) {
         const { finalStatus = 'completed', clearVariables = true } = nodeConfig.data || {};
 
         logger.info({ leadId: lead.id, finalStatus }, 'Executing ClosingNode');
@@ -28,7 +30,7 @@ class ClosingNode {
 
         await this.leadService.updateLead(lead.id, updates);
 
-        return { status: 'success', markExecuted: true };
+        return { status: NodeExecutionStateEnum.EXITED, markExecuted: true };
     }
 }
 

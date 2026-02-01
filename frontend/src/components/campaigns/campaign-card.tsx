@@ -60,6 +60,9 @@ export function CampaignCard({ campaign, onUpdate, index = 0 }: CampaignCardProp
     const isActive = campaign.status === 'active';
     const isPaused = campaign.status === 'paused';
 
+    // Verify connection status by inspecting the graph for configured Trigger Nodes
+    const isConnected = (campaign.graph?.nodes || []).some((n: any) => n.type === 'trigger' && n.data?.sessionName);
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -151,10 +154,10 @@ export function CampaignCard({ campaign, onUpdate, index = 0 }: CampaignCardProp
                 <div className="flex items-center justify-between pt-3 border-t border-gray-50 text-xs mt-auto">
                     <span className={`
                         flex items-center gap-1.5 px-2 py-1 rounded-full font-medium
-                        ${campaign.session_id ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}
+                        ${isConnected ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}
                     `}>
                         <Activity size={10} />
-                        {campaign.session_id ? 'Conectado' : 'Desconectado'}
+                        {isConnected ? 'Conectado' : 'Desconectado'}
                     </span>
                     <span className="text-gray-400 font-mono text-[10px]">{new Date(campaign.updated_at).toLocaleDateString()}</span>
                 </div>

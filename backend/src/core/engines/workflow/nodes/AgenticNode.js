@@ -2,6 +2,7 @@ const { resolveDNA } = require('../../../config/AgentDNA');
 const { NodeExecutionStateEnum, IntentEnum, SentimentEnum } = require('../../../types/CampaignEnums');
 const AgentNode = require('./AgentNode');
 const logger = require('../../../../shared/Logger').createModuleLogger('agentic-node');
+const { getInstance: getLangfuse } = require('../../../../infra/clients/LangfuseClient');
 
 class AgenticNode extends AgentNode {
     constructor(dependencies) {
@@ -12,10 +13,41 @@ class AgenticNode extends AgentNode {
         this.guardrailService = dependencies.guardrailService;
         this.agentService = dependencies.agentService;
         this.chatService = dependencies.chatService;
+        this.hybridSearchService = dependencies.hybridSearchService || null; // OPTIONAL: RAG (may not be in DI)
+
+        // Observability client
+        this.langfuse = getLangfuse();
     }
 
-    async execute(lead, campaign, nodeConfig, graph) {
+    async execute(lead, campaign, nodeConfig, graph, context) {
+        // 0. EARLY EXIT: Check if already handed off
+        if (lead.status === 'handoff_requested') {
+            logger.info({ leadId: lead.id }, '🛑 Lead is in handoff state - AI execution skipped');
+            return {
+                status: NodeExecutionStateEnum.EXITED,
+                edge: 'HANDOFF',
+                output: { conversation_ended: true }
+            };
+        }
+
+        const startTime = Date.now();
         logger.info({ leadId: lead.id }, 'Executing AgenticNode');
+
+        // === LANGFUSE TRACING ===
+        const trace = this.langfuse.trace({
+            id: `${campaign.id}-${lead.id}-${Date.now()}`,
+            name: 'agentic-node-execution',
+            userId: lead.id,
+            metadata: {
+                campaignId: campaign.id,
+                nodeId: nodeConfig.id,
+                nodeType: nodeConfig.type
+            }
+        });
+
+        // === SECURITY: Generate Canary Token ===
+        const canaryToken = this.guardrailService.generateCanaryToken();
+        logger.debug({ leadId: lead.id, canary: canaryToken.substring(0, 10) + '...' }, '🔐 Canary token generated');
 
         // Resolve DNA
         const dna = resolveDNA(campaign.agents?.dna_config);
@@ -26,6 +58,15 @@ class AgenticNode extends AgentNode {
 
         if (agentId && agentId !== campaign.agents?.id) {
             operatingAgent = await this.agentService.getAgent(agentId);
+        }
+
+        // STRICT VALIDATION: Prevent Token Waste on Unconfigured Agents
+        if (!operatingAgent || !operatingAgent.dna_config || Object.keys(operatingAgent.dna_config).length === 0) {
+            const errorMsg = `CRITICAL: Agent ${agentId} is unconfigured (Missing DNA). Execution aborted to prevent hallucination and token waste.`;
+            logger.error({ leadId: lead.id, agentId }, errorMsg);
+            trace.update({ status: 'ERROR', statusMessage: errorMsg });
+            // Exit early - User requested strictness
+            throw new Error(errorMsg);
         }
 
         const targetModel = nodeConfig.data?.model || operatingAgent?.model;
@@ -47,6 +88,30 @@ class AgenticNode extends AgentNode {
         const history = await this.historyService.getChatHistory(chat.id);
         logger.debug({ leadId: lead.id, historyCount: history.length }, '📚 Chat history retrieved');
 
+        // CRITICAL FIX: Ensure the current triggering message is in the history
+        // The worker updates lead.last_message_body with the fresh input.
+        // If DB persistence of the chat message (ChatService) lags behind, history might miss it.
+        const currentInput = lead.last_message_body;
+        const lastHistoryMessage = history.length > 0 ? history[history.length - 1] : null;
+
+        if (currentInput && (!lastHistoryMessage || lastHistoryMessage.content !== currentInput)) {
+            logger.warn({
+                leadId: lead.id,
+                input: currentInput.substring(0, 50),
+                lastHistory: lastHistoryMessage?.content?.substring(0, 50)
+            }, '⚠️ History mismatch: Injecting current input into prompt context');
+
+            history.push({
+                role: 'user',
+                content: currentInput,
+                created_at: new Date().toISOString()
+            });
+        }
+
+
+        // Calculate turn count for persona refresh
+        const turnCount = chat.turn_count || history.filter(m => m.role === 'user').length;
+
         // 2b. Emotional State Context
         // Use DNA Emotional Configuration as Baseline if no state exists
         let padVector;
@@ -66,61 +131,154 @@ class AgenticNode extends AgentNode {
             ? this.emotionalStateService.getEmotionalAdjustment(padVector)
             : '';
 
+        // === RAG Context Retrieval (NEW) ===
+        let ragContext = '';
+        if (this.hybridSearchService && history.length > 0) {
+            const lastUserMessage = history.filter(m => m.role === 'user').pop()?.content || '';
+            if (lastUserMessage.length > 10) {
+                const ragSpan = this.langfuse.span(trace, { name: 'rag-retrieval', input: lastUserMessage });
+                try {
+                    const searchResults = await this.hybridSearchService.search(
+                        lastUserMessage,
+                        campaign.company_id,
+                        { tables: ['products', 'faqs', 'knowledge_base'], limit: 5 }
+                    );
+                    ragContext = this.hybridSearchService.formatForPrompt(searchResults, 1000);
+                    logger.debug({ leadId: lead.id, resultsCount: searchResults.length }, '🔍 RAG context retrieved');
+                    ragSpan.end();
+                } catch (err) {
+                    logger.warn({ error: err.message }, 'RAG search failed - continuing without context');
+                    ragSpan.end();
+                }
+            }
+        }
+
         // 3. Build Prompt (Sandwich Pattern)
+        // Ensure campaign context is adequate
+        const campaignContext = {
+            ...campaign,
+            company_name: campaign.company_name || campaign.company || 'Empresa (Não configurada)'
+        };
+
+        // ARCHITECTURAL FIX: Separate concerns
+        // - Agent (DNA): Immutable identity (role, name, personality, tone)
+        // - NodeConfig: Per-step objectives (goal, criticalSlots, cta)
+        // Node should NOT override agent identity fields
         const contextData = {
-            agent: { ...operatingAgent, ...nodeConfig.data },
-            campaign, lead, chatHistory: history, emotionalAdjustment,
+            agent: operatingAgent, // <-- DNA identity is immutable, not merged with nodeConfig
+            campaign: campaignContext,
+            lead, chatHistory: history, emotionalAdjustment,
             nodeDirective: nodeConfig.data?.instruction_override || nodeConfig.data?.systemPrompt,
             scopePolicy: nodeConfig.data?.scope_policy || 'READ_ONLY',
-            product: nodeConfig.data?.product, // <--- INJECT PRODUCT DATA FROM NODE CONFIG
-            dna // Pass DNA to prompt builder
+            product: nodeConfig.data?.product, // <--- Product context from node
+            dna, // Pass DNA to prompt builder (physics, linguistics, padVector)
+            nodeConfig, // <--- Node objectives (goal, criticalSlots, cta - NOT identity)
+            canaryToken, // <--- Security token for injection detection
+            turnCount,   // <--- For persona refresh mechanism
+            ragContext   // <--- RAG context from hybrid search
         };
         const systemInstruction = await this.promptService.buildStitchedPrompt(contextData);
 
-        // 4. Generate Response
+        // 4. Generate Response with tracing
         logger.info({ leadId: lead.id, model: targetModel, agentId }, '🧠 Calling Gemini... (Sandwich Pattern Applied)');
+
+        const generationSpan = this.langfuse.generation(trace, {
+            name: 'gemini-generate',
+            model: targetModel,
+            input: systemInstruction.substring(0, 500) + '...', // Truncate for logging
+            metadata: { turnCount, hasRagContext: ragContext.length > 0 }
+        });
+
         const aiResult = await this.geminiClient.generateSimple(targetModel, systemInstruction, "Responda ao lead.");
 
         let response;
         try {
             // Sanitization: Remove markdown code blocks (Robust JSON fix)
             let rawText = aiResult.text();
-            if (rawText.startsWith('```')) {
-                rawText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '');
+
+            // Remove {{json}} and {{/json}} markers (some models add these)
+            rawText = rawText.replace(/\{\{json\}\}/gi, '').replace(/\{\{\/json\}\}/gi, '');
+
+            // Remove {{response}} markers
+            rawText = rawText.replace(/\{\{response\}\}/gi, '');
+
+            // Remove markdown code blocks
+            if (rawText.includes('```')) {
+                rawText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/g, '');
             }
+
             rawText = rawText.trim();
+
+            // Remove leading {{ and trailing }} if present (Gemini sometimes wraps JSON)
+            if (rawText.startsWith('{{') && !rawText.startsWith('{{{')) {
+                rawText = rawText.substring(1); // Remove first {
+            }
+            if (rawText.endsWith('}}') && !rawText.endsWith('}}}')) {
+                rawText = rawText.substring(0, rawText.length - 1); // Remove last }
+            }
+
             response = JSON.parse(rawText);
         } catch (e) {
             logger.error({ error: e.message, raw: aiResult.text() }, 'Failed to parse AI response');
-            return { status: 'error', error: 'JSON Parse Failure' };
+            // FALLBACK: Generate safe response instead of failing
+            response = {
+                thought: 'JSON parse failed, using fallback response',
+                response: this.#getFallbackMessage(operatingAgent?.language_code || 'pt-BR'),
+                sentiment_score: 0.5,
+                confidence_score: 0.3,
+                qualification_slots: {},
+                crm_actions: []
+            };
+            logger.warn({ leadId: lead.id }, 'Using fallback response due to JSON parse failure');
         }
 
         // 4. Guardrails & CTA Injection
         const rawContent = response.messages?.[0] || response.response;
-        logger.info({ leadId: lead.id, thought: response.thought }, '💭 AI Internal Reasoning');
+        logger.info({
+            leadId: lead.id,
+            thought: response.thought,
+            agent: this.agent?.name,
+            campaign: this.campaign?.name,
+            session: this.session?.name || 'unknown'
+        }, '💭 AI Internal Reasoning');
 
-        // Use new DNA Guardrails + Node Config
-        // DNA guardrails now implicit in linguistics/restrictions or future expansion.
-        // For now sticking to node config or default. 
-        // User's Schema doesn't have explicit "guardrail_profile" anymore (it was removed in final catalog, only Big5/PAD/etc).
-        // Wait, User Schema has "guardrail_profile" in "Templates" examples? No.
-        // The examples show "decision_strategy" and "lock_strategy".
-        // Linguistics/Typos impact safety? No.
-        // Maybe "Big5.Conscientiousness" implies safety? 
-        // For now, I will use `nodeConfig.data` as primary source for guardrails.
+        // End generation span with output
+        generationSpan.end();
 
+        // Log usage metrics
+        const usage = aiResult.usageMetadata || {};
+        this.langfuse.score(trace, {
+            name: 'sentiment',
+            value: response.sentiment_score || 0.5
+        });
+
+        // Use new DNA Guardrails + Node Config WITH CANARY DETECTION
         const mergedGuardrails = {
             ...nodeConfig.data,
             last_sentiment: response.sentiment_score
         };
 
-        const guardrailResult = this.guardrailService.process(
+        // Process with canary token detection (NEW)
+        const guardrailResult = this.guardrailService.processWithCanary(
             rawContent,
-            mergedGuardrails
+            mergedGuardrails,
+            canaryToken
         );
 
-        if (guardrailResult.safetyViolated) {
-            logger.info({ leadId: lead.id, reason: guardrailResult.reason }, '🚫 SAFETY VIOLATION - Forcing Handoff');
+        // Log security event if blocked
+        if (guardrailResult.blocked || guardrailResult.safetyViolated) {
+            this.langfuse.securityEvent(trace, {
+                type: guardrailResult.reason,
+                blocked: guardrailResult.blocked,
+                details: { nodeId: nodeConfig.id, turnCount }
+            });
+
+            logger.warn({
+                leadId: lead.id,
+                reason: guardrailResult.reason,
+                blocked: guardrailResult.blocked
+            }, '🚫 SECURITY/SAFETY VIOLATION');
+
             response.crm_actions = response.crm_actions || [];
             response.crm_actions.push({
                 action: 'request_handoff',
@@ -161,7 +319,7 @@ class AgenticNode extends AgentNode {
         const sentimentWeight = 0.2;
         const newTemperature = Math.max(0, Math.min(1, (currentTemp * decayFactor) + (response.sentiment_score * sentimentWeight)));
 
-        const tempLabel = newTemperature > 0.7 ? '🔥 HOT' : newTemperature > 0.4 ? '🌡️ WARM' : '❄️ COLD';
+        const tempLabel = newTemperature > 0.7 ? 'HOT' : newTemperature > 0.4 ? 'WARM' : 'COLD';
         logger.info({ leadId: lead.id, oldTemp: currentTemp, newTemp: newTemperature, label: tempLabel }, '🌡️ Lead Temperature Updated');
 
         await this.supabase.from('leads').update({
@@ -171,6 +329,7 @@ class AgenticNode extends AgentNode {
         }).eq('id', lead.id);
 
         // 5.5. Process CRM Actions (Handoff, etc.)
+        let handoffTriggered = false; // New flag for flow control
         if (response.crm_actions && response.crm_actions.length > 0) {
             for (const action of response.crm_actions) {
                 if (action.action === 'request_handoff') {
@@ -179,6 +338,7 @@ class AgenticNode extends AgentNode {
                         status: 'handoff_requested',
                         custom_fields: { ...lead.custom_fields, handoff_reason: action.reason }
                     }).eq('id', lead.id);
+                    handoffTriggered = true; // Set flag
                     // TODO: Emit socket event
                 }
             }
@@ -191,7 +351,8 @@ class AgenticNode extends AgentNode {
             // Pass through audio if AgenticNode supports it later
         };
 
-        await this.sendResponseWithPhysics(lead, campaign, chatId, chat.id, syntheticResponse, dna.physics);
+        const sessionName = nodeConfig.data?.sessionName || campaign.session_name || campaign.waha_session_name;
+        await this.sendResponseWithPhysics(lead, campaign, chatId, chat.id, syntheticResponse, dna.physics, sessionName);
 
         // 7. Classify Intent for Campaign FSM to read
         // CRITICAL: Agent classifies, Campaign decides transition
@@ -216,6 +377,20 @@ class AgenticNode extends AgentNode {
         }
 
         // FSM-Compliant Return
+        // If handoff was triggered, we EXIT the node to stop the loop
+        if (handoffTriggered) {
+            return {
+                status: NodeExecutionStateEnum.EXITED,
+                edge: 'HANDOFF',
+                output: {
+                    intent: IntentEnum.HANDOFF_REQUEST,
+                    sentiment: classifiedSentiment,
+                    response: finalizedText,
+                    conversation_ended: true
+                }
+            };
+        }
+
         return {
             status: NodeExecutionStateEnum.AWAITING_ASYNC, // Waiting for lead reply
 
@@ -311,6 +486,24 @@ class AgenticNode extends AgentNode {
         }
 
         return false;
+    }
+
+    /**
+     * Returns localized fallback message for JSON parse errors.
+     * @param {string} languageCode - ISO language code (e.g., 'pt-BR', 'en-US')
+     * @returns {string} Localized error message
+     * @private
+     */
+    #getFallbackMessage(languageCode) {
+        const messages = {
+            'pt-BR': 'Desculpe, tive um problema técnico. Pode repetir?',
+            'pt': 'Desculpe, tive um problema técnico. Pode repetir?',
+            'en-US': 'Sorry, I had a technical issue. Can you repeat that?',
+            'en': 'Sorry, I had a technical issue. Can you repeat that?',
+            'es-ES': 'Disculpa, tuve un problema técnico. ¿Puedes repetir?',
+            'es': 'Disculpa, tuve un problema técnico. ¿Puedes repetir?'
+        };
+        return messages[languageCode] || messages['pt-BR'];
     }
 }
 

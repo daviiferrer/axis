@@ -1,5 +1,9 @@
 class WahaChattingController {
-    constructor(wahaClient, supabase) {
+    constructor({ wahaClient, supabase }) {
+        console.log('🔧 [WahaChattingController] Initializing...', {
+            hasWaha: !!wahaClient,
+            hasSupabase: !!supabase
+        });
         this.waha = wahaClient;
         this.supabase = supabase;
     }
@@ -9,29 +13,54 @@ class WahaChattingController {
         try {
             const { session } = req.query;
 
-            // Fix: Fetch from Database, not WAHA API
+            // Fix: Fetch from Database with Lead Status
             const { data: chats, error } = await this.supabase
                 .from('chats')
-                .select('*, messages!inner(body, created_at)')
+                .select('*, messages!inner(body, created_at), leads(status)')
                 .eq('session_name', session)
                 .not('chat_id', 'like', '147%') // Filter out ghost chats
                 .order('last_message_at', { ascending: false });
 
-            if (error) throw error;
+            if (error) {
+                console.error('[WahaChattingController] Supabase Error:', error);
+                throw error;
+            }
+
+            console.log(`[WahaChattingController] Found ${chats?.length || 0} chats for session: ${session}`);
+            if (chats?.length > 0) {
+                console.log('[WahaChattingController] Sample Chat Lead Data:', JSON.stringify(chats[0].leads, null, 2));
+                console.log('[WahaChattingController] Sample Chat Raw Status:', chats[0].status);
+            }
+
+            // Helper to map DB status to Frontend Status
+            const mapStatus = (chat) => {
+                const leadStatus = chat.leads?.status?.toLowerCase() || 'new';
+
+                if (['prospecting', 'new', 'contacted', 'pending'].includes(leadStatus)) return 'PROSPECTING';
+                if (['negotiating', 'qualified'].includes(leadStatus)) return 'QUALIFIED';
+                if (['lost', 'won', 'finished', 'completed', 'handoff_requested'].includes(leadStatus)) return 'FINISHED';
+
+                return 'PROSPECTING'; // Default fallback
+            };
 
             // Format to match expected frontend structure (WahaChat interface)
-            const formattedChats = chats.map(chat => ({
-                id: chat.chat_id,
-                name: chat.name || chat.phone,
-                image: chat.profile_pic_url, // Assuming this column exists or logic adds it
-                unreadCount: 0, // Not tracked in DB yet
-                lastMessage: {
-                    body: chat.messages?.[0]?.body || '',
-                    timestamp: new Date(chat.last_message_at).getTime() / 1000
-                },
-                status: chat.status, // 'active', 'archived', etc.
-                tags: chat.tags || []
-            }));
+            const formattedChats = chats.map(chat => {
+                const mappedStatus = mapStatus(chat);
+                // console.log(`[WahaChattingController] ID: ${chat.chat_id} | RawLeadStatus: ${chat.leads?.status} | Mapped: ${mappedStatus}`);
+
+                return {
+                    id: chat.chat_id,
+                    name: chat.name || chat.phone,
+                    image: chat.profile_pic_url,
+                    unreadCount: 0,
+                    lastMessage: {
+                        body: chat.messages?.[0]?.body || '',
+                        timestamp: chat.last_message_at ? new Date(chat.last_message_at).getTime() / 1000 : Date.now() / 1000
+                    },
+                    status: mappedStatus,
+                    tags: chat.tags || []
+                };
+            });
 
             res.json(formattedChats);
         } catch (error) {

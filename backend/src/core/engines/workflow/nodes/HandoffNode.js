@@ -4,6 +4,8 @@
  */
 const logger = require('../../../../shared/Logger').createModuleLogger('handoff-node');
 
+const { NodeExecutionStateEnum } = require('../../../types/CampaignEnums');
+
 class HandoffNode {
     constructor({ supabaseClient, campaignSocket, historyService, geminiClient }) {
         this.supabase = supabaseClient;
@@ -12,7 +14,7 @@ class HandoffNode {
         this.geminiClient = geminiClient;
     }
 
-    async execute(lead, campaign, nodeConfig) {
+    async execute(lead, campaign, nodeConfig, graph, context) {
         const { target = 'human', reason = 'AI requested help' } = nodeConfig.data || {};
 
         logger.info({ leadId: lead.id, target }, 'Executing HandoffNode');
@@ -21,7 +23,7 @@ class HandoffNode {
             const { targetCampaignId } = nodeConfig.data || {};
             if (!targetCampaignId) {
                 logger.error({ leadId: lead.id }, 'HandoffNode: Missing targetCampaignId');
-                return { status: 'error', error: 'Missing targetCampaignId' };
+                return { status: NodeExecutionStateEnum.FAILED, error: 'Missing targetCampaignId' };
             }
 
             // Transfer Lead to New Campaign
@@ -39,7 +41,7 @@ class HandoffNode {
             }
 
             logger.info({ leadId: lead.id, targetCampaignId }, 'HandoffNode: Transferred to Campaign');
-            return { status: 'success', markExecuted: true, action: 'transferred' };
+            return { status: NodeExecutionStateEnum.EXITED, markExecuted: true, action: 'transferred' };
         }
 
         if (target === 'human') {
@@ -99,7 +101,7 @@ class HandoffNode {
             }
         }
 
-        return { status: 'success', markExecuted: true };
+        return { status: NodeExecutionStateEnum.EXITED, markExecuted: true };
     }
 }
 

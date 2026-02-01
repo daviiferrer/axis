@@ -4,13 +4,15 @@
  */
 const logger = require('../../../../shared/Logger').createModuleLogger('broadcast-node');
 
+const { NodeExecutionStateEnum } = require('../../../types/CampaignEnums');
+
 class BroadcastNode {
     constructor({ wahaClient, supabaseClient }) {
         this.wahaClient = wahaClient;
         this.supabase = supabaseClient;
     }
 
-    async execute(lead, campaign, nodeConfig) {
+    async execute(lead, campaign, nodeConfig, graph, context) {
         logger.info({ leadId: lead.id, node: nodeConfig.id }, 'Executing BroadcastNode');
 
         const { messageTemplate, spintaxEnabled } = nodeConfig.data || {};
@@ -28,15 +30,16 @@ class BroadcastNode {
         // 2. Send via WAHA
         const chatId = this.#getChatId(lead.phone);
         const isSimulation = campaign.mode === 'simulation';
+        const sessionName = nodeConfig.data?.sessionName || campaign.session_name; // Fluid Context
 
         try {
             let sentId = `sim_${Date.now()}`;
 
             if (!isSimulation) {
-                const sent = await this.wahaClient.sendText(campaign.session_name, chatId, message);
+                const sent = await this.wahaClient.sendText(sessionName, chatId, message);
                 sentId = sent.id;
             } else {
-                logger.info({ leadId: lead.id, session: campaign.session_name }, 'SDR: Simulation Mode - Skipping WAHA');
+                logger.info({ leadId: lead.id, session: sessionName }, 'SDR: Simulation Mode - Skipping WAHA');
             }
 
             // 3. Log Message
@@ -50,14 +53,14 @@ class BroadcastNode {
             });
 
             return {
-                status: 'success',
+                status: NodeExecutionStateEnum.EXITED, // Standardized
                 markExecuted: true,
                 mode: isSimulation ? 'simulation' : 'live',
                 nodeState: { last_outbound_at: new Date().toISOString() }
             };
         } catch (error) {
             logger.error({ error: error.message }, 'Broadcast send failed');
-            return { status: 'error', error: error.message };
+            return { status: NodeExecutionStateEnum.FAILED, error: error.message };
         }
     }
 
