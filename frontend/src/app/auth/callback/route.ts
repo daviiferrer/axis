@@ -8,11 +8,15 @@ export async function GET(request: Request) {
 
     // Determine the correct origin for redirect
     // In Docker/Production, request.url might be internal (0.0.0.0).
-    // We prefer the explicit public API URL's origin if available.
-    let origin = requestUrl.origin
+    // Prioritize NEXT_PUBLIC_API_URL, but FALLBACK to the hardcoded production domain
+    // to prevent any 0.0.0.0 leakage.
+    let origin = 'https://axischat.com.br' // Default SAFE origin
     if (process.env.NEXT_PUBLIC_API_URL) {
         try {
-            origin = new URL(process.env.NEXT_PUBLIC_API_URL).origin
+            const apiOrigin = new URL(process.env.NEXT_PUBLIC_API_URL).origin
+            if (apiOrigin && apiOrigin !== 'null') {
+                origin = apiOrigin
+            }
         } catch (e) {
             console.error('Failed to parse NEXT_PUBLIC_API_URL for origin', e)
         }
