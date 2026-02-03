@@ -5,11 +5,18 @@ import { NodeProps } from '@xyflow/react';
 import { Split, Percent } from 'lucide-react';
 import { BaseNode, NODE_PRESETS } from './base-node';
 
+interface SplitNodeData {
+    label?: string;
+    variantA_percent?: number;
+    [key: string]: unknown;
+}
+
 // ============================================================================
 // SPLIT NODE: A/B Test branching (Premium Version)
 // ============================================================================
 
-export const SplitNode = memo(({ data, isConnectable, selected }: NodeProps) => {
+export const SplitNode = memo(({ data: rawData, isConnectable, selected }: NodeProps) => {
+    const data = rawData as SplitNodeData;
     const percentA = data.variantA_percent ?? 50;
     const percentB = 100 - percentA;
 

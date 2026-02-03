@@ -143,8 +143,8 @@ export function NodePalette() {
                                                     <p className="text-sm font-semibold text-gray-700 group-hover:text-gray-900 truncate">
                                                         {item.label}
                                                     </p>
-                                                    {item.desc && (
-                                                        <p className="text-[10px] text-gray-400 truncate">{item.desc}</p>
+                                                    {(item as any).desc && (
+                                                        <p className="text-[10px] text-gray-400 truncate">{(item as any).desc}</p>
                                                     )}
                                                 </div>
                                             )}

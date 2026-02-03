@@ -6,11 +6,23 @@ import { MessageSquare, Image, Mic, Tag, Globe, Megaphone } from 'lucide-react';
 import { BaseNode, NODE_PRESETS } from './base-node';
 import { Badge } from '@/components/ui/badge';
 
+interface ActionNodeData {
+    label?: string;
+    actionType?: 'message' | 'webhook' | 'update_tag' | 'remove_tag' | 'broadcast';
+    messageContent?: string;
+    webhookUrl?: string;
+    tagPayload?: string;
+    hasImage?: boolean;
+    hasAudio?: boolean;
+    [key: string]: unknown;
+}
+
 // ============================================================================
 // ACTION NODE: Message/Action step (Premium Version)
 // ============================================================================
 
-export const ActionNode = memo(({ data, isConnectable, selected }: NodeProps) => {
+export const ActionNode = memo(({ data: rawData, isConnectable, selected }: NodeProps) => {
+    const data = rawData as ActionNodeData;
 
     // Determine icon based on action type
     const getIcon = () => {

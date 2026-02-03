@@ -6,11 +6,20 @@ import { Bot, Sparkles, BrainCircuit } from 'lucide-react';
 import { BaseNode, NODE_PRESETS } from './base-node';
 import { Badge } from '@/components/ui/badge';
 
+interface AgentNodeData {
+    label?: string;
+    model?: string;
+    agentName?: string;
+    systemPrompt?: string;
+    [key: string]: unknown;
+}
+
 // ============================================================================
 // AGENT NODE: AI-powered conversational agent (Premium Version)
 // ============================================================================
 
-export const AgentNode = memo(({ data, isConnectable, selected }: NodeProps) => {
+export const AgentNode = memo(({ data: rawData, isConnectable, selected }: NodeProps) => {
+    const data = rawData as AgentNodeData;
     return (
         <BaseNode
             {...NODE_PRESETS.agent}

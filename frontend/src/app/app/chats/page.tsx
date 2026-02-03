@@ -70,6 +70,8 @@ export interface WahaMessage {
     fromMe: boolean;
     ack?: number; // Added ack for ticks (1=sent, 2=delivered, 3=read)
     _data?: any;
+    isAi?: boolean;
+    author?: string;
 }
 
 const formatPhone = (phone: string) => {
@@ -346,6 +348,7 @@ function QRCodeDisplay({ session, isVisible }: { session: string, isVisible: boo
 
 export default function ChatsPage() {
     const { user } = useAuth()
+    const { mutate } = useSWRConfig()
     const [currentSession, setCurrentSession] = useState<string | null>(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('lastSession')

@@ -5,11 +5,18 @@ import { NodeProps } from '@xyflow/react';
 import { GitBranch, ArrowRightCircle } from 'lucide-react';
 import { BaseNode, NODE_PRESETS } from './base-node';
 
+interface LogicNodeData {
+    label?: string;
+    conditions?: Array<{ variable: string; operator: string; value: string }>;
+    [key: string]: unknown;
+}
+
 // ============================================================================
 // LOGIC NODE: Conditional branching (Premium Version)
 // ============================================================================
 
-export const LogicNode = memo(({ data, isConnectable, selected }: NodeProps) => {
+export const LogicNode = memo(({ data: rawData, isConnectable, selected }: NodeProps) => {
+    const data = rawData as LogicNodeData;
     const conditions = data.conditions || [];
 
     return (

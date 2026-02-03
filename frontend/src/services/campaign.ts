@@ -30,6 +30,10 @@ export interface Campaign {
     created_at: string;
     updated_at: string;
     type: 'inbound' | 'outbound';
+    graph?: {
+        nodes: any[];
+        edges: any[];
+    };
     stats?: {
         sent: number;
         responded: number;

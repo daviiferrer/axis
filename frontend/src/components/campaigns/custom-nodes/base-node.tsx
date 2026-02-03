@@ -10,7 +10,7 @@ import { LucideIcon } from 'lucide-react';
 // Inspired by: n8n, Make.com, Turbo Flow styling
 // ============================================================================
 
-export interface BaseNodeProps extends NodeProps {
+export interface BaseNodeProps {
     // Visual configuration
     icon: LucideIcon;
     iconColor?: string;
@@ -27,6 +27,11 @@ export interface BaseNodeProps extends NodeProps {
     showInputHandle?: boolean;
     showOutputHandle?: boolean;
     outputHandleCount?: number;
+
+    // From NodeProps (only what we use)
+    selected?: boolean;
+    isConnectable?: boolean;
+    data?: any;
 }
 
 // Handle Component with premium styling

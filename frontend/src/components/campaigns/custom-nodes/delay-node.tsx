@@ -5,11 +5,21 @@ import { NodeProps } from '@xyflow/react';
 import { Clock, Timer } from 'lucide-react';
 import { BaseNode, NODE_PRESETS } from './base-node';
 
+interface DelayNodeData {
+    label?: string;
+    delayValue?: number;
+    delayUnit?: string;
+    duration?: number;
+    unit?: string;
+    [key: string]: unknown;
+}
+
 // ============================================================================
 // DELAY NODE: Wait/Timer step (Premium Version)
 // ============================================================================
 
-export const DelayNode = memo(({ data, isConnectable, selected }: NodeProps) => {
+export const DelayNode = memo(({ data: rawData, isConnectable, selected }: NodeProps) => {
+    const data = rawData as DelayNodeData;
 
     const getUnitLabel = (unit: string) => {
         switch (unit) {

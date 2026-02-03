@@ -37,7 +37,7 @@ const ANIMATION_VARIANTS = {
     hidden: { opacity: 0, x: 50 },
     visible: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 300, damping: 30 } },
     exit: { opacity: 0, x: 50, transition: { duration: 0.2 } }
-};
+} as any;
 
 export function NodeEditorPanel({ selectedNode, onClose, onUpdateNode }: NodeEditorPanelProps) {
     const [formData, setFormData] = useState<any>({});
@@ -74,7 +74,7 @@ export function NodeEditorPanel({ selectedNode, onClose, onUpdateNode }: NodeEdi
         try { const data = await agentService.list(); setAgents(data || []); } catch (e) { console.error(e); }
     };
     const loadCampaigns = async () => {
-        try { const data = await campaignService.list(); setCampaigns(data || []); } catch (e) { console.error(e); }
+        try { const data = await campaignService.listCampaigns(); setCampaigns(data || []); } catch (e) { console.error(e); }
     };
 
     const handleChange = (key: string, value: any) => {

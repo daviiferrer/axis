@@ -5,11 +5,19 @@ import { NodeProps } from '@xyflow/react';
 import { ArrowUpRight, ExternalLink, CornerUpRight } from 'lucide-react';
 import { BaseNode } from './base-node';
 
+interface GotoNodeData {
+    label?: string;
+    target_campaign_id?: string;
+    targetNodeId?: string;
+    [key: string]: unknown;
+}
+
 // ============================================================================
 // GOTO NODE: Jump to another point or campaign (Premium Version)
 // ============================================================================
 
-export const GotoNode = memo(({ data, isConnectable, selected }: NodeProps) => {
+export const GotoNode = memo(({ data: rawData, isConnectable, selected }: NodeProps) => {
+    const data = rawData as GotoNodeData;
     return (
         <BaseNode
             gradientFrom="from-cyan-50"

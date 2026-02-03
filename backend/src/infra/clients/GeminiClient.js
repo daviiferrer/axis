@@ -284,7 +284,7 @@ class GeminiClient {
         return this.generateBreaker.stats;
     }
 
-    // ... existing code ...
+
 
     /**
      * Logs Token Usage to Supabase (Async - Fire & Forget)

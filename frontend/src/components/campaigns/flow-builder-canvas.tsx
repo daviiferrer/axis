@@ -274,7 +274,7 @@ function FlowBuilderCanvasInner({ campaignId, initialFlow }: FlowBuilderCanvasPr
                 />
 
                 {nodes.length === 0 && (
-                    <Panel position="center">
+                    <Panel position={"center" as any}>
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}

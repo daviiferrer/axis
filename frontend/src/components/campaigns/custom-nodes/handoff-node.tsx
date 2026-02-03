@@ -6,11 +6,21 @@ import { Users, MessageCircle, Headphones, ExternalLink } from 'lucide-react';
 import { BaseNode, NODE_PRESETS } from './base-node';
 import { Badge } from '@/components/ui/badge';
 
+interface HandoffNodeData {
+    label?: string;
+    target?: 'human' | 'campaign';
+    targetCampaignId?: string;
+    reason?: string;
+    enableSummary?: boolean;
+    [key: string]: unknown;
+}
+
 // ============================================================================
 // HANDOFF NODE: Transfer to human agent (Premium Version)
 // ============================================================================
 
-export const HandoffNode = memo(({ data, isConnectable, selected }: NodeProps) => {
+export const HandoffNode = memo(({ data: rawData, isConnectable, selected }: NodeProps) => {
+    const data = rawData as HandoffNodeData;
     const targetType = data.target || 'human';
 
     return (
@@ -28,8 +38,8 @@ export const HandoffNode = memo(({ data, isConnectable, selected }: NodeProps) =
             <div className="space-y-3">
                 {/* Target Type Indicator */}
                 <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl ${targetType === 'campaign'
-                        ? 'bg-indigo-50 border border-indigo-100'
-                        : 'bg-rose-50 border border-rose-100'
+                    ? 'bg-indigo-50 border border-indigo-100'
+                    : 'bg-rose-50 border border-rose-100'
                     }`}>
                     {targetType === 'campaign' ? (
                         <>

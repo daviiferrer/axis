@@ -6,11 +6,19 @@ import { Megaphone, MessageSquare, Sparkles } from 'lucide-react';
 import { BaseNode, NODE_PRESETS } from './base-node';
 import { Badge } from '@/components/ui/badge';
 
+interface BroadcastNodeData {
+    label?: string;
+    messageTemplate?: string;
+    spintaxEnabled?: boolean;
+    [key: string]: unknown;
+}
+
 // ============================================================================
 // BROADCAST NODE: Mass outreach / Spintax messaging (Premium Version)
 // ============================================================================
 
-export const BroadcastNode = memo(({ data, isConnectable, selected }: NodeProps) => {
+export const BroadcastNode = memo(({ data: rawData, isConnectable, selected }: NodeProps) => {
+    const data = rawData as BroadcastNodeData;
     return (
         <BaseNode
             gradientFrom="from-orange-50"

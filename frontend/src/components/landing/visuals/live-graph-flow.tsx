@@ -73,17 +73,17 @@ export function LiveGraphFlow() {
                         }}
                         className="drop-shadow-lg"
                     />
-                    <motion.circle
+                    <circle
                         r="6"
                         fill="#2563eb"
                         className="z-20"
                     >
-                        <motion.animateMotion
+                        <animateMotion
                             dur="4s"
                             repeatCount="indefinite"
                             path="M 100 250 L 300 250 L 500 150 L 700 250 L 850 250"
                         />
-                    </motion.circle>
+                    </circle>
                 </svg>
 
                 {/* Nodes Layer */}

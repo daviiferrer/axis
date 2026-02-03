@@ -6,11 +6,20 @@ import { Zap, Smartphone, Globe, Radio, Mail } from 'lucide-react';
 import { BaseNode, NODE_PRESETS } from './base-node';
 import { Badge } from '@/components/ui/badge';
 
+interface TriggerNodeData {
+    label?: string;
+    isTriage?: boolean;
+    allowedSources?: string[];
+    sessionName?: string;
+    [key: string]: unknown;
+}
+
 // ============================================================================
 // TRIGGER NODE: Entry point of the flow (Premium Version)
 // ============================================================================
 
-export const TriggerNode = memo(({ data, isConnectable, selected }: NodeProps) => {
+export const TriggerNode = memo(({ data: rawData, isConnectable, selected }: NodeProps) => {
+    const data = rawData as TriggerNodeData;
 
     // Map source to icon
     const getSourceIcon = (source: string) => {

@@ -21,6 +21,7 @@ api.interceptors.request.use(async (config) => {
 });
 
 export interface WahaSession {
+    id?: string;
     name: string;
     status: string;
     config?: any;

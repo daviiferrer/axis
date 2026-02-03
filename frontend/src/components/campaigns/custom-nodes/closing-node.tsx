@@ -6,11 +6,19 @@ import { CheckCircle2, XCircle, Archive, Flag } from 'lucide-react';
 import { BaseNode, NODE_PRESETS } from './base-node';
 import { Badge } from '@/components/ui/badge';
 
+interface ClosingNodeData {
+    label?: string;
+    finalStatus?: string;
+    closingStatus?: string;
+    [key: string]: unknown;
+}
+
 // ============================================================================
 // CLOSING NODE: End state / Final outcome (Premium Version)
 // ============================================================================
 
-export const ClosingNode = memo(({ data, isConnectable, selected }: NodeProps) => {
+export const ClosingNode = memo(({ data: rawData, isConnectable, selected }: NodeProps) => {
+    const data = rawData as ClosingNodeData;
 
     const getStatusConfig = () => {
         // Support both finalStatus (backend) and closingStatus (legacy)
