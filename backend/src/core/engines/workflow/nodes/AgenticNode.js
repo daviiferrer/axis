@@ -2,7 +2,7 @@ const { resolveDNA } = require('../../../config/AgentDNA');
 const { NodeExecutionStateEnum, IntentEnum, SentimentEnum } = require('../../../types/CampaignEnums');
 const AgentNode = require('./AgentNode');
 const logger = require('../../../../shared/Logger').createModuleLogger('agentic-node');
-const { getInstance: getLangfuse } = require('../../../../infra/clients/LangfuseClient');
+// Langfuse removed - not using observability
 
 class AgenticNode extends AgentNode {
     constructor(dependencies) {
@@ -15,8 +15,7 @@ class AgenticNode extends AgentNode {
         this.chatService = dependencies.chatService;
         this.hybridSearchService = dependencies.hybridSearchService || null; // OPTIONAL: RAG (may not be in DI)
 
-        // Observability client
-        this.langfuse = getLangfuse();
+        // Observability client (disabled)
     }
 
     async execute(lead, campaign, nodeConfig, graph, context) {
@@ -33,17 +32,7 @@ class AgenticNode extends AgentNode {
         const startTime = Date.now();
         logger.info({ leadId: lead.id }, 'Executing AgenticNode');
 
-        // === LANGFUSE TRACING ===
-        const trace = this.langfuse.trace({
-            id: `${campaign.id}-${lead.id}-${Date.now()}`,
-            name: 'agentic-node-execution',
-            userId: lead.id,
-            metadata: {
-                campaignId: campaign.id,
-                nodeId: nodeConfig.id,
-                nodeType: nodeConfig.type
-            }
-        });
+        // Tracing disabled
 
         // === SECURITY: Generate Canary Token ===
         const canaryToken = this.guardrailService.generateCanaryToken();
@@ -69,7 +58,7 @@ class AgenticNode extends AgentNode {
                 reason: errorReason
             }, errorMsg);
 
-            trace.update({ status: 'ERROR', statusMessage: errorMsg });
+            // trace.update removed
 
             // Emit Error Event to Frontend via CampaignSocket (inherited from Base)
             if (this.campaignSocket) {
@@ -182,8 +171,7 @@ class AgenticNode extends AgentNode {
         let ragContext = '';
         if (this.hybridSearchService && history.length > 0) {
             const lastUserMessage = history.filter(m => m.role === 'user').pop()?.content || '';
-            if (lastUserMessage.length > 10) {
-                const ragSpan = this.langfuse.span(trace, { name: 'rag-retrieval', input: lastUserMessage });
+            if (lastUserMessage.length > 10) { // RAG span disabled
                 try {
                     const searchResults = await this.hybridSearchService.search(
                         lastUserMessage,
@@ -192,10 +180,10 @@ class AgenticNode extends AgentNode {
                     );
                     ragContext = this.hybridSearchService.formatForPrompt(searchResults, 1000);
                     logger.debug({ leadId: lead.id, resultsCount: searchResults.length }, '🔍 RAG context retrieved');
-                    ragSpan.end();
+                    // ragSpan.end();
                 } catch (err) {
                     logger.warn({ error: err.message }, 'RAG search failed - continuing without context');
-                    ragSpan.end();
+                    // ragSpan.end();
                 }
             }
         }
@@ -229,12 +217,7 @@ class AgenticNode extends AgentNode {
         // 4. Generate Response with tracing
         logger.info({ leadId: lead.id, model: targetModel, agentId }, '🧠 Calling Gemini... (Sandwich Pattern Applied)');
 
-        const generationSpan = this.langfuse.generation(trace, {
-            name: 'gemini-generate',
-            model: targetModel,
-            input: systemInstruction.substring(0, 500) + '...', // Truncate for logging
-            metadata: { turnCount, hasRagContext: ragContext.length > 0 }
-        });
+        // Generation span disabled
 
         const aiResult = await this.geminiClient.generateSimple(targetModel, systemInstruction, "Responda ao lead.");
 
@@ -290,14 +273,11 @@ class AgenticNode extends AgentNode {
         }, '💭 AI Internal Reasoning');
 
         // End generation span with output
-        generationSpan.end();
+        // generationSpan.end();
 
         // Log usage metrics
         const usage = aiResult.usageMetadata || {};
-        this.langfuse.score(trace, {
-            name: 'sentiment',
-            value: response.sentiment_score || 0.5
-        });
+        // Langfuse score disabled
 
         // Use new DNA Guardrails + Node Config WITH CANARY DETECTION
         const mergedGuardrails = {
@@ -314,11 +294,7 @@ class AgenticNode extends AgentNode {
 
         // Log security event if blocked
         if (guardrailResult.blocked || guardrailResult.safetyViolated) {
-            this.langfuse.securityEvent(trace, {
-                type: guardrailResult.reason,
-                blocked: guardrailResult.blocked,
-                details: { nodeId: nodeConfig.id, turnCount }
-            });
+            // Security event logging disabled
 
             logger.warn({
                 leadId: lead.id,
