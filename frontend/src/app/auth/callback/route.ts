@@ -2,9 +2,21 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 export async function GET(request: Request) {
-    const { searchParams, origin } = new URL(request.url)
-    const code = searchParams.get('code')
-    const next = searchParams.get('next') ?? '/app'
+    const requestUrl = new URL(request.url)
+    const code = requestUrl.searchParams.get('code')
+    const next = requestUrl.searchParams.get('next') ?? '/app'
+
+    // Determine the correct origin for redirect
+    // In Docker/Production, request.url might be internal (0.0.0.0).
+    // We prefer the explicit public API URL's origin if available.
+    let origin = requestUrl.origin
+    if (process.env.NEXT_PUBLIC_API_URL) {
+        try {
+            origin = new URL(process.env.NEXT_PUBLIC_API_URL).origin
+        } catch (e) {
+            console.error('Failed to parse NEXT_PUBLIC_API_URL for origin', e)
+        }
+    }
 
     if (code) {
         const supabase = createClient(
@@ -13,23 +25,6 @@ export async function GET(request: Request) {
         )
 
         // Exchange the code for a session
-        // Note: Since we are using client-side auth mainly, this server-side exchange 
-        // is ensuring the session is set in cookies if we were using the SSR helper,
-        // but here we just want to ensure the verification passed.
-        // However, for pure client-side flows, the client handles the fragment.
-        // But standard Supabase callback usually expects a code exchange on server or middleware.
-        // Let's keep it simple: specific handling for 'code' usually implies PKCE flow.
-
-        // We actually need @supabase/ssr to properly handle cookies in Next.js App Router for
-        // server-side session, but since we built a Client-Side Context, 
-        // we can simply redirect to the landing page where the Supabase Client will detect the session from the URL hash 
-        // OR if using PKCE with code, we must exchange it.
-
-        // Simplest approach for now consistent with our client-only setup:
-        // Supabase auth helper usually handles this auto-magically. 
-        // without the helper, we might need manual exchange.
-
-        // For now, let's redirect to dashboard, but usually we need:
         await supabase.auth.exchangeCodeForSession(code)
     }
 
