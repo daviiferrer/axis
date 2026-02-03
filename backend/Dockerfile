@@ -3,7 +3,8 @@ FROM node:20-alpine
 WORKDIR /usr/src/app
 
 # Install system dependencies (e.g. for ffmpeg or sharp if needed)
-# RUN apk add --no-cache python3 make g++
+# Install system dependencies
+RUN apk add --no-cache curl
 
 COPY package*.json ./
 
