@@ -92,7 +92,7 @@ services:
   # 4. WAHA Plus (WhatsApp API)
   # ===========================================
   waha:
-    image: devlikeapro/waha-plus:noweb
+    image: devlikeapro/waha-plus:latest
     container_name: axis-waha
     restart: always
     expose:
