@@ -34,7 +34,6 @@
         "inngest": "^3.49.3",
         "ioredis": "^5.8.2",
         "jsonwebtoken": "^9.0.3",
-        "langfuse": "^3.38.6",
         "libphonenumber-js": "^1.12.33",
         "multer": "^2.0.2",
         "node-cache": "^5.1.2",
