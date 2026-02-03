@@ -11,8 +11,13 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Environment variables must be present at build time for Next.js
-# We use a placeholder here or expect build-args.
-# For a generic build, we might need these to be injected via ALL args in docker-compose.
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
