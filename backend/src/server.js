@@ -168,9 +168,12 @@ async function bootstrap() {
     // 7. Start Engine & Server
     await controllers.workflowEngine.start();
 
+    // Simple Health Check for Docker (Bypasses Router/DI)
+    app.get('/health', (req, res) => res.status(200).send('OK'));
+
     const PORT = process.env.PORT || 8000;
-    server.listen(PORT, () => {
-        logger.info({ port: PORT, mode: container.options.injectionMode }, '🚀 ÁXIS SERVER STARTED');
+    server.listen(PORT, '0.0.0.0', () => {
+        logger.info({ port: PORT, mode: container.options.injectionMode }, '🚀 ÁXIS SERVER STARTED on 0.0.0.0');
     });
 
     // Graceful Shutdown (handles nodemon restarts and deployments)
