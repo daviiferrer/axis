@@ -16,7 +16,7 @@ const { PAD_INTERPRETATION, EMOTIONAL_INSTRUCTIONS } = require('../../config/Age
 class EmotionalStateService {
     constructor({ supabaseClient }) {
         this.supabase = supabaseClient;
-        this.DECAY_FACTOR = 0.9; // Retention of previous state (0.9 = high retention)
+        this.DECAY_FACTOR = 0.7; // Lowered from 0.9 for higher reactivity to current messages
     }
 
     async getPadVector(leadId, agentId) {
@@ -49,9 +49,9 @@ class EmotionalStateService {
         try {
             const current = await this.getPadVector(leadId, agentId) || { pleasure: 0.5, arousal: 0.5, dominance: 0.5 };
 
-            // Map sentiment (-1 to 1) to Pleasure (0 to 1)
-            // -1 -> 0, 0 -> 0.5, 1 -> 1
-            const targetPleasure = (sentimentScore + 1) / 2;
+            // AI returns sentimentScore in 0 (Negative) to 1 (Positive) range.
+            // Documentation in PromptService.js: "sentiment_score": 0.5 (Neutral).
+            const targetPleasure = sentimentScore;
 
             const newPleasure = (current.pleasure * this.DECAY_FACTOR) + (targetPleasure * (1 - this.DECAY_FACTOR));
 

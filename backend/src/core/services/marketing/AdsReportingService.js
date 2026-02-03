@@ -11,9 +11,21 @@ const axios = require('axios');
 const logger = require('../../../shared/Logger').createModuleLogger('ads-reporting');
 
 class AdsReportingService {
-    constructor(supabaseClient) {
+    constructor(supabaseClient, settingsService = null) {
         this.supabase = supabaseClient;
+        this.settingsService = settingsService;
+        // Default fallback, will be overridden by DB setting if available
         this.META_API_VERSION = 'v18.0';
+    }
+
+    /**
+     * Get Meta API version (from DB settings or default)
+     */
+    async #getMetaApiVersion() {
+        if (this.settingsService) {
+            return await this.settingsService.getMetaApiVersion();
+        }
+        return this.META_API_VERSION;
     }
 
     /**
@@ -63,7 +75,8 @@ class AdsReportingService {
             };
 
             // 3. Send to Meta (Fire & Forget logic with Logging)
-            const url = `https://graph.facebook.com/${this.META_API_VERSION}/${pixelId}/events?access_token=${accessToken}`;
+            const metaApiVersion = await this.#getMetaApiVersion();
+            const url = `https://graph.facebook.com/${metaApiVersion}/${pixelId}/events?access_token=${accessToken}`;
 
             // In dev mode, we might just log
             if (process.env.NODE_ENV === 'development' && !process.env.FORCE_CAPI) {

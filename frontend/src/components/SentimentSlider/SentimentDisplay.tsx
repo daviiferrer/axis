@@ -61,7 +61,7 @@ interface SentimentDisplayProps {
     variant?: 'default' | 'header';
 }
 
-export default function SentimentDisplay({ value, onManualSelect, variant = 'default' }: SentimentDisplayProps) {
+export function SentimentDisplay({ value, onManualSelect, variant = 'default' }: SentimentDisplayProps) {
     const motionValue = useMotionValue(value);
     const [activePopup, setActivePopup] = useState<number | null>(null);
 
@@ -113,14 +113,19 @@ export default function SentimentDisplay({ value, onManualSelect, variant = 'def
                                 smoothValue={smoothValue}
                                 component={mood.component}
                                 onClick={() => {
-                                    // Toggle popup or select
+                                    // Always allow popup toggle
                                     setActivePopup(activePopup === index ? null : index);
-                                    onManualSelect?.(index);
+
+                                    // Only trigger selection change if handler exists
+                                    if (onManualSelect) {
+                                        onManualSelect(index);
+                                    }
                                 }}
                                 variant={variant}
+                                interactive={true} // Always allow visual interaction (hover/click for popup)
                             />
 
-                            {/* B2B Popup / Floating Menu */}
+                            {/* B2B Popup / Floating Menu - Always show if activePopup matches, regardless of manual select */}
                             <AnimatePresence>
                                 {activePopup === index && (
                                     <motion.div
@@ -152,12 +157,13 @@ export default function SentimentDisplay({ value, onManualSelect, variant = 'def
 }
 
 // Sub-component for individual Emoji animation
-function EmojiItem({ index, smoothValue, component: Icon, onClick, variant }: {
+function EmojiItem({ index, smoothValue, component: Icon, onClick, variant, interactive }: {
     index: number,
     smoothValue: any,
     component: any,
     onClick: () => void,
-    variant: 'default' | 'header'
+    variant: 'default' | 'header',
+    interactive: boolean
 }) {
     const isHeader = variant === 'header';
 
@@ -182,9 +188,9 @@ function EmojiItem({ index, smoothValue, component: Icon, onClick, variant }: {
         <motion.div
             onClick={(e) => {
                 e.stopPropagation();
-                onClick();
+                if (interactive) onClick();
             }}
-            className={`relative cursor-pointer flex flex-col items-center justify-end ${baseWidth} will-change-transform`}
+            className={`relative ${interactive ? 'cursor-pointer' : 'cursor-default'} flex flex-col items-center justify-end ${baseWidth} will-change-transform`}
             style={{
                 scale,
                 y,
@@ -194,8 +200,8 @@ function EmojiItem({ index, smoothValue, component: Icon, onClick, variant }: {
         >
             <motion.div
                 className="w-full h-full"
-                whileHover={{ scale: 1.15 }} // Apply hover scale multiplicatively
-                whileTap={{ scale: 0.95 }}
+                whileHover={interactive ? { scale: 1.15 } : undefined} // Apply hover scale multiplicatively only if interactive
+                whileTap={interactive ? { scale: 0.95 } : undefined}
                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
             >
                 <Icon className="w-full h-full drop-shadow-sm filter" />

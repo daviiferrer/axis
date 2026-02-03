@@ -49,12 +49,16 @@ class AgentService {
             }
         }
 
+        // FIX: Remove 'status' field that doesn't exist in DB
+        const cleanedData = { ...agentData };
+        delete cleanedData.status;
+
         const { data, error } = await this.supabase
             .from('agents')
             .insert({
-                ...agentData,
+                ...cleanedData,
                 provider: provider,
-                model: agentData.model || this.#getDefaultModel(provider)
+                model: cleanedData.model || this.#getDefaultModel(provider)
             })
             .select()
             .single();

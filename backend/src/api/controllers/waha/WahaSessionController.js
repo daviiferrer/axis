@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../../../shared/Logger').createModuleLogger('waha-session');
+const SettingsService = require('../../../core/services/system/SettingsService');
 
 class WahaSessionController {
     constructor({ wahaClient, supabase, billingService }) {
@@ -70,7 +71,7 @@ class WahaSessionController {
             // We return DB data immediately for speed/resilience.
             // If WAHA is up, we'll update DB statuses.
             this._syncSessionsWithWaha(all, dbSessions, req).catch(err => {
-                logger.warn({ error: err.message }, 'Background sync failed (WAHA likely down)');
+                logger.warn({ error: err.message }, 'Background sync failed (WAHA likely down or unreachable)');
             });
 
             // 3. Return DB Sessions (UI won't break)
@@ -95,6 +96,7 @@ class WahaSessionController {
             const wahaSessions = await this.waha.getSessions(all);
             const supabase = this._getRequestClient(req);
 
+            // 1. Update DB from WAHA State & Detect Zombies
             for (const wSession of wahaSessions) {
                 const match = dbSessions.find(ds => ds.session_name === wSession.name);
 
@@ -106,7 +108,7 @@ class WahaSessionController {
                             .eq('id', match.id);
                     }
                 } else {
-                    // Zombie Session Found (In WAHA, not in DB)
+                    // Zombie Session: Exists in WAHA but not in DB
                     // Since DB is Source of Truth, remove from WAHA
                     logger.info({ session: wSession.name }, 'Zombie session found, deleting from WAHA');
                     try {
@@ -114,6 +116,21 @@ class WahaSessionController {
                     } catch (e) {
                         logger.error({ session: wSession.name, error: e.message }, 'Failed to cleanup zombie');
                     }
+                }
+            }
+
+            // 2. Detect Lost Sessions: Exists in DB but not in WAHA
+            // If DB says STARTING/WORKING but WAHA doesn't have it, it failed or was lost.
+            for (const dbSession of dbSessions) {
+                const found = wahaSessions.find(ws => ws.name === dbSession.session_name);
+                if (!found && dbSession.status !== 'STOPPED' && dbSession.status !== 'FAILED') {
+                    // Verify strictly that it SHOULD be there (e.g. not in middle of creation)
+                    // But here we are in a sync loop. If it's not in WAHA payload, it's not running.
+                    logger.warn({ session: dbSession.session_name, currentStatus: dbSession.status }, 'Session missing in WAHA, marking as STOPPED');
+                    await supabase
+                        .from('sessions')
+                        .update({ status: 'STOPPED', updated_at: new Date() })
+                        .eq('id', dbSession.id);
                 }
             }
         } catch (e) {
@@ -171,6 +188,37 @@ class WahaSessionController {
             sessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_');
 
             const payload = { ...req.body, name: sessionName };
+
+            // --- WEBHOOK CONFIGURATION (Dynamic) ---
+            try {
+                let webhookUrl = process.env.WAHA_WEBHOOK_URL;
+                // Try to get from DB System Settings
+                const settingsService = new SettingsService({ supabaseClient: this.supabase });
+                // Use user ID if available, or just rely on service finding global
+                const settings = await settingsService.getSettings(req.user?.id);
+
+                if (settings && settings.waha_webhook_url) {
+                    webhookUrl = settings.waha_webhook_url;
+                }
+
+                // Default if missing (User Requirement for VPS/Docker)
+                if (!webhookUrl) {
+                    webhookUrl = 'http://host.docker.internal:8000/api/v1/webhook/waha';
+                }
+
+                // Inject into payload
+                if (!payload.config) payload.config = {};
+                if (!payload.config.webhooks) {
+                    logger.info({ session: sessionName, url: webhookUrl }, 'Injecting Webhook Configuration');
+                    payload.config.webhooks = [{
+                        url: webhookUrl,
+                        events: ['message', 'message.ack', 'message.revoked', 'session.status']
+                    }];
+                }
+            } catch (configError) {
+                logger.warn({ error: configError.message }, 'Failed to inject webhook config, using defaults');
+            }
+            // ----------------------------------------
 
             // --- INSTANCE LIMIT CHECK ---
             if (this.billingService && req.user?.profile?.company_id) {
@@ -297,18 +345,30 @@ class WahaSessionController {
             // 1. Try to Delete from WAHA
             try {
                 await this.waha.deleteSession(session);
+                logger.info({ session }, 'Deleted session from WAHA');
             } catch (wahaError) {
-                logger.warn({ session, error: wahaError.message }, 'Failed to delete from WAHA (likely offline)');
+                // If 404, it's already gone, which is fine.
+                if (wahaError.message && wahaError.message.includes('404')) {
+                    logger.debug({ session }, 'Session not found in WAHA, proceeding to DB delete');
+                } else {
+                    logger.warn({ session, error: wahaError.message }, 'Failed to delete from WAHA (likely offline or error), proceeding to DB delete');
+                }
             }
 
             // 2. Sync: Remove from DB always
             if (this.supabase) {
                 const supabase = this._getRequestClient(req);
-                await supabase.from('sessions').delete().eq('session_name', session);
+                const { error } = await supabase.from('sessions').delete().eq('session_name', session);
+
+                if (error) {
+                    logger.error({ session, error: error.message }, 'Failed to delete session from DB');
+                    throw new Error(`DB Delete Error: ${error.message}`);
+                }
             }
 
             res.json({ success: true, message: 'Session deleted' });
         } catch (error) {
+            logger.error({ session: req.params.session, error: error.message }, 'deleteSession critical error');
             res.status(500).json({ error: error.message });
         }
     }

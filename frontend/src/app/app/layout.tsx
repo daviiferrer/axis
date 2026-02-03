@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 import { AppSidebar } from "@/components/app-sidebar"
+import { DataPrefetcher } from "@/components/DataPrefetcher"
 
 
 export default function AppLayout({
@@ -41,6 +42,9 @@ export default function AppLayout({
     // Wrapper div is flex-row
     return (
         <div className="flex h-screen w-full bg-gray-100 dark:bg-neutral-900 overflow-hidden">
+            {/* Prefetch all critical data on mount */}
+            <DataPrefetcher />
+
             <AppSidebar />
             <main className="flex-1 flex flex-col h-full overflow-hidden relative">
                 {/* Content area */}

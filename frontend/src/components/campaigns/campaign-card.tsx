@@ -65,9 +65,8 @@ export function CampaignCard({ campaign, onUpdate, index = 0 }: CampaignCardProp
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05, duration: 0.4 }}
+            layoutId={`campaign-card-${campaign.id}`}
+            initial={false}
             whileHover={{ y: -5, transition: { duration: 0.2 } }}
             className={`
                 group relative overflow-hidden rounded-3xl border transition-all duration-300 backdrop-blur-sm

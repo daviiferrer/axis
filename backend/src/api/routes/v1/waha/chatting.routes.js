@@ -7,6 +7,7 @@ module.exports = (chattingController) => {
     router.get('/chats', (req, res) => chattingController.getChats(req, res));
     router.delete('/chats/:session/:chatId', (req, res) => chattingController.deleteChat(req, res)); // Added Delete Route
     router.get('/messages', (req, res) => chattingController.getMessages(req, res));
+    router.get('/chats/:session/:chatId/sentiment', (req, res) => chattingController.getLeadSentiment(req, res));
 
     // Profile Picture (Proxied)
     router.get('/:session/chats/:chatId/picture', (req, res) => chattingController.getProfilePicture(req, res));
@@ -39,6 +40,7 @@ module.exports = (chattingController) => {
     // Presence
     router.post('/startTyping', (req, res) => chattingController.startTyping(req, res));
     router.post('/stopTyping', (req, res) => chattingController.stopTyping(req, res));
+    router.post('/subscribePresence', (req, res) => chattingController.subscribePresence(req, res));
 
     return router;
 };

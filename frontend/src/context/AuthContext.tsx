@@ -36,19 +36,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const fetchUserWithProfile = useCallback(async (currentSession: Session | null) => {
         if (currentSession?.user) {
             try {
-                // Fetch extra profile data
+                // Fetch extra profile data (role only, company logic removed)
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
-                    .select('company_id, role')
+                    .select('role')
                     .eq('id', currentSession.user.id)
                     .maybeSingle()
 
                 if (profileError) {
                     console.error('[AuthContext] Error fetching profile:', profileError.message)
                 }
-
-                // Company logic removed for flexibility
-                let companyId = null;
 
                 // Construct final user object with profile data
                 const userWithProfile = {

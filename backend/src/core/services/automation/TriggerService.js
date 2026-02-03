@@ -38,6 +38,12 @@ class TriggerService {
      * Triggers the AI for a specific lead.
      */
     async triggerAiForLead(phone, sessionName) {
+        // SAFETY: Prevent Bot Self-Triggering (JID 55519... is often the bot itself in waha/baileys)
+        if (phone.startsWith('55519') || phone.includes('99794450')) {
+            logger.warn({ phone }, '🛑 Security: Blocked attempt to trigger AI on Session Number (Self-Loop Protection)');
+            return;
+        }
+
         logger.info({ phone, sessionName }, '🎯 Sniper Triggered');
 
         try {

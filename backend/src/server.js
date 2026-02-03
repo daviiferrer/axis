@@ -173,12 +173,30 @@ async function bootstrap() {
         logger.info({ port: PORT, mode: container.options.injectionMode }, '🚀 ÁXIS SERVER STARTED');
     });
 
-    // Graceful Shutdown
-    process.on('SIGTERM', async () => {
-        await container.dispose();
+    // Graceful Shutdown (handles nodemon restarts and deployments)
+    const gracefulShutdown = async (signal) => {
+        logger.info({ signal }, '🛑 Graceful shutdown starting...');
+
+        // Stop accepting new HTTP connections
         server.close();
+
+        // Wait for queue workers to finish current jobs (max 30s)
+        if (controllers.workflowEngine?.queueService) {
+            try {
+                await controllers.workflowEngine.queueService.shutdown();
+                logger.info('✅ Queue workers stopped');
+            } catch (err) {
+                logger.warn({ error: err.message }, '⚠️ Queue shutdown error');
+            }
+        }
+
+        await container.dispose();
+        logger.info('✅ Graceful shutdown complete');
         process.exit(0);
-    });
+    };
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));  // Ctrl+C / nodemon
 }
 
 bootstrap().catch(err => {

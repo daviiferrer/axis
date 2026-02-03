@@ -174,7 +174,7 @@ class StateCheckpointService {
                 .select(`
                     *,
                     leads (*),
-                    campaigns (*, agents (*))
+                    campaigns (*)
                 `)
                 .eq('waiting_for', 'TIMER')
                 .lte('wait_until', new Date().toISOString())
@@ -207,7 +207,7 @@ class StateCheckpointService {
                 .select(`
                     *,
                     leads!inner (*),
-                    campaigns (*, agents (*))
+                    campaigns (*)
                 `)
                 .eq('leads.phone', phone)
                 .eq('waiting_for', 'USER_REPLY')

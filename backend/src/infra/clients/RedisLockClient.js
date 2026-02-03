@@ -27,9 +27,9 @@ class RedisLockClient {
 
             this.redlock = new Redlock([this.redis], {
                 driftFactor: 0.01,
-                retryCount: 3,
-                retryDelay: 200,
-                retryJitter: 100,
+                retryCount: 20,    // Increased: 20 retries * 500ms = 10s max wait
+                retryDelay: 500,   // Increased to handle AI generation time (2-4s)
+                retryJitter: 200,
                 automaticExtensionThreshold: 500
             });
 
@@ -41,9 +41,19 @@ class RedisLockClient {
 
             this.redlock.on('error', (error) => {
                 // Ignore resource locked errors (expected behavior)
-                if (error.name !== 'LockError') {
-                    logger.error({ error: error.message }, 'Redlock error');
+                // Redlock v5 emits "The operation was applied to: 0 of the 1 requested resources." for contention
+                if (error.name === 'LockError' || error.message.includes('0 of the 1 requested resources')) {
+                    logger.debug({ error: error.message }, 'Redlock contention (lock busy)');
+                    return;
                 }
+
+                // For other actual errors, verify if it's just a retry warning
+                if (error.name === 'ExecutionError') {
+                    logger.debug({ error: error.message }, 'Redlock retry');
+                    return;
+                }
+
+                logger.error({ error: error.message }, 'Redlock error');
             });
 
             logger.info('🔒 RedisLockClient initialized');

@@ -1,5 +1,6 @@
 const { resolveDNA, SAFETY_DEFAULTS } = require('../../../config/AgentDNA');
 const { NodeExecutionStateEnum } = require('../../../types/CampaignEnums');
+const { composingCache } = require('../../../services/system/CacheService');
 const logger = require('../../../../shared/Logger').createModuleLogger('agent-node');
 
 /**
@@ -42,8 +43,34 @@ class AgentNode {
 
         logger.info({ sessionName, tenantId, nodeId: nodeConfig.id }, '✅ AgentNode Context Resolved');
 
+        // Resolve Agent (Handle potential Array from join)
+        const primaryAgent = Array.isArray(campaign.agents) ? campaign.agents[0] : campaign.agents;
+
+        // STRICT VALIDATION: If no agent or no DNA, STOP execution and ALERT user
+        if (!primaryAgent || !primaryAgent.dna_config) {
+            const errorReason = !primaryAgent ? 'Agente não encontrado na campanha' : 'Configuração de DNA (Persona) ausente';
+
+            logger.error({
+                campaignId: campaign.id,
+                campaignName: campaign.name,
+                reason: errorReason
+            }, '🛑 BLOCKED: Agent configuration missing. Preventing generic fallback.');
+
+            if (this.campaignSocket) {
+                this.campaignSocket.emit('agent.config_error', {
+                    campaignId: campaign.id,
+                    campaignName: campaign.name,
+                    sessionName: sessionName,
+                    reason: errorReason,
+                    timestamp: new Date().toISOString()
+                });
+            }
+
+            return { status: NodeExecutionStateEnum.FAILED, error: errorReason };
+        }
+
         // Resolve DNA Configuration
-        const dna = resolveDNA(campaign.agents?.dna_config);
+        const dna = resolveDNA(primaryAgent.dna_config);
 
         // 1. Ensure Chat/JID exists
         const chatId = this.getChatId(lead.phone);
@@ -92,7 +119,13 @@ class AgentNode {
                 targetModel,
                 systemInstruction,
                 "Gere a próxima resposta baseada no histórico.",
-                { companyId: campaign.company_id }
+                {
+                    companyId: campaign.company_id,
+                    campaignId: campaign.id,
+                    chatId: chat.id,
+                    userId: campaign.user_id, // Pass owner for SaaS logging
+                    sessionId: sessionName
+                }
             );
 
             try {
@@ -144,8 +177,7 @@ class AgentNode {
     /**
      * Orchestrates the sending of messages with human-like characteristics.
      */
-    async sendResponseWithPhysics(lead, campaign, chatId, dbChatId, aiResponse, physics, sessionNameOverride) {
-        // WAHA requires @c.us for sending messages to users
+    async sendResponseWithPhysics(lead, campaign, chatId, dbChatId, aiResponse, physics, sessionNameOverride, authorName = 'AI') {
         const wahaChatId = chatId.endsWith('@s.whatsapp.net')
             ? chatId.replace('@s.whatsapp.net', '@c.us')
             : chatId;
@@ -154,7 +186,8 @@ class AgentNode {
             sessionNameOverride,
             campaignSession: campaign.session_name,
             wahaSession: campaign.waha_session_name,
-            wahaChatId
+            wahaChatId,
+            authorName
         }, '🔍 DEBUG: sendResponseWithPhysics - Session Resolution');
 
         // Resolve Session Name with fallback hierarchy
@@ -187,6 +220,16 @@ class AgentNode {
 
         // 2. Iterate and Send with Latency
         for (let i = 0; i < messagesToSend.length; i++) {
+            // 🛑 SMART ANTI-COLLISION: Check if user started typing during thought process
+            if (composingCache.isComposing(wahaChatId)) {
+                logger.info({
+                    leadId: lead.id,
+                    chatId: wahaChatId,
+                    progress: `${i}/${messagesToSend.length}`
+                }, '✋ Smart Interruption: User started typing. Aborting remaining messages.');
+                return; // Stop sending immediately. User's new message will trigger re-evaluation.
+            }
+
             const msgText = messagesToSend[i];
             const isFirst = i === 0;
 
@@ -232,7 +275,7 @@ class AgentNode {
                 chat_id: dbChatId,
                 body: msgText,
                 from_me: true,
-                author: campaign.agents?.name || 'AI',
+                author: authorName,
                 is_ai: true,
                 is_demo: isSimulation,
                 ai_thought: aiResponse.thought
@@ -328,7 +371,7 @@ class AgentNode {
         return {
             lead,
             campaign,
-            agent: { ...campaign.agents, ...node.data },
+            agent: { ...(Array.isArray(campaign.agents) ? campaign.agents[0] : campaign.agents), ...node.data },
             product,
             methodology,
             objectionPlaybook,
@@ -385,26 +428,62 @@ class AgentNode {
      * Splits a long text into "bursts" based on semantic boundaries.
      */
     splitMessageWithBurstiness(text, strategy) {
-        // If text is short, return as is
-        if (text.length < 150) return [text];
+        // 1. Initial Cleanup
+        if (!text) return [];
+        if (text.length < 50) return [text]; // Keep very short messages intact
 
-        // Split by punctuation (.!?)
-        const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
+        // 2. Split by Double Newlines (Strong Paragraphs) first
+        // This ensures "Opa, Davi!" followed by a blank line stays separate
+        const paragraphs = text.split(/\n\s*\n/);
 
-        const chunks = [];
-        let currentChunk = "";
+        const finalChunks = [];
+        const MAX_CHUNK_KEY = 150; // Target max length per bubble
 
-        for (const sentence of sentences) {
-            if ((currentChunk + sentence).length > 200) {
-                if (currentChunk) chunks.push(currentChunk.trim());
-                currentChunk = sentence;
-            } else {
-                currentChunk += sentence;
+        for (const paragraph of paragraphs) {
+            // If paragraph is short enough, keep it valid
+            if (paragraph.length <= MAX_CHUNK_KEY) {
+                finalChunks.push(paragraph.trim());
+                continue;
             }
-        }
-        if (currentChunk) chunks.push(currentChunk.trim());
 
-        return chunks;
+            // 3. Split by Sentence Endings (. ? !)
+            // \b ensures we don't split on "Sra." or "Dr." loosely (basic check)
+            // This regex tries to capture the punctuation with the sentence
+            const sentences = paragraph.match(/[^.!?\n]+[.!?]+|[^.!?\n]+$/g) || [paragraph];
+
+            let currentBuffer = "";
+
+            for (const sentence of sentences) {
+                const trimmed = sentence.trim();
+                if (!trimmed) continue;
+
+                // Check matches for greeting-like short phrases to force separation
+                // e.g., "Opa, Davi!" or "Tudo bem?"
+                const isShortGreeting = trimmed.length < 30 && /^(ol[áa]|oi|opa|e aí|tudo bem|bom dia|boa tarde|boa noite)/i.test(trimmed);
+
+                if (isShortGreeting) {
+                    if (currentBuffer) {
+                        finalChunks.push(currentBuffer.trim());
+                        currentBuffer = "";
+                    }
+                    finalChunks.push(trimmed);
+                    continue;
+                }
+
+                if ((currentBuffer + " " + trimmed).length > MAX_CHUNK_KEY) {
+                    if (currentBuffer) {
+                        finalChunks.push(currentBuffer.trim());
+                    }
+                    currentBuffer = trimmed;
+                } else {
+                    currentBuffer = currentBuffer ? currentBuffer + " " + trimmed : trimmed;
+                }
+            }
+
+            if (currentBuffer) finalChunks.push(currentBuffer.trim());
+        }
+
+        return finalChunks.filter(c => c.length > 0);
     }
 
     async logMessage(lead, chatId, body, fromMe = false) {

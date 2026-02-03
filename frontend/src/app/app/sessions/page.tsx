@@ -8,8 +8,8 @@ import { parsePhoneNumber } from 'libphonenumber-js'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAuth } from '@/context/AuthContext'
-import { wahaService } from '@/services/waha'
-import useSWR from 'swr'
+import { wahaService, subscribeToSessions, WahaSession } from '@/services/waha'
+import useSWR, { useSWRConfig } from 'swr'
 import {
     Dialog,
     DialogContent,
@@ -112,13 +112,20 @@ export default function SessionsPage() {
         '/sessions',
         () => wahaService.getSessions(true),
         {
-            refreshInterval: 1000,
-            revalidateOnFocus: true,
-            revalidateOnReconnect: true,
-            revalidateIfStale: true,
-            dedupingInterval: 500
+            refreshInterval: 0, // Realtime handles updates
+            revalidateOnFocus: false,
+            keepPreviousData: true, // Prevents flicker
+            dedupingInterval: 1000
         }
     )
+
+    // Subscribe to real-time session updates
+    useEffect(() => {
+        const unsubscribe = subscribeToSessions((updatedSessions) => {
+            mutate(updatedSessions, false); // Update cache without revalidation
+        });
+        return unsubscribe;
+    }, [mutate]);
 
     const handleAction = async (action: 'start' | 'stop' | 'restart' | 'logout' | 'delete', sessionName: string) => {
         try {

@@ -10,26 +10,56 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const logger = require('../../../shared/Logger').createModuleLogger('embedding');
 
 class EmbeddingService {
-    constructor({ systemConfig } = {}) {
-        // Get API key from systemConfig (DI) or environment variables
+    constructor({ systemConfig, settingsService } = {}) {
+        this.settingsService = settingsService;
+
+        // Initial attempt from env/config, but don't fail if missing
         this.apiKey = systemConfig?.geminiKey || process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
 
         if (this.apiKey) {
-            this.genAI = new GoogleGenerativeAI(this.apiKey);
-            this.model = this.genAI.getGenerativeModel({ model: 'text-embedding-004' });
-            this.enabled = true;
-            logger.info('✅ EmbeddingService initialized with text-embedding-004');
+            this._initClient(this.apiKey);
         } else {
             this.genAI = null;
             this.model = null;
             this.enabled = false;
-            logger.warn('⚠️ EmbeddingService disabled - missing API key');
+            logger.info('ℹ️ EmbeddingService: No env API Key. Will attempt to load from SettingsService on demand.');
         }
 
         // Simple in-memory cache for embeddings
         this.cache = new Map();
         this.CACHE_MAX_SIZE = 1000;
         this.CACHE_TTL_MS = 3600000; // 1 hour
+    }
+
+    _initClient(key) {
+        try {
+            this.genAI = new GoogleGenerativeAI(key);
+            this.model = this.genAI.getGenerativeModel({ model: 'text-embedding-004' });
+            this.enabled = true;
+            this.apiKey = key;
+            logger.info('✅ EmbeddingService initialized with text-embedding-004');
+        } catch (err) {
+            logger.error({ error: err.message }, 'Failed to initialize EmbeddingService client');
+            this.enabled = false;
+        }
+    }
+
+    async _ensureClient() {
+        if (this.enabled && this.model) return true;
+
+        if (!this.apiKey && this.settingsService) {
+            try {
+                // Try to load from DB
+                const dbKey = await this.settingsService.getProviderKey(null, 'gemini');
+                if (dbKey) {
+                    this._initClient(dbKey);
+                    return this.enabled;
+                }
+            } catch (err) {
+                logger.warn({ error: err.message }, 'Failed to fetch API key from settings');
+            }
+        }
+        return false;
     }
 
     /**
@@ -41,8 +71,9 @@ class EmbeddingService {
      * @returns {Promise<number[]>} Embedding vector (768 dimensions)
      */
     async getEmbedding(text, options = { useCache: true }) {
-        if (!this.enabled) {
-            logger.warn('Embedding requested but service is disabled');
+        const ready = await this._ensureClient();
+        if (!ready) {
+            logger.warn('Embedding requested but service is disabled (Missing API Key)');
             return null;
         }
 

@@ -12,38 +12,49 @@ const ROLE_BLUEPRINTS = {
      * Goal: Qualify leads, handle objections, book meetings.
      */
     'SDR': (context) => {
-        const { product, validation, company, agent } = context;
-        const productName = product?.title || product?.name || 'o produto';
+        const { product, validation, company, agent, customPlaybook } = context;
 
-        // STRICT: Company name must be provided
-        const companyName = company?.name;
-        if (!companyName) {
-            throw new Error('MISSING_COMPANY_CONTEXT: Company name is required for SDR role');
+        // --- ADAPTIVE CONTEXT RESOLUTION ---
+        // If Playbook exists, it overrides the "Product" mentality
+        const hasPlaybook = customPlaybook && customPlaybook.length > 5;
+
+        // Determine "Product" name based on context
+        let productName = 'a Solução Ideal';
+        let valueProp = 'Resolver a dor do cliente e trazer resultados.';
+
+        if (hasPlaybook) {
+            productName = 'os Serviços/Soluções definidos no Playbook';
+            valueProp = 'Conforme definido nos diferenciais do Playbook.';
+        } else if (product) {
+            productName = product.title || product.name || 'o Produto';
+            valueProp = product.description || valueProp;
         }
 
-        // Fail-Fast: SDRs need a product to sell
-        // if (!product) console.warn('⚠️ SDR Agent running without Product Context!');
+        // STRICT: Company name must be provided
+        const companyName = company?.name || 'Nossa Empresa';
+        if (!companyName && !hasPlaybook) {
+            // throw new Error('MISSING_COMPANY_CONTEXT'); // Relaxed for local dev
+        }
 
         return `
-### 👔 FUNÇÃO: SDR (Representante de Desenvolvimento de Vendas)
-Seu objetivo único é **QUALIFICAR** o lead e **AGENDAR** uma reunião/demo.
-Você NÃO é suporte técnico. Você NÃO é consultor gratuito. Você é um VENDEDOR.
+### 👔 FUNÇÃO: SDR / TRIAGEM INTELIGENTE
+Seu objetivo é **ENTENDER** o cliente, **RESPONDER** dúvidas e **QUALIFICAR** para o próximo passo.
+Você NÃO é um robô de spam. Você é um consultor atencioso.
 
-**📦 CONTEXTO DE VENDA:**
-- **Empresa:** ${companyName}
-- **Produto/Oferta:** ${productName}
-- **Value Proposition:** ${product?.description || 'Transformar e otimizar resultados.'}
+**📦 CONTEXTO DE OFERTA (PRIORIDADE MÁXIMA):**
+${hasPlaybook ? `!!! USE O PLAYBOOK CUSTOMIZADO (ACIMA) COMO ÚNICA FONTE DE VERDADE !!!` : ` - **Empresa:** ${companyName}\n - **Oferta:** ${productName}\n - **Valor:** ${valueProp}`}
 
-**🛒 DIRETRIZES DE QUALIFICAÇÃO (${validation?.framework || 'SPIN Selling'}):**
-1. **Investigação:** Faça perguntas abertas para entender a dor do cliente.
-2. **Implicação:** Mostre como a dor atual afeta o negócio dele.
-3. **Necessidade de Solução:** Apresente o ${productName} como a solução ideal.
-4. **Fechamento:** Busque o "Sim" para uma reunião ou próximo passo.
+**🛒 DIRETRIZES DE ATENDIMENTO (${validation?.framework || 'SPIN Selling Simplificado'}):**
+1. **Escuta Ativa:** Se o lead fez uma pergunta específica ("O que vcs fazem?", "Quanto custa?"), RESPONDA DIRETAMENTE usando o Contexto/Playbook antes de tentar vender.
+2. **Contextualização:** Não assuma que o cliente conhece a empresa. Explique o que fazemos (baseado no Playbook) se perguntado.
+3. **Investigação:** Entenda o problema dele.
+4. **Solução:** Apresente nossa solução (do Playbook) como alívio para essa dor.
+5. **Próximo Passo:** Sugira avançar (agendar, visitar) de forma natural.
 
 **🚫 O QUE NÃO FAZER:**
-- Não dê tutoriais técnicos de como resolver problemas (Isso é com o Suporte).
-- Não invente preços se não souber. Diga "Isso depende do projeto, vamos agendar para avaliar?".
-- Não seja passivo. Sempre termine com uma pergunta ou Call to Action (CTA).
+- NÃO ignore perguntas do lead para forçar script de vendas.
+- NÃO invente produtos que não estão no Playbook.
+- NÃO use termos de SaaS ("otimizar processos", "software") se o negócio for físico/serviço (ex: Advocacia, Mecânica). Adapte-se ao setor do Playbook.
 `;
     },
 

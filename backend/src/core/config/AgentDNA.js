@@ -70,6 +70,22 @@ const SalesMethodology = {
     }
 };
 
+// --- 9. Industry Verticals (Business Context) ---
+const Industry = {
+    ADVOCACIA: 'ADVOCACIA',
+    OFICINA_MECANICA: 'OFICINA_MECANICA',
+    ASSISTENCIA_TECNICA: 'ASSISTENCIA_TECNICA',
+    IMOBILIARIA: 'IMOBILIARIA',
+    CLINICA: 'CLINICA',
+    ECOMMERCE: 'ECOMMERCE',
+    SAAS: 'SAAS',
+    AGENCIA: 'AGENCIA',
+    CONSULTORIA: 'CONSULTORIA',
+    ACADEMIA: 'ACADEMIA',
+    RESTAURANTE: 'RESTAURANTE',
+    GENERIC: 'GENERIC'
+};
+
 // ------------------------------------------------------------------
 // TRANSLATION LAYER: Abstract ENUMs -> Concrete Engine Physics
 // ------------------------------------------------------------------
@@ -106,13 +122,51 @@ const _PAD_INTERPRETATION = {
 };
 
 const _EMOTIONAL_INSTRUCTIONS = {
-    LOW_PLEASURE: "O lead parece insatisfeito ou hostil. Adote tom extremamente profissional, peça desculpas se necessário e foque em resolver o problema. Evite informalidade.",
-    HIGH_AROUSAL_NEG: "O lead está agitado e negativo (Raiva/Frustração). Mantenha a calma, use frases curtas e objetivas (Desescalada).",
-    HIGH_AROUSAL_POS: "O lead está entusiasmado! Espelhe a energia, use exclamações e mostre empolgação.",
-    LOW_AROUSAL: "O lead parece desengajado ou cansado. Tente reacender o interesse com uma pergunta instigante ou benefício direto.",
-    HIGH_DOMINANCE: "O lead quer estar no controle. Seja direto, dê opções claras e evite pressionar demais. Use 'Você prefere X ou Y?'.",
-    LOW_DOMINANCE: "O lead parece indeciso ou submisso. Assuma a liderança (Guia), faça recomendações firmes: 'Recomendo que façamos X'.",
-    HIGH_PLEASURE: "O lead está feliz! Você pode ser mais descontraído e usar humor se o perfil do agente permitir."
+    LOW_PLEASURE: `⚠️ ALERTA: Lead INSATISFEITO detectado (pleasure < 0.3)
+        - PAUSE qualquer tentativa de venda
+        - RECONHEÇA o problema: "Entendo sua frustração..."
+        - SE você causou, PEÇA DESCULPAS: "Desculpa se não fui claro..."
+        - FOQUE em resolver antes de avançar
+        - Tom: Sério, profissional, sem brincadeiras
+        - Objetivo: Reverter o sentimento negativo primeiro`,
+
+    HIGH_AROUSAL_NEG: `🔥 ALERTA: Lead IRRITADO/FRUSTRADO (alta energia negativa)
+        - Ele está bravo. DESESCALE primeiro.
+        - Frases curtas e objetivas (nada de textão)
+        - VALIDE: "Faz sentido você estar frustrado..."
+        - NÃO justifique/defenda, apenas acolha
+        - SE continuar agressivo: "Quer que a gente converse outro momento?"
+        - Objetivo: Acalmar antes de qualquer outra ação`,
+
+    HIGH_AROUSAL_POS: `🎉 Lead ENTUSIASMADO (alta energia positiva)
+        - ACOMPANHE a energia! Use exclamações
+        - Seja empolgado junto: "Que legal!", "Show!"
+        - Momento ideal para avançar no objetivo
+        - Aproveite o momentum positivo`,
+
+    LOW_AROUSAL: `😴 Lead DESENGAJADO (baixa energia)
+        - Respostas curtas, sem entusiasmo
+        - REACENDA interesse com pergunta provocativa
+        - Ou ofereça benefício direto e tangível
+        - SE persistir: "Quer que eu mande por aqui pra você ver depois?"`,
+
+    HIGH_DOMINANCE: `👔 Lead CONTROLADOR (quer dominar conversa)
+        - Seja DIRETO e objetivo
+        - DÊ opções: "Você prefere X ou Y?"
+        - NÃO pressione, ele quer decidir
+        - Postura de consultor, não vendedor`,
+
+    LOW_DOMINANCE: `🤔 Lead INDECISO (precisa de guia)
+        - ASSUMA liderança na conversa
+        - RECOMENDE: "O ideal seria fazermos X..."
+        - Faça escolhas por ele quando apropriado
+        - Tom: Confiante e assertivo`,
+
+    HIGH_PLEASURE: `😊 Lead FELIZ (ótimo humor)
+        - Momento ideal para avançar!
+        - Pode usar humor leve se DNA permitir
+        - Aproveite para fechar próximo passo
+        - Tom: Descontraído e amigável`
 };
 
 const _SAFETY_DEFAULTS = {
@@ -121,7 +175,24 @@ const _SAFETY_DEFAULTS = {
 };
 
 function resolveDNA(dnaConfig) {
-    const config = dnaConfig || {}; // Handle defaults carefully
+    let config = dnaConfig || {}; // Handle defaults carefully
+
+    // FIX: dna_config may come as JSON string from DB
+    if (typeof config === 'string') {
+        try {
+            config = JSON.parse(config);
+        } catch (e) {
+            console.error('[resolveDNA] ❌ Failed to parse dna_config:', e.message);
+            config = {};
+        }
+    }
+
+    // DEBUG: Log burstiness resolution
+    console.log('[resolveDNA] 🎯 Physics config:', {
+        hasPhysics: !!config.physics,
+        burstinessEnabled: config.physics?.burstiness?.enabled,
+        chronemicsBurstiness: config.chronemics?.burstiness
+    });
 
     // 1. Resolve Physics (Chronemics)
     const latencyEnum = config.chronemics?.latency_profile || 'MODERATE';
@@ -133,16 +204,20 @@ function resolveDNA(dnaConfig) {
     if (config.physics?.burstiness?.enabled !== undefined) {
         // Direct physics config from DB (preferred)
         burstinessConfig = config.physics.burstiness;
+        console.log('[resolveDNA] Using direct physics.burstiness:', burstinessConfig);
     } else if (config.chronemics?.burstiness) {
         // Canonical enum path
         const burstEnum = config.chronemics.burstiness;
         burstinessConfig = _BURSTINESS_MAP[burstEnum] || _BURSTINESS_MAP['MEDIUM'];
+        console.log('[resolveDNA] Resolved from chronemics:', { burstEnum, burstinessConfig });
     }
 
     const physics = {
         typing: _LATENCY_MAP[latencyEnum],
         burstiness: burstinessConfig
     };
+
+    console.log('[resolveDNA] ✅ Final physics:', physics);
 
     // 2. Resolve Linguistics (Typos, etc.)
     const typoEnum = config.linguistics?.typo_injection || 'NONE';
@@ -173,7 +248,7 @@ function resolveDNA(dnaConfig) {
 
 module.exports = {
     Big5, PAD, Linguistics, Chronemics, Control, DeviceProfile,
-    Identity, SalesMethodology,
+    Identity, SalesMethodology, Industry,
     resolveDNA,
     PAD_INTERPRETATION: _PAD_INTERPRETATION,
     EMOTIONAL_INSTRUCTIONS: _EMOTIONAL_INSTRUCTIONS,

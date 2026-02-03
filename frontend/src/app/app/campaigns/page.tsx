@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
+import useSWR from "swr"
 import { campaignService, Campaign } from "@/services/campaign"
 import { CampaignCard } from "@/components/campaigns/campaign-card"
 import { CampaignCreateDialog } from "@/components/campaigns/campaign-create-dialog"
@@ -12,26 +13,21 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 
 export default function CampaignsPage() {
-    const [campaigns, setCampaigns] = useState<Campaign[]>([])
-    const [isLoading, setIsLoading] = useState(true)
     const [search, setSearch] = useState("")
     const [filterStatus, setFilterStatus] = useState<string>('all') // all | active | paused | draft
 
-    const loadCampaigns = async () => {
-        try {
-            setIsLoading(true)
-            const data = await campaignService.listCampaigns()
-            setCampaigns(data)
-        } catch (error) {
-            console.error("Failed to load campaigns", error)
-        } finally {
-            setIsLoading(false)
+    // Use SWR for campaigns - leverages prefetched data
+    const { data: campaigns = [], isLoading, mutate } = useSWR(
+        'campaigns',
+        () => campaignService.listCampaigns(),
+        {
+            revalidateOnFocus: false,
+            keepPreviousData: true, // Prevents flicker
         }
-    }
+    )
 
-    useEffect(() => {
-        loadCampaigns()
-    }, [])
+    const refreshCampaigns = () => mutate()
+
 
     // --- Computed Metrics (Real-time aggregation) ---
     const totalCampaigns = campaigns.length;
@@ -59,7 +55,7 @@ export default function CampaignsPage() {
                             Gerencie suas máquinas de vendas. Monitore performance em tempo real.
                         </p>
                     </div>
-                    <CampaignCreateDialog onSuccess={loadCampaigns} />
+                    <CampaignCreateDialog onSuccess={refreshCampaigns} />
                 </div>
 
                 {/* KPI Cards Glassmorphism */}
@@ -162,7 +158,7 @@ export default function CampaignsPage() {
                             <CampaignCard
                                 key={campaign.id}
                                 campaign={campaign}
-                                onUpdate={loadCampaigns}
+                                onUpdate={refreshCampaigns}
                                 index={index} // For stagger effect
                             />
                         ))}

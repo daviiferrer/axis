@@ -29,8 +29,8 @@ import {
 // Default DNA Config
 const DEFAULT_DNA: DNAConfig = {
     identity: {
-        role: 'SDR',
-        company: 'Sua Empresa'
+        role: 'SDR'
+        // company moved to business_context.company_name
     },
     psychometrics: {
         openness: 'MEDIUM',
@@ -57,6 +57,11 @@ const DEFAULT_DNA: DNAConfig = {
     qualification: {
         framework: 'SPIN',
         slots: ['need', 'budget']
+    },
+    business_context: {
+        industry: 'GENERIC',
+        company_name: '',
+        custom_context: ''
     }
 }
 
@@ -327,23 +332,27 @@ export default function AgentDNAEditorPage() {
                             <CardContent className="space-y-6">
                                 <div className="grid grid-cols-2 gap-4">
                                     {/* MODEL SELECTION AS CARDS */}
-                                    {['gemini-2.5-flash', 'gpt-4o'].map(m => (
+                                    {[
+                                        { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', desc: '⚡ Rápido e custo-eficiente. Padrão.' },
+                                        { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Lite', desc: '💰 Mais barato. Para triagens simples.' },
+                                        { id: 'gemini-3.0-flash', name: 'Gemini 3.0 Flash', desc: '🧠 Mais inteligente. Para casos complexos.' }
+                                    ].map(m => (
                                         <div
-                                            key={m}
-                                            onClick={() => setModel(m)}
+                                            key={m.id}
+                                            onClick={() => setModel(m.id)}
                                             className={`
                                                 cursor-pointer relative p-4 rounded-xl border-2 transition-all
-                                                ${model === m ? 'border-purple-600 bg-purple-50/30' : 'border-dashed border-gray-200 hover:border-purple-300 hover:bg-gray-50'}
+                                                ${model === m.id ? 'border-purple-600 bg-purple-50/30' : 'border-dashed border-gray-200 hover:border-purple-300 hover:bg-gray-50'}
                                             `}
                                         >
                                             <div className="flex items-center justify-between mb-2">
-                                                <span className={`text-sm font-bold ${model === m ? 'text-purple-900' : 'text-gray-500'}`}>
-                                                    {m === 'gemini-2.5-flash' ? 'Gemini Flash' : 'GPT-4o'}
+                                                <span className={`text-sm font-bold ${model === m.id ? 'text-purple-900' : 'text-gray-500'}`}>
+                                                    {m.name}
                                                 </span>
-                                                {model === m && <div className="h-2 w-2 rounded-full bg-purple-600 shadow-[0_0_8px_rgba(147,51,234,0.5)]" />}
+                                                {model === m.id && <div className="h-2 w-2 rounded-full bg-purple-600 shadow-[0_0_8px_rgba(147,51,234,0.5)]" />}
                                             </div>
                                             <p className="text-xs text-gray-500 leading-relaxed">
-                                                {m === 'gemini-2.5-flash' ? '⚡ Ultra-rápido, ideal para respostas instantâneas.' : '🧠 Mais complexo, melhor para raciocínio profundo.'}
+                                                {m.desc}
                                             </p>
                                         </div>
                                     ))}
@@ -366,8 +375,9 @@ export default function AgentDNAEditorPage() {
 
                 {/* 3. TABS NAVIGATION REIMAGINED */}
                 <div className="space-y-6">
-                    <Tabs defaultValue="psychometrics" className="w-full">
-                        <TabsList className="w-full justify-start bg-gray-100 p-1 rounded-lg">
+                    <Tabs defaultValue="business_context" className="w-full">
+                        <TabsList className="w-full justify-start bg-gray-100 p-1 rounded-lg overflow-x-auto">
+                            <TabsTrigger value="business_context">🏢 Contexto de Negócio</TabsTrigger>
                             <TabsTrigger value="triagem">🎯 Qualificação</TabsTrigger>
                             <TabsTrigger value="psychometrics">🧠 Personalidade</TabsTrigger>
                             <TabsTrigger value="emotions">❤️ Humor Base</TabsTrigger>
@@ -375,6 +385,126 @@ export default function AgentDNAEditorPage() {
                             <TabsTrigger value="chronemics">⏱️ Velocidade e Estilo</TabsTrigger>
                             <TabsTrigger value="safety">🛡️ Limites</TabsTrigger>
                         </TabsList>
+
+                        {/* --- BUSINESS CONTEXT (Playbook) --- */}
+                        <TabsContent value="business_context" className="mt-6">
+                            <Card className="border-none shadow-md">
+                                <CardHeader>
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="p-2 bg-indigo-100 rounded-lg">
+                                            <Briefcase className="h-6 w-6 text-indigo-600" />
+                                        </div>
+                                        <div>
+                                            <CardTitle>Contexto de Negócio (Playbook)</CardTitle>
+                                            <p className="text-sm text-gray-500 font-normal mt-1">
+                                                Defina o setor e informações específicas da sua empresa que o agente precisa saber.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-8">
+                                    {/* INDUSTRY VERTICAL */}
+                                    <div className="space-y-4">
+                                        <label className="text-base font-bold text-gray-900 block">Setor / Vertical</label>
+                                        <p className="text-sm text-gray-500">
+                                            Escolha o setor que melhor descreve sua empresa. Isso ajuda a IA a usar terminologia e contexto adequados.
+                                        </p>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            {[
+                                                { id: 'ADVOCACIA', label: '⚖️ Advocacia', desc: 'Escritórios de advocacia e serviços jurídicos' },
+                                                { id: 'OFICINA_MECANICA', label: '🔧 Oficina Mecânica', desc: 'Reparos automotivos e manutenção de veículos' },
+                                                { id: 'ASSISTENCIA_TECNICA', label: '🔌 Assistência Técnica', desc: 'Consertos de eletrônicos e eletrodomésticos' },
+                                                { id: 'IMOBILIARIA', label: '🏠 Imobiliária', desc: 'Compra, venda e aluguel de imóveis' },
+                                                { id: 'CLINICA', label: '🏥 Clínica', desc: 'Clínicas médicas, odontológicas e estéticas' },
+                                                { id: 'ECOMMERCE', label: '🛒 E-commerce', desc: 'Lojas virtuais e vendas online' },
+                                                { id: 'SAAS', label: '💻 SaaS / Software', desc: 'Empresas de tecnologia e software' },
+                                                { id: 'AGENCIA', label: '🎨 Agência', desc: 'Marketing, publicidade e design' },
+                                                { id: 'CONSULTORIA', label: '📊 Consultoria', desc: 'Consultoria empresarial e estratégica' },
+                                                { id: 'ACADEMIA', label: '💪 Academia / Fitness', desc: 'Academias, personal trainers e bem-estar' },
+                                                { id: 'RESTAURANTE', label: '🍽️ Restaurante / Delivery', desc: 'Alimentação e serviços de delivery' },
+                                                { id: 'GENERIC', label: '⚪ Genérico', desc: 'Outros setores ou multi-segmento' }
+                                            ].map(ind => {
+                                                const isSelected = dna.business_context?.industry === ind.id;
+                                                return (
+                                                    <div
+                                                        key={ind.id}
+                                                        onClick={() => updateDna('business_context', 'industry', ind.id)}
+                                                        className={`
+                                                            cursor-pointer p-3 rounded-xl border-2 transition-all
+                                                            ${isSelected
+                                                                ? 'border-indigo-600 bg-indigo-50/50 shadow-sm'
+                                                                : 'border-transparent bg-gray-50 hover:bg-white hover:shadow-md hover:border-gray-200'
+                                                            }
+                                                        `}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <span className={`text-sm font-semibold ${isSelected ? 'text-indigo-900' : 'text-gray-700'}`}>
+                                                                {ind.label}
+                                                            </span>
+                                                            {isSelected && <div className="w-2 h-2 rounded-full bg-indigo-600" />}
+                                                        </div>
+                                                        <p className={`text-xs mt-1 ${isSelected ? 'text-indigo-700' : 'text-gray-500'}`}>
+                                                            {ind.desc}
+                                                        </p>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* COMPANY NAME */}
+                                    <div className="space-y-2">
+                                        <label className="text-base font-bold text-gray-900 block">Nome da Empresa</label>
+                                        <p className="text-sm text-gray-500 mb-2">
+                                            O nome que o agente usará para se identificar.
+                                        </p>
+                                        <Input
+                                            value={dna.business_context?.company_name || ''}
+                                            onChange={e => updateDna('business_context', 'company_name', e.target.value)}
+                                            className="h-12 text-base"
+                                            placeholder="Ex: Escritório Silva & Associados, Oficina Auto Car, etc."
+                                        />
+                                    </div>
+
+                                    {/* CUSTOM CONTEXT */}
+                                    <div className="space-y-2">
+                                        <label className="text-base font-bold text-gray-900 block">Contexto Customizado (Playbook)</label>
+                                        <p className="text-sm text-gray-500 mb-2">
+                                            Informações específicas que o agente precisa saber sobre seu negócio.
+                                        </p>
+                                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg mb-4">
+                                            <p className="text-sm text-amber-800 font-medium">💡 Dicas do que incluir:</p>
+                                            <ul className="text-sm text-amber-700 mt-2 space-y-1 list-disc pl-4">
+                                                <li><strong>Serviços oferecidos:</strong> "Especialistas em direito trabalhista e previdenciário"</li>
+                                                <li><strong>FAQ comum:</strong> "Primeira consulta é gratuita e dura 30 minutos"</li>
+                                                <li><strong>Diferenciais:</strong> "20 anos de experiência, mais de 500 casos ganhos"</li>
+                                                <li><strong>Regras de compliance:</strong> "Nunca prometa resultado em processos"</li>
+                                                <li><strong>Horários:</strong> "Atendimento de segunda a sexta, 9h às 18h"</li>
+                                            </ul>
+                                        </div>
+                                        <Textarea
+                                            value={dna.business_context?.custom_context || ''}
+                                            onChange={e => updateDna('business_context', 'custom_context', e.target.value)}
+                                            className="min-h-[200px] text-sm"
+                                            placeholder="Exemplo:
+
+Somos o Escritório Silva & Associados, especializados em direito trabalhista e previdenciário há 20 anos.
+
+Serviços principais:
+- Reclamações trabalhistas
+- Aposentadorias (tempo de serviço, invalidez)
+- Revisão de benefícios do INSS
+
+Regras importantes:
+- NUNCA prometa resultado de processos
+- Sempre usar 'Constituinte' em vez de 'Cliente'
+- Primeira consulta é gratuita (30 min)
+- Endereço: Av. Paulista, 1000 - São Paulo"
+                                        />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
 
                         {/* --- TRIAGEM (Qualifications) --- */}
                         <TabsContent value="triagem" className="mt-6">

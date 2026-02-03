@@ -93,6 +93,7 @@ class WebhookController {
             if (result) {
                 if (result.fromMe) {
                     logger.debug({ chatId: result.chatId }, '⏩ Skipping AI trigger for outgoing message (fromMe=true)');
+                    return; // CRITICAL FIX: Stop execution for outgoing messages
                 } else {
                     const chatId = result.chatId || result.from;
 

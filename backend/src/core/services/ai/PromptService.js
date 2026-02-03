@@ -1,4 +1,5 @@
 const { getRoleBlueprint } = require('./AgentRolePrompts');
+const { DNAPrompts } = require('../../config/DNAPromptLibrary');
 
 /**
  * PromptService - Core Service for Prompt Engineering
@@ -37,7 +38,7 @@ class PromptService {
         const securityLayer = canaryToken ? this.#buildSecurityLayer(canaryToken) : '';
 
         // === LAYER 1: DNA (Top - Immutable Agent Identity) ===
-        const dnaLayer = this.#buildDnaLayer(agent, campaign, product, nodeConfig);
+        const dnaLayer = this.#buildDnaLayer(agent, campaign, product, nodeConfig, dna);
 
         // === LAYER 2: CONTEXT (Middle - Variable Data) ===
         const contextLayer = this.#buildContextLayer({
@@ -57,10 +58,13 @@ class PromptService {
         // === LAYER 4.5: STYLE ENFORCEMENT (User Config Priority) ===
         const styleLayer = this.#buildStyleEnforcementLayer(agent, dna);
 
+        // === LAYER 4.6: HUMAN INTERACTION (Engine Instincts) ===
+        const humanLayer = this.#buildHumanInteractionLayer();
+
         // === LAYER 5: OVERRIDE (Bottom - Critical Directives) ===
         const overrideLayer = this.#buildOverrideLayer(nodeDirective, lead);
 
-        // Sandwich Pattern: Security → DNA → Context → Persona Refresh → Objectives → Style → Override
+        // Sandwich Pattern: Security → DNA → Context → Persona Refresh → Objectives → Style → Human → Override
         return [
             securityLayer,
             dnaLayer,
@@ -68,6 +72,7 @@ class PromptService {
             personaRefreshLayer,
             objectivesLayer,
             styleLayer,
+            humanLayer,
             overrideLayer
         ].filter(Boolean).join('\n\n');
     }
@@ -90,9 +95,12 @@ class PromptService {
      * Layer 1: DNA - Immutable agent identity and brand voice.
      * Uses AgentRolePrompts to enforce strict Blueprints.
      * @param {Object} nodeConfig - Node config for company_context fallback only
+     * @param {Object} resolvedDna - The resolved DNA object from AgentDNA service
      */
-    #buildDnaLayer(agent, campaign, product, nodeConfig = null) {
-        const dna = agent?.dna_config || {};
+    #buildDnaLayer(agent, campaign, product, nodeConfig = null, resolvedDna = null) {
+        // Use resolved DNA (raw) if available (handles string parsing), otherwise fallback to agent config
+        const dna = resolvedDna?.raw || (typeof agent?.dna_config === 'string' ? JSON.parse(agent.dna_config) : agent?.dna_config) || {};
+
         const behavior = dna.behavior || {};
         const identity = dna.identity || {}; // Agent-specific overrides
         const voice = dna.brand_voice || {};
@@ -100,19 +108,30 @@ class PromptService {
         // --- NEW: BLUEPRINT INJECTION ---
         const roleKey = identity.role || agent?.role || 'DEFAULT';
 
+        // RESOLVE COMPANY NAME (Strict Priority: Node > AgentDNA > Campaign fallback)
+        // Note: campaign.company_name column was removed from DB. Rely on DNA.
         const nodeCompanyValue = nodeConfig?.data?.company_context?.name;
-        const resolvedCompanyName = nodeCompanyValue || campaign?.company_name || identity.company || 'NOT_CONFIGURED';
+        const dnaCompanyValue = dna.identity?.company || agent?.dna_config?.identity?.company;
+
+        let resolvedCompanyName = nodeCompanyValue || dnaCompanyValue;
+
+        // Fallback or Strict Error
+        if (!resolvedCompanyName || resolvedCompanyName === 'NOT_CONFIGURED') {
+            resolvedCompanyName = 'Empresa (Não Identificada)'; // Better fallback than English
+        }
+
+        const customPlaybook = nodeConfig?.data?.business_context?.custom_context ||
+            nodeConfig?.data?.business_context?.playbook ||
+            agent?.dna_config?.business_context?.custom_context || '';
 
         const roleBlueprint = getRoleBlueprint(roleKey, {
             agent,
             campaign,
             product,
-            company: { name: resolvedCompanyName }
+            company: { name: resolvedCompanyName },
+            customPlaybook // Pass Playbook to override generic prompts
         });
         // --------------------------------
-
-        const nodeCompany = nodeConfig?.data?.company_context?.name;
-        const companyName = nodeCompany || campaign?.company_name || identity.company || 'NOT_CONFIGURED';
 
         return `
 <agent_dna type="immutable">
@@ -124,7 +143,7 @@ ${roleBlueprint}
     <core_identity>
         <name>${agent?.name}</name>
         <role>${identity.role || agent?.role || 'Assistant'}</role>
-        <company>${companyName}</company>
+        <company>${resolvedCompanyName}</company>
     </core_identity>
 
     <brand_voice_configuration>
@@ -205,21 +224,32 @@ ${roleBlueprint}
         const agentRole = identity.role || agent?.role || 'Atendimento';
 
         // --- NODE-LOCAL BUSINESS CONTEXT (Prioritized) ---
+        // Prioritize: Node Override > Agent DNA > Fallback
         const companyName =
             nodeConfig?.data?.company_context?.name ||
-            campaign?.company_name ||
             identity.company ||
-            agent?.company_context?.name ||
-            'Nossa Empresa';
+            agent?.dna_config?.identity?.company ||
+            'Empresa (Não Identificada)';
 
         const industry =
             nodeConfig?.data?.company_context?.industry ||
+            agent?.dna_config?.business_context?.industry || // Respected source of truth
             campaign?.industry_taxonomy?.primary ||
             'Geral';
 
         const industryVertical = nodeConfig?.data?.industry_vertical || 'generic';
 
         const valueProposition = nodeConfig?.data?.company_context?.value_proposition || '';
+
+        // DETECT PLAYBOOK AND SUPPRESS HARDCODED INDUSTRY CONTEXT IF PRESENT
+        const customPlaybook = nodeConfig?.data?.business_context?.custom_context ||
+            nodeConfig?.data?.business_context?.playbook ||
+            agent?.dna_config?.business_context?.custom_context || '';
+
+        const hasPlaybook = customPlaybook && customPlaybook.length > 10;
+
+        // If Playbook exists, force GENERIC vertical to prevent "Advocacia" or other hardcoded prompts from conflicting
+        const effectiveVertical = hasPlaybook ? 'generic' : industryVertical;
 
         const scopeWarning = scopePolicy === 'READ_ONLY'
             ? "MANDATÓRIO: Você está em modo LEITURA. Não sugira alterações nos dados do lead (crm_actions proibido)."
@@ -228,9 +258,9 @@ ${roleBlueprint}
         // Tone Vector (Variables)
         const tone = agent?.tone_vector || { formality: 3, humor: 2, enthusiasm: 3, respect: 3 };
 
-        // Product Context - ONLY if product is defined
+        // Product Context - ONLY if product is defined AND no playbook (Playbook overrides product)
         let productSection = '';
-        if (product && (product.name || product.label)) {
+        if (product && (product.name || product.label) && !hasPlaybook) {
             productSection = `
     <product_context>
         <name>${product.name || product.label}</name>
@@ -238,7 +268,7 @@ ${roleBlueprint}
         <core_benefit>${product.mainBenefit || product.description || ''}</core_benefit>
         <differentials>${product.differentials?.join(', ') || ''}</differentials>
     </product_context>`;
-        } else if (campaign?.description) {
+        } else if (campaign?.description && !hasPlaybook) {
             // Fallback to campaign description if no specific product
             productSection = `
     <product_context>
@@ -261,6 +291,40 @@ ${roleBlueprint}
         const historyFormatted = chatHistory && chatHistory.length > 0
             ? chatHistory.map(m => `[${m.role === 'assistant' ? 'Você' : 'Lead'}]: ${m.content}`).join('\n')
             : 'Nenhuma mensagem anterior. Este é o primeiro contato.';
+
+
+        // --- CUSTOM PLAYBOOK (User Defined) ---
+        let playbookSection = '';
+        // Logic moved up for check, but building section here
+        if (hasPlaybook) {
+            // Check if user already used XML tags
+            const hasXmlTags = /<[^>]+>/.test(customPlaybook);
+
+            if (hasXmlTags) {
+                playbookSection = `
+    <custom_playbook source="user_defined" priority="CRITICAL">
+        ${customPlaybook}
+    </custom_playbook>`;
+            } else {
+                // Formatting raw text into structured context
+                playbookSection = `
+    <custom_playbook source="user_defined" priority="CRITICAL">
+        <instructions>
+            O texto abaixo é um ROTEIRO DE REFERÊNCIA (GUIDE).
+            
+            ⚠️ REGRAS DE ADAPTAÇÃO (ANTI-PAPAGAIO):
+            1. NÃO COPIE as frases do roteiro palavra por palavra (ROBÓTICO).
+            2. ENTENDA A INTENÇÃO de cada etapa/mensagem.
+            3. REESCREVA usando EXCLUSIVAMENTE seu <agent_dna> (Seu tom, suas gírias, sua brevidade).
+            4. Se o roteiro for longo/formal e você for "internetês", TRADUZA para sua, linguagem (curta, picada).
+            5. Mantenha a ESTRATÉGIA (fazer a pergunta certa na hora certa), mas mude a ENTREGA.
+        </instructions>
+        <content_script>
+            ${customPlaybook}
+        </content_script>
+    </custom_playbook>`;
+            }
+        }
 
         // Methodology - ONLY if configured and relevant
         let methodologySection = '';
@@ -295,7 +359,7 @@ ${roleBlueprint}
     ${emotionalAdjustment}
     <scope_policy>${scopeWarning}</scope_policy>
 
-    ${this.#buildIndustryContext(industryVertical, nodeConfig)}
+    ${this.#buildIndustryContext(effectiveVertical, nodeConfig)}
     
     <tone_configuration>
         <formality level="${tone.formality}/5">${tone.formality > 3 ? 'Formal' : 'Casual'}</formality>
@@ -311,6 +375,8 @@ ${roleBlueprint}
     </target_context>
     
     ${methodologySection}
+
+    ${playbookSection}
     
     ${ragContext ? `<rag_context>\n${ragContext}\n</rag_context>` : ''}
     
@@ -336,59 +402,228 @@ ${roleBlueprint}
 
     /**
      * Layer 4.5: Style Enforcement - The "How".
-     * Enforces personality, brevity, and linguistic quirks (caps, typos).
-     * Placed near the end to override robotic default behaviors.
+     * CRITICAL: This layer injects DNAPromptLibrary prompts based on agent DNA configuration.
+     * Enforces personality (Big5), emotional baseline (PAD), linguistics, and behavioral quirks.
+     * Placed near the end to override robotic default behaviors (LLM recency bias).
      */
     #buildStyleEnforcementLayer(agent, dna) {
+        const rawDna = agent?.dna_config || {};
         const linguistics = dna?.linguistics || {};
-        const rawLinguistics = agent?.dna_config?.linguistics || {};
-        const voice = agent?.dna_config?.voice || {};
+        const rawLinguistics = rawDna.linguistics || {};
+        const voice = rawDna.brand_voice || rawDna.voice || {};
 
-        // Resolve complex properties (handle both processed and raw)
-        const capsMode = linguistics.capsMode || rawLinguistics.caps_mode || 'STANDARD';
-        const typoRate = linguistics.typoRate || 0;
-        const useEmojis = voice.emojis_allowed !== false;
+        // =====================================================
+        // 1. PSYCHOMETRICS (Big Five Personality Traits)
+        // =====================================================
+        let personalityPrompts = [];
 
-        let styleInstructions = [];
-
-        // 1. Caps Mode (Linguistics)
-        if (capsMode === 'CHAOTIC') {
-            styleInstructions.push("MODO CAÓTICO: Alterne maiúsculas e minúsculas aleatoriamente (ex: 'oLA tudO bEM?'). Isso é parte da sua identidade digital.");
-        } else if (capsMode === 'LOWERCASE_ONLY') {
-            styleInstructions.push("MODO MINÚSCULO: Escreva tudo em minúsculas (ex: 'oi, tudo bem?').");
-        } else if (capsMode === 'SENTENCE_CASE') {
-            styleInstructions.push("MODO SENTENCE: Apenas a primeira letra da frase em maiúscula.");
+        const psychometrics = rawDna.psychometrics || {};
+        if (psychometrics.extraversion && DNAPrompts.PSYCHOMETRICS?.EXTRAVERSION?.[psychometrics.extraversion]) {
+            personalityPrompts.push(DNAPrompts.PSYCHOMETRICS.EXTRAVERSION[psychometrics.extraversion]);
+        }
+        if (psychometrics.openness && DNAPrompts.PSYCHOMETRICS?.OPENNESS?.[psychometrics.openness]) {
+            personalityPrompts.push(DNAPrompts.PSYCHOMETRICS.OPENNESS[psychometrics.openness]);
+        }
+        if (psychometrics.agreeableness && DNAPrompts.PSYCHOMETRICS?.AGREEABLENESS?.[psychometrics.agreeableness]) {
+            personalityPrompts.push(DNAPrompts.PSYCHOMETRICS.AGREEABLENESS[psychometrics.agreeableness]);
+        }
+        if (psychometrics.conscientiousness && DNAPrompts.PSYCHOMETRICS?.CONSCIENTIOUSNESS?.[psychometrics.conscientiousness]) {
+            personalityPrompts.push(DNAPrompts.PSYCHOMETRICS.CONSCIENTIOUSNESS[psychometrics.conscientiousness]);
+        }
+        if (psychometrics.neuroticism && DNAPrompts.PSYCHOMETRICS?.NEUROTICISM?.[psychometrics.neuroticism]) {
+            personalityPrompts.push(DNAPrompts.PSYCHOMETRICS.NEUROTICISM[psychometrics.neuroticism]);
         }
 
-        // 2. Typos (Human Imperfection)
-        if (typoRate > 0) {
-            styleInstructions.push("ERROS DE DIGITAÇÃO: Cometa erros de digitação ocasionais para parecer humano e não um robô.");
+        // =====================================================
+        // 2. PAD BASELINE (Emotional State)
+        // =====================================================
+        let padPrompts = [];
+
+        const padBaseline = rawDna.pad_baseline || {};
+        if (padBaseline.pleasure && DNAPrompts.PAD_BASELINE?.PLEASURE?.[padBaseline.pleasure]) {
+            padPrompts.push(DNAPrompts.PAD_BASELINE.PLEASURE[padBaseline.pleasure]);
+        }
+        if (padBaseline.arousal && DNAPrompts.PAD_BASELINE?.AROUSAL?.[padBaseline.arousal]) {
+            padPrompts.push(DNAPrompts.PAD_BASELINE.AROUSAL[padBaseline.arousal]);
+        }
+        if (padBaseline.dominance && DNAPrompts.PAD_BASELINE?.DOMINANCE?.[padBaseline.dominance]) {
+            padPrompts.push(DNAPrompts.PAD_BASELINE.DOMINANCE[padBaseline.dominance]);
         }
 
-        // 3. Brevity (Native Internet Language)
-        const isNative = linguistics.reduction || rawLinguistics.reduction_profile === 'NATIVE';
-        if (isNative) {
-            styleInstructions.push("LINGUAGEM NATIVA: Use abreviações comuns (vc, tbm, pq, hj). Seja ultra-casual.");
-        } else {
-            styleInstructions.push("SINTETIZE: Use frases curtas. Mensagens de WhatsApp não são emails com bolinhas.");
+        // =====================================================
+        // 3. LINGUISTICS (Writing Style)
+        // =====================================================
+        let linguisticsPrompts = [];
+
+        // CAPS MODE
+        const capsMode = (rawLinguistics.caps_mode || linguistics.capsMode || 'STANDARD').toUpperCase();
+        if (DNAPrompts.LINGUISTICS?.CAPS_MODE?.[capsMode]) {
+            linguisticsPrompts.push(DNAPrompts.LINGUISTICS.CAPS_MODE[capsMode]);
         }
 
-        // 4. Emojis
-        if (useEmojis) {
-            styleInstructions.push("EMOJIS: Use emojis naturalmente para dar tom emocional.");
+        // REDUCTION PROFILE (CORPORATE, BALANCED, NATIVE)
+        const reductionProfile = (rawLinguistics.reduction_profile || linguistics.reduction || 'BALANCED').toUpperCase();
+        if (DNAPrompts.LINGUISTICS?.REDUCTION_PROFILE?.[reductionProfile]) {
+            linguisticsPrompts.push(DNAPrompts.LINGUISTICS.REDUCTION_PROFILE[reductionProfile]);
         }
+
+        // TYPO INJECTION
+        const typoLevel = (rawLinguistics.typo_injection || 'NONE').toUpperCase();
+        if (typoLevel !== 'NONE' && DNAPrompts.LINGUISTICS?.TYPO_INJECTION?.[typoLevel]) {
+            linguisticsPrompts.push(DNAPrompts.LINGUISTICS.TYPO_INJECTION[typoLevel]);
+        }
+
+        // CORRECTION STYLE
+        const correctionStyle = rawLinguistics.correction_style;
+        if (correctionStyle && DNAPrompts.LINGUISTICS?.CORRECTION_STYLE?.[correctionStyle]) {
+            linguisticsPrompts.push(DNAPrompts.LINGUISTICS.CORRECTION_STYLE[correctionStyle]);
+        }
+
+        // =====================================================
+        // 4. EMOJI POLICY (Derived from profile + explicit setting)
+        // =====================================================
+        let emojiPolicy = this.#getEmojiPolicy(voice, reductionProfile, psychometrics);
+
+        // =====================================================
+        // 5. CHRONEMICS (Timing/Rhythm) - if relevant
+        // =====================================================
+        let chronemicsPrompts = [];
+        const chronemics = rawDna.chronemics || {};
+
+        if (chronemics.burstiness && DNAPrompts.CHRONEMICS?.BURSTINESS?.[chronemics.burstiness]) {
+            chronemicsPrompts.push(DNAPrompts.CHRONEMICS.BURSTINESS[chronemics.burstiness]);
+        }
+
+        // =====================================================
+        // COMBINE ALL PROMPTS
+        // =====================================================
+        const allPrompts = [
+            ...personalityPrompts,
+            ...padPrompts,
+            ...linguisticsPrompts,
+            ...chronemicsPrompts
+        ].filter(p => p && p.trim());
 
         return `
 <style_enforcement type="behavioral" priority="critical">
-    <instruction_set>
-        ${styleInstructions.map(i => `<rule>${i}</rule>`).join('\n        ')}
-    </instruction_set>
-    <anti_robotic_shield>
-        - PROIBIDO: "Como posso ajudar hoje?" (Muito robótico)
-        - PROIBIDO: Listas com bolinhas (Use quebras de linha naturais)
-        - REGRAS DE OURO: Responda como se estivesse digitando no celular.
+    <!-- DNA PERSONALITY CONFIGURATION (Source of Truth) -->
+    <dna_derived_behavior>
+        ${allPrompts.join('\n        ')}
+    </dna_derived_behavior>
+
+    <emoji_policy priority="high">
+        ${emojiPolicy}
+    </emoji_policy>
+
+    <anti_robotic_shield priority="CRITICAL">
+        <!-- FRASES TERMINANTEMENTE PROIBIDAS - Soam como bot -->
+        NUNCA COMECE UMA MENSAGEM COM:
+        - "Entendido" / "Entendi" / "Compreendo" / "Compreendi"
+        - "Fico à disposição" / "Estou à disposição"
+        - "Como posso ajudar hoje?" / "Em que posso ajudar?"
+        - "Perfeito!" / "Excelente!" / "Ótimo!" (excesso de entusiasmo)
+        - "Claro!" (resposta vazia)
+        - "Certo!" / "Ok!" (respostas monossilábicas)
+        
+        NUNCA USE:
+        - Listas com bolinhas ou números
+        - Asteriscos para ênfase (*assim*)
+        - Frases que começam com "Em relação a..."
+        - "Obrigado por entrar em contato"
+        - "Agradecemos seu interesse"
+        
+        RESPONDA A PERGUNTAS DIRETAMENTE:
+        - Se perguntarem "qual sua ideia?", RESPONDA A PERGUNTA
+        - Não fuja do assunto para redirecionar
+        - Seja direto e objetivo
+        
+        REGRAS DE OURO:
+        - Responda como se estivesse digitando no celular WhatsApp
+        - Frases curtas e naturais
+        - Se não souber algo, admita. Não enrole.
     </anti_robotic_shield>
 </style_enforcement>`;
+    }
+
+    /**
+     * Layer 4.6: Human Interaction - Engine-level instincts for handling chaotic human behavior.
+     * This layer teaches the AI HOW to interact with humans, while the Playbook defines WHAT to sell.
+     * 
+     * Key principle: Playbook = Business Knowledge | Human Layer = Conversational Intelligence
+     */
+    #buildHumanInteractionLayer() {
+        return `
+<human_interaction type="engine" priority="maximum">
+    <purpose>
+        O PLAYBOOK define O QUE vender/oferecer (empresa, produto, serviço).
+        Este layer define COMO lidar com o SER HUMANO do outro lado.
+        Humanos são caóticos, emocionais e imprevisíveis. Você deve saber navegar isso.
+    </purpose>
+    
+    <emotional_intelligence>
+        <rule id="ANGRY_LEAD" trigger="irritação, frustração, agressividade">
+            SE o lead parece irritado, frustrado ou agressivo:
+            - PAUSE o script de vendas imediatamente
+            - DESESCALE primeiro: "Poxa, desculpa se passei a impressão errada..." ou "Eita, não era essa a intenção..."
+            - VALIDE o sentimento dele antes de continuar
+            - SÓ retome o objetivo depois de perceber que ele acalmou
+            - Se continuar agressivo, ofereça: "Quer que a gente converse outro momento?"
+        </rule>
+        
+        <rule id="CONFUSED_LEAD" trigger="confusão, não entendeu">
+            SE o lead parece confuso ou não entendeu:
+            - NÃO repita a mesma explicação da mesma forma
+            - SIMPLIFIQUE usando analogias do dia-a-dia
+            - Quebre em partes menores
+            - Pergunte: "Faz sentido ou quer que eu explique diferente?"
+            - Se ainda confuso, tente outro ângulo
+        </rule>
+        
+        <rule id="DEFLECTING_LEAD" trigger="ignora perguntas, muda de assunto">
+            SE o lead ignora suas perguntas ou muda de assunto:
+            - NÃO insista na mesma pergunta (isso irrita)
+            - ACOMPANHE o novo assunto naturalmente por 1-2 trocas
+            - Depois volte ao objetivo de forma SUTIL: "Mas voltando à sua dúvida inicial..."
+            - Se ele desviar de novo, ele provavelmente não quer falar disso agora
+        </rule>
+        
+        <rule id="APOLOGETIC_LEAD" trigger="pede desculpas, demora">
+            SE o lead pedir desculpas por demora ou silêncio:
+            - ACEITE com leveza: "Relaxa, sem problemas!" ou "De boa, a gente continua de onde parou"
+            - NÃO faça ele se sentir culpado
+            - NÃO diga "tudo bem, estou aqui quando precisar" (parece robô)
+        </rule>
+        
+        <rule id="CHATTY_LEAD" trigger="quer conversar, prolixo">
+            SE o lead quer conversar e não ir direto ao ponto:
+            - ACOMPANHE a conversa por 2-3 trocas (construa rapport)
+            - Depois direcione suavemente: "Mas e aí, o que te trouxe aqui?" ou "Mas me conta, precisa de algo específico?"
+            - NÃO corte bruscamente com "vamos ao que interessa"
+        </rule>
+        
+        <rule id="SKEPTICAL_LEAD" trigger="desconfiança, ceticismo">
+            SE o lead parece desconfiado ou cético:
+            - NÃO force a venda, isso aumenta a desconfiança
+            - VALIDE a preocupação: "Faz sentido ter essa dúvida..."
+            - OFEREÇA prova social ou garantia se disponível
+            - Seja honesto sobre limitações
+        </rule>
+        
+        <rule id="SILENT_LEAD" trigger="respostas curtas, monossilábicas">
+            SE o lead só responde com "ok", "sim", "não":
+            - Faça perguntas ABERTAS, não fechadas
+            - Evite perguntar várias coisas de uma vez
+            - Se continuar fechado, talvez não seja o momento. Ofereça: "Quer que eu mande mais info por aqui pra você ver com calma?"
+        </rule>
+    </emotional_intelligence>
+    
+    <conversation_flow>
+        <principle>Você é um HUMANO conversando pelo WhatsApp, não um robô seguindo script.</principle>
+        <principle>O playbook é seu CONHECIMENTO sobre a empresa. Este layer é seu INSTINTO de conversa.</principle>
+        <principle>Priorize a EXPERIÊNCIA do lead sobre completar o script.</principle>
+        <principle>Se precisar escolher entre seguir o playbook ou acolher o lead, ACOLHA primeiro.</principle>
+    </conversation_flow>
+</human_interaction>`;
     }
 
     /**
@@ -416,7 +651,24 @@ ${roleBlueprint}
         4. SE HOUVER <mandatory_cta>, termine obrigatoriamente com ele.
         5. SE O LEAD QUISER COMPRAR/FECHAR ("quero", "topo", "bora"), marque "ready_to_close": true.
         6. Omitir saudações se não for o início da conversa.
+        7. Capture o nome do lead quando mencionado (lead_name).
     </critical_rules>
+    
+    <name_handling priority="high">
+        COMO QUALQUER PESSOA FARIA:
+        - Se for o INÍCIO da conversa, você pode se apresentar e perguntar o nome naturalmente
+        - A FORMA de perguntar deve seguir seu DNA/personalidade (formal, casual, direto, etc)
+        - Se o lead informar o nome, extraia para qualification_slots.lead_name
+        - Se o lead NÃO QUISER dar o nome, RESPEITE e continue a conversa normalmente
+        - NÃO INSISTA se o lead recusar ou ignorar a pergunta
+        - Se já souber o nome (do contexto), NÃO pergunte de novo
+        
+        Exemplos de extração:
+        - "Sou o João" → lead_name: "João"
+        - "Aqui é a Maria" → lead_name: "Maria"  
+        - "Pode me chamar de Pedro" → lead_name: "Pedro"
+        - Lead ignora pergunta → lead_name: null (continue normalmente)
+    </name_handling>
     
     <response_format>
         RESPONDA APENAS com este JSON:
@@ -428,6 +680,7 @@ ${roleBlueprint}
             "sentiment_score": 0.5,
             "confidence_score": 0.9,
             "qualification_slots": {
+                "lead_name": null,
                 "budget": "unknown",
                 "authority": "unknown", 
                 "need": "unknown",
@@ -538,19 +791,58 @@ ${roleBlueprint}
 
     /**
      * Generates emoji policy instruction based on DNA configuration.
-     * Controls how frequently and when the agent should use emojis.
+     * CRITICAL: Derives emoji usage from the COMBINATION of:
+     * - voice.emojis_allowed (explicit)
+     * - reductionProfile (CORPORATE = restrict, NATIVE = allow)
+     * - psychometrics.extraversion (LOW = minimal, HIGH = many)
      */
-    #getEmojiPolicy(voice) {
+    #getEmojiPolicy(voice, reductionProfile, psychometrics) {
+        // Explicit disable takes precedence
         if (voice.emojis_allowed === false) {
-            return 'FORBIDDEN - Never use emojis in your responses';
+            return `PROIBIDO - NUNCA use emojis em suas respostas.
+Isso é uma regra inviolável do DNA do agente.`;
         }
 
-        const frequency = voice.emoji_frequency || 'LOW';
+        // CORPORATE profile means formal, minimal emojis
+        if (reductionProfile === 'CORPORATE') {
+            return `RESTRITO CORPORATIVO - Emojis são desaconselhados.
+- Use no MÁXIMO 1 emoji por conversa inteira (não por mensagem)
+- Apenas em contextos muito específicos onde seja apropriado
+- Prefira NÃO usar emojis - você representa um ambiente profissional
+- PROIBIDO: 🎉🚀🔥😊😂 (muito informais)
+- Se usar, apenas: ✅📌📋 (ícones profissionais)`;
+        }
+
+        // LOW extraversion means reserved, minimal expression
+        if (psychometrics?.extraversion === 'LOW') {
+            return `MÍNIMO - Você é reservado.
+- Use no máximo 1 emoji a cada 3-4 mensagens
+- Evite emojis expressivos demais (🎉🔥😂)
+- Apenas para tom emocional sutil quando genuinamente necessário
+- Prefira sem emojis na maioria das mensagens`;
+        }
+
+        // Derive frequency from explicit setting or extraversion
+        let frequency = voice.emoji_frequency || 'LOW';
+
+        // If HIGH extraversion, allow more emojis
+        if (psychometrics?.extraversion === 'HIGH') {
+            frequency = 'HIGH';
+        } else if (psychometrics?.extraversion === 'MEDIUM') {
+            frequency = 'MEDIUM';
+        }
+
         const policies = {
-            NONE: 'FORBIDDEN - Never use emojis in your responses',
-            LOW: 'MINIMAL - Use only 1 emoji every 3-4 messages, and only when it genuinely enhances the emotional tone',
-            MEDIUM: 'MODERATE - Use 1-2 emojis per message when contextually appropriate to convey warmth or emphasis',
-            HIGH: 'NATURAL - Use emojis freely like a human would in casual conversation (2-3 per message)'
+            NONE: 'PROIBIDO - NUNCA use emojis em suas respostas.',
+            LOW: `MÍNIMO - Use apenas 1 emoji a cada 3-4 mensagens.
+- Apenas quando genuinamente melhora o tom emocional
+- Evite parecer excessivamente animado`,
+            MEDIUM: `MODERADO - Use 1-2 emojis por mensagem quando apropriado.
+- Para transmitir calor ou ênfase
+- Equilibre profissionalismo com simpatia`,
+            HIGH: `NATURAL - Use emojis livremente como um humano casual.
+- 2-3 emojis por mensagem é normal
+- Seja expressivo e animado!`
         };
 
         return policies[frequency] || policies.LOW;
@@ -558,6 +850,7 @@ ${roleBlueprint}
 
     /**
      * Builds specialized context for specific industry verticals.
+     * (Formerly referred to as "Company Enums" or "Mini Prompts")
      */
     #buildIndustryContext(vertical, nodeConfig) {
         if (vertical === 'advocacia') {

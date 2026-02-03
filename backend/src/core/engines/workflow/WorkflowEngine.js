@@ -236,7 +236,13 @@ class WorkflowEngine {
      */
     async triggerAiForLead(phone, messageBody = null, referral = null, sessionName = null) {
         // Standardize phone (remove non-digits)
-        const cleanPhone = phone.replace(/\D/g, '');
+        let cleanPhone = phone.replace(/\D/g, '');
+
+        // FIX: Standardize BR Country Code logic to match WahaChattingController
+        // If length is 10 or 11 (DD+Num), assume BR and prepend 55
+        if (cleanPhone.length >= 10 && cleanPhone.length <= 11) {
+            cleanPhone = '55' + cleanPhone;
+        }
 
         // Try to acquire distributed lock first (Redis), fallback to in-memory
         let lock = null;
@@ -927,6 +933,16 @@ class WorkflowEngine {
             const { leadId, campaignId, sessionName } = job.data;
             logger.info({ leadId, jobId: job.id }, '📨 Processing Buffered Messages (Debounce Complete)');
 
+            // CONCURRENCY FIX: Acquire distributed lock to prevent parallel processing
+            let workerLock = null;
+            if (this.redisLockClient?.enabled) {
+                workerLock = await this.redisLockClient.acquireLock(`worker:lead:${leadId}`, 45000);
+                if (!workerLock) {
+                    logger.warn({ leadId, jobId: job.id }, '🔒 Worker Lock busy. Job will retry.');
+                    throw new Error('Lead is being processed by another worker');
+                }
+            }
+
             try {
                 // 1. Fetch buffered messages
                 const bufferKey = `buffer:lead:${leadId}:messages`;
@@ -983,6 +999,11 @@ class WorkflowEngine {
             } catch (err) {
                 logger.error({ error: err.message, leadId }, '❌ Worker Failed');
                 throw err;
+            } finally {
+                // Always release the lock
+                if (workerLock) {
+                    await this.redisLockClient?.releaseLock(workerLock);
+                }
             }
         });
 

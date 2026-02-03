@@ -7,41 +7,75 @@
  * - Latency monitoring
  * - Conversation quality metrics
  * 
+ * Now reads credentials from database via SettingsService
+ * 
  * @see https://langfuse.com/docs
  */
 const { Langfuse } = require('langfuse');
 const logger = require('../../shared/Logger').createModuleLogger('langfuse');
 
 class LangfuseClient {
-    constructor() {
-        this.enabled = !!(process.env.LANGFUSE_PUBLIC_KEY && process.env.LANGFUSE_SECRET_KEY);
+    constructor({ settingsService } = {}) {
+        this.settingsService = settingsService;
+        this.enabled = false;
+        this.client = null;
+        this.initialized = false;
+        this.initPromise = null;
+    }
 
-        if (this.enabled) {
-            this.client = new Langfuse({
-                publicKey: process.env.LANGFUSE_PUBLIC_KEY,
-                secretKey: process.env.LANGFUSE_SECRET_KEY,
-                baseUrl: process.env.LANGFUSE_HOST || 'https://cloud.langfuse.com',
-                flushAt: 5,      // Batch size before flush
-                flushInterval: 1000 // Flush every second
-            });
-            logger.info('✅ Langfuse observability enabled');
-        } else {
-            this.client = null;
-            logger.warn('⚠️ Langfuse disabled - missing LANGFUSE_PUBLIC_KEY or LANGFUSE_SECRET_KEY');
+    /**
+     * Initialize the Langfuse client with settings from database.
+     * Lazy initialization on first use.
+     */
+    async initialize() {
+        if (this.initialized) return;
+        if (this.initPromise) return this.initPromise;
+
+        this.initPromise = this._doInitialize();
+        return this.initPromise;
+    }
+
+    async _doInitialize() {
+        try {
+            let publicKey = null;
+            let secretKey = null;
+            let host = 'https://cloud.langfuse.com';
+
+            if (this.settingsService) {
+                publicKey = await this.settingsService.getLangfusePublicKey();
+                secretKey = await this.settingsService.getLangfuseSecretKey();
+                host = await this.settingsService.getLangfuseHost();
+            }
+
+            this.enabled = !!(publicKey && secretKey);
+
+            if (this.enabled) {
+                this.client = new Langfuse({
+                    publicKey,
+                    secretKey,
+                    baseUrl: host,
+                    flushAt: 5,
+                    flushInterval: 1000
+                });
+                logger.info('✅ Langfuse observability enabled (credentials from database)');
+            } else {
+                this.client = null;
+                logger.warn('⚠️ Langfuse disabled - missing langfuse_public_key or langfuse_secret_key in system_settings');
+            }
+
+            this.initialized = true;
+        } catch (error) {
+            logger.error({ error: error.message }, 'Failed to initialize Langfuse');
+            this.enabled = false;
+            this.initialized = true;
         }
     }
 
     /**
      * Create a new trace for a conversation/workflow.
-     * 
-     * @param {Object} options - Trace options
-     * @param {string} options.id - Unique trace ID (e.g., chatId or workflowInstanceId)
-     * @param {string} options.name - Human-readable trace name
-     * @param {string} options.userId - User/Lead ID for association
-     * @param {Object} options.metadata - Additional metadata
-     * @returns {Object | null} Trace object or null if disabled
      */
-    trace({ id, name, userId, metadata = {} }) {
+    async trace({ id, name, userId, metadata = {} }) {
+        await this.initialize();
         if (!this.enabled) return this.#createMockTrace();
 
         try {
@@ -63,16 +97,6 @@ class LangfuseClient {
 
     /**
      * Log a generation (LLM call) within a trace.
-     * 
-     * @param {Object} trace - Parent trace from trace()
-     * @param {Object} options - Generation options
-     * @param {string} options.name - Generation name (e.g., 'agentic-response')
-     * @param {string} options.model - Model name (e.g., 'gemini-2.0-flash')
-     * @param {string} options.input - System prompt / input
-     * @param {string} options.output - Model response
-     * @param {Object} options.usage - Token usage { input, output, total }
-     * @param {Object} options.metadata - Additional metadata
-     * @returns {Object | null} Generation object
      */
     generation(trace, { name, model, input, output, usage = {}, metadata = {} }) {
         if (!this.enabled || !trace || trace._mock) {
@@ -106,13 +130,6 @@ class LangfuseClient {
 
     /**
      * Log a span (non-LLM operation) within a trace.
-     * 
-     * @param {Object} trace - Parent trace
-     * @param {Object} options - Span options
-     * @param {string} options.name - Span name (e.g., 'slot-validation')
-     * @param {string} options.input - Input data
-     * @param {string} options.output - Output data
-     * @returns {Object} Span object
      */
     span(trace, { name, input, output, metadata = {} }) {
         if (!this.enabled || !trace || trace._mock) {
@@ -134,12 +151,6 @@ class LangfuseClient {
 
     /**
      * Log a score/evaluation for quality tracking.
-     * 
-     * @param {Object} trace - Parent trace
-     * @param {Object} options - Score options
-     * @param {string} options.name - Score name (e.g., 'sentiment', 'helpfulness')
-     * @param {number} options.value - Score value (0-1 for normalized)
-     * @param {string} options.comment - Optional comment
      */
     score(trace, { name, value, comment = '' }) {
         if (!this.enabled || !trace || trace._mock) return;
@@ -157,9 +168,6 @@ class LangfuseClient {
 
     /**
      * Log a security event (guardrail trigger, injection attempt).
-     * 
-     * @param {Object} trace - Parent trace
-     * @param {Object} event - Security event details
      */
     securityEvent(trace, { type, blocked, details }) {
         if (!this.enabled || !trace || trace._mock) return;
@@ -179,7 +187,6 @@ class LangfuseClient {
 
     /**
      * Flush all pending events.
-     * Call this before process shutdown.
      */
     async flush() {
         if (!this.enabled) return;
@@ -195,10 +202,15 @@ class LangfuseClient {
     /**
      * Get client stats for health checks.
      */
-    getStats() {
+    async getStats() {
+        await this.initialize();
+        let host = 'https://cloud.langfuse.com';
+        if (this.settingsService) {
+            host = await this.settingsService.getLangfuseHost();
+        }
         return {
             enabled: this.enabled,
-            host: process.env.LANGFUSE_HOST || 'https://cloud.langfuse.com'
+            host
         };
     }
 
@@ -217,15 +229,4 @@ class LangfuseClient {
     }
 }
 
-// Singleton instance
-let instance = null;
-
-module.exports = {
-    getInstance: () => {
-        if (!instance) {
-            instance = new LangfuseClient();
-        }
-        return instance;
-    },
-    LangfuseClient
-};
+module.exports = LangfuseClient;

@@ -3,6 +3,7 @@ const CircuitBreaker = require('opossum');
 const logger = require('../../shared/Logger').createModuleLogger('gemini');
 const { updateTraceContext } = require('../../shared/TraceContext');
 const SpintaxService = require('../../core/services/content/SpintaxService');
+const ModelPricingService = require('../../core/services/ai/ModelPricing');
 
 /**
  * Safety settings for sales/customer service AI.
@@ -181,9 +182,10 @@ class GeminiClient {
         logger.info({ metrics }, 'Gemini generation completed');
         response._metrics = metrics;
 
-        // BILLING HOOK
-        if (options.companyId) {
+        // BILLING & LOGGING HOOK
+        if (options.companyId || options.userId) {
             this._handleBilling(metrics, { companyId: options.companyId, isComplex: true });
+            this._logUsage(metrics, options);
         }
 
         return response;
@@ -209,9 +211,10 @@ class GeminiClient {
         const metrics = { model, total_ms };
         response._metrics = metrics;
 
-        // BILLING HOOK
-        if (options.companyId) {
+        // BILLING & LOGGING HOOK
+        if (options.companyId || options.userId) {
             this._handleBilling(metrics, { companyId: options.companyId, isComplex: false });
+            this._logUsage(metrics, options);
         }
 
         return response;
@@ -276,9 +279,46 @@ class GeminiClient {
         return result.embedding.values;
     }
 
+
     getCircuitStats() {
         return this.generateBreaker.stats;
+    }
+
+    // ... existing code ...
+
+    /**
+     * Logs Token Usage to Supabase (Async - Fire & Forget)
+     * Supports Granular SaaS Tracking (Campaign, Chat, User)
+     */
+    async _logUsage(metrics, context = {}) {
+        if (!this.settingsService?.supabase) return; // Need supabase client access
+
+        const { companyId, campaignId, chatId, userId } = context;
+        if (!userId && !companyId) return; // Need an owner
+
+        try {
+            // Calculate Cost using 2026 Real Pricing
+            const cost = ModelPricingService.calculateCost(
+                metrics.model,
+                metrics.prompt_tokens || 0,
+                metrics.completion_tokens || 0
+            );
+
+            await this.settingsService.supabase.from('ai_usage_logs').insert({
+                user_id: userId || null,
+                session_id: null,
+                campaign_id: campaignId || null,
+                chat_id: chatId || null,
+                model: metrics.model,
+                tokens_input: metrics.prompt_tokens || 0,
+                tokens_output: metrics.completion_tokens || 0,
+                cost: cost
+            });
+        } catch (e) {
+            logger.error({ error: e.message }, 'Failed to log AI usage');
+        }
     }
 }
 
 module.exports = GeminiClient;
+

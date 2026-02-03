@@ -49,10 +49,7 @@ class AgenticNode extends AgentNode {
         const canaryToken = this.guardrailService.generateCanaryToken();
         logger.debug({ leadId: lead.id, canary: canaryToken.substring(0, 10) + '...' }, '🔐 Canary token generated');
 
-        // Resolve DNA
-        const dna = resolveDNA(campaign.agents?.dna_config);
-
-        // 1. Resolve Operating Agent & Model
+        // 1. Resolve Operating Agent & Model (BEFORE resolveDNA!)
         const agentId = nodeConfig.data?.agentId || nodeConfig.data?.agent_id || campaign.agent_id || campaign.agents?.id;
         let operatingAgent = campaign.agents;
 
@@ -62,12 +59,43 @@ class AgenticNode extends AgentNode {
 
         // STRICT VALIDATION: Prevent Token Waste on Unconfigured Agents
         if (!operatingAgent || !operatingAgent.dna_config || Object.keys(operatingAgent.dna_config).length === 0) {
+            const errorReason = !operatingAgent ? 'Agente não encontrado' : 'Configuração de DNA (Persona) ausente';
             const errorMsg = `CRITICAL: Agent ${agentId} is unconfigured (Missing DNA). Execution aborted to prevent hallucination and token waste.`;
-            logger.error({ leadId: lead.id, agentId }, errorMsg);
+
+            logger.error({
+                leadId: lead.id,
+                agentId,
+                campaignId: campaign.id,
+                reason: errorReason
+            }, errorMsg);
+
             trace.update({ status: 'ERROR', statusMessage: errorMsg });
+
+            // Emit Error Event to Frontend via CampaignSocket (inherited from Base)
+            if (this.campaignSocket) {
+                this.campaignSocket.emit('agent.config_error', {
+                    campaignId: campaign.id,
+                    campaignName: campaign.name,
+                    sessionName: campaign.session_name || campaign.waha_session_name || 'unknown',
+                    reason: errorReason,
+                    timestamp: new Date().toISOString()
+                });
+            }
+
             // Exit early - User requested strictness
             throw new Error(errorMsg);
         }
+
+        // Resolve DNA from the ACTUAL operating agent (not campaign.agents which may be different!)
+        // FIX: This was previously called before resolving operatingAgent, causing chronemics/burstiness to be undefined
+        const dna = resolveDNA(operatingAgent.dna_config);
+
+        logger.debug({
+            leadId: lead.id,
+            agentId: operatingAgent.id,
+            agentName: operatingAgent.name,
+            hasBurstiness: dna.physics?.burstiness?.enabled
+        }, '🎭 Operating Agent DNA resolved');
 
         const targetModel = nodeConfig.data?.model || operatingAgent?.model;
         if (!targetModel) {
@@ -106,6 +134,25 @@ class AgenticNode extends AgentNode {
                 content: currentInput,
                 created_at: new Date().toISOString()
             });
+        }
+
+        // 🛡️ ANTI-LOOP SAFETY PROTCOL
+        // If the very last message in the history (after injection) is from the ASSISTANT,
+        // it means the AI (or a human via phone) has already replied, and the user hasn't replied yet.
+        // We must ABORT to prevent the AI from talking to itself or repeating responses.
+        const efLastMsg = history[history.length - 1];
+        if (efLastMsg && efLastMsg.role === 'assistant') {
+            logger.warn({
+                leadId: lead.id,
+                lastContent: efLastMsg.content?.substring(0, 50)
+            }, '🛑 LOOP DETECTED: Last message was from assistant. Aborting execution to prevent auto-reply loop.');
+
+            return {
+                result: {
+                    status: 'SKIPPED',
+                    reason: 'Last message was from assistant'
+                }
+            };
         }
 
 
@@ -157,7 +204,7 @@ class AgenticNode extends AgentNode {
         // Ensure campaign context is adequate
         const campaignContext = {
             ...campaign,
-            company_name: campaign.company_name || campaign.company || 'Empresa (Não configurada)'
+            company_name: campaign.company_name || campaign.company // Let PromptService resolve via DNA
         };
 
         // ARCHITECTURAL FIX: Separate concerns
@@ -328,6 +375,24 @@ class AgenticNode extends AgentNode {
             last_message_at: new Date().toISOString()
         }).eq('id', lead.id);
 
+        // 5.2. Extract and Update Lead Name (if discovered)
+        const extractedName = response.qualification_slots?.lead_name;
+        if (extractedName && extractedName !== 'unknown' && extractedName !== null) {
+            const currentName = lead.name || '';
+            // Only update if current name is missing, phone number, or "Desconhecido"
+            const isNameMissing = !currentName ||
+                currentName === 'Desconhecido' ||
+                currentName.toLowerCase() === 'unknown' ||
+                /^\d+$/.test(currentName); // Just phone number
+
+            if (isNameMissing) {
+                logger.info({ leadId: lead.id, extractedName, previousName: currentName }, '📛 Lead name extracted from conversation');
+                await this.supabase.from('leads').update({
+                    name: extractedName
+                }).eq('id', lead.id);
+            }
+        }
+
         // 5.5. Process CRM Actions (Handoff, etc.)
         let handoffTriggered = false; // New flag for flow control
         if (response.crm_actions && response.crm_actions.length > 0) {
@@ -345,14 +410,27 @@ class AgenticNode extends AgentNode {
         }
 
         // 6. Send Message with HUMANIZED PHYSICS (Delegated to Base)
+        // FIX: AI uses |Split| delimiter to indicate message breaks
+        let messagesToSend = null;
+        const responseText = response.response || finalizedText;
+
+        if (responseText && responseText.includes('|Split|')) {
+            // AI explicitly marked where to split messages
+            messagesToSend = responseText
+                .split('|Split|')
+                .map(m => m.trim())
+                .filter(m => m.length > 0);
+            logger.debug({ leadId: lead.id, chunks: messagesToSend.length }, '📤 Response split by |Split| delimiter');
+        }
+
         const syntheticResponse = {
-            response: finalizedText,
+            messages: messagesToSend,  // Pre-split messages (if |Split| was used)
+            response: messagesToSend ? null : responseText, // Fallback: let burstiness handle it
             thought: response.thought,
-            // Pass through audio if AgenticNode supports it later
         };
 
         const sessionName = nodeConfig.data?.sessionName || campaign.session_name || campaign.waha_session_name;
-        await this.sendResponseWithPhysics(lead, campaign, chatId, chat.id, syntheticResponse, dna.physics, sessionName);
+        await this.sendResponseWithPhysics(lead, campaign, chatId, chat.id, syntheticResponse, dna.physics, sessionName, operatingAgent.name);
 
         // 7. Classify Intent for Campaign FSM to read
         // CRITICAL: Agent classifies, Campaign decides transition

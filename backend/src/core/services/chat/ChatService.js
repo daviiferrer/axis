@@ -23,7 +23,7 @@ class ChatService {
             chat_id: chatId,
             session_name: sessionName,
             user_id: userId,
-            lead_id: additionalData.lead_id || null,
+            // lead_id: removed to avoid overwriting with null on upsert if exists
             campaign_id: additionalData.campaign_id || null, // Will try to resolve below if null
             phone: cleanPhone,
             name: additionalData.name || cleanPhone,
@@ -248,10 +248,19 @@ class ChatService {
         // Fix: logic to resolve chatId robustly
         let chatId = fromMe ? to : from;
 
+        // CRITICAL FIX: If chatId is a LID (Linked Device), we MUST resolve it to the canonical phone JID.
+        // LIDs typically look like "123456789:8@lid".
+        // The real chat JID is usually hidden in _data.Info.Chat (even for inbound).
+        const isLid = chatId && chatId.endsWith('@lid');
+
         // Outgoing message (fromMe = true) usually has 'to' as null in some WAHA versions.
         // We MUST check _data.Info.Chat which is the canonical chat JID.
-        if (!chatId && _data) {
-            chatId = _data.Info?.Chat || _data.to || _data.id?.remote || _data.key?.remote;
+        if ((!chatId || isLid) && _data) {
+            const canonical = _data.Info?.Chat || _data.to || _data.id?.remote || _data.key?.remote;
+            if (canonical && !canonical.endsWith('@lid')) {
+                logger.info({ original: chatId, canonical }, '🔄 Resolved LID to Canonical JID via _data');
+                chatId = canonical; // Override LID with real JID
+            }
         }
 
         logger.debug({ from, to, fromMe, chatId }, 'Initial chatId resolution');

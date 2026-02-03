@@ -45,6 +45,28 @@ export type SalesFramework = 'SPIN' | 'BANT' | 'GPCT' | 'MEDDIC';
 
 export type QualificationSlot = 'need' | 'budget' | 'authority' | 'timeline' | 'solution' | 'timing';
 
+// Industry Verticals (matches backend AgentDNA.js)
+export type IndustryVertical =
+    | 'ADVOCACIA'
+    | 'OFICINA_MECANICA'
+    | 'ASSISTENCIA_TECNICA'
+    | 'IMOBILIARIA'
+    | 'CLINICA'
+    | 'ECOMMERCE'
+    | 'SAAS'
+    | 'AGENCIA'
+    | 'CONSULTORIA'
+    | 'ACADEMIA'
+    | 'RESTAURANTE'
+    | 'GENERIC';
+
+// Business Context (Playbook)
+export interface BusinessContext {
+    industry: IndustryVertical;
+    company_name?: string;
+    custom_context?: string;
+}
+
 export interface DNAConfig {
     psychometrics: {
         openness: Level;
@@ -76,6 +98,10 @@ export interface DNAConfig {
         prohibited_topics: string[];
         handoff_on_frustration: boolean;
     };
+    identity?: {
+        role: IdentityRole;
+    };
+    business_context?: BusinessContext;
 }
 
 export interface Agent {

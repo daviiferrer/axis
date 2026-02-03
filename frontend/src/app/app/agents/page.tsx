@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import useSWR from "swr"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Search, Bot, Plus } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -12,25 +13,18 @@ import { agentService, Agent } from "@/services/agentService"
 import { toast } from "sonner"
 
 export default function AgentsPage() {
-    const [agents, setAgents] = useState<Agent[]>([])
-    const [isLoading, setIsLoading] = useState(true)
     const [search, setSearch] = useState("")
 
-    useEffect(() => {
-        loadAgents();
-    }, []);
-
-    const loadAgents = async () => {
-        try {
-            const data = await agentService.list();
-            setAgents(data);
-        } catch (error) {
-            console.error("Failed to load agents", error);
-            toast.error("Erro ao carregar agentes");
-        } finally {
-            setIsLoading(false);
+    // Use SWR for agents - leverages prefetched data
+    const { data: agents = [], isLoading } = useSWR(
+        'agents',
+        () => agentService.list(),
+        {
+            revalidateOnFocus: false,
+            keepPreviousData: true, // Prevents flicker
+            onError: () => toast.error("Erro ao carregar agentes")
         }
-    };
+    )
 
     const filteredAgents = agents.filter(a =>
         a.name.toLowerCase().includes(search.toLowerCase()) ||

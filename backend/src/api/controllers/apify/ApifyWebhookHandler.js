@@ -9,11 +9,25 @@ const LeadTransformerService = require('../../../core/services/extraction/LeadTr
 const logger = require('../../../shared/Logger').createModuleLogger('apify-webhook');
 
 class ApifyWebhookHandler {
-    constructor(supabase, triggerService) {
-        this.client = new ApifyClient({ token: process.env.APIFY_TOKEN });
-        this.supabase = supabase;
+    constructor({ supabaseClient, triggerService, settingsService }) {
+        this.supabase = supabaseClient;
         this.triggerService = triggerService;
+        this.settingsService = settingsService;
+        this.client = null; // Lazy initialized
         this.transformer = new LeadTransformerService();
+    }
+
+    /**
+     * Lazy initialize ApifyClient with token from database
+     */
+    async getClient() {
+        if (!this.client) {
+            const token = await this.settingsService.getProviderKey(null, 'apify');
+            if (token) {
+                this.client = new ApifyClient({ token });
+            }
+        }
+        return this.client;
     }
 
     /**
@@ -71,7 +85,12 @@ class ApifyWebhookHandler {
             logger.info({ runId: actorRunId, campaignId: campaign_id }, 'Processing successful run');
 
             // 2. Download dataset
-            const dataset = await this.client.dataset(defaultDatasetId).listItems();
+            const client = await this.getClient();
+            if (!client) {
+                logger.error({ runId: actorRunId }, 'ApifyClient not initialized - missing API token');
+                return;
+            }
+            const dataset = await client.dataset(defaultDatasetId).listItems();
             const rawItems = dataset.items;
 
             logger.info({ count: rawItems.length }, 'Dataset downloaded');
@@ -133,7 +152,12 @@ class ApifyWebhookHandler {
         const { actorRunId } = eventData;
 
         try {
-            const run = await this.client.run(actorRunId).get();
+            const client = await this.getClient();
+            if (!client) {
+                logger.error({ runId: actorRunId }, 'ApifyClient not initialized - missing API token');
+                return;
+            }
+            const run = await client.run(actorRunId).get();
 
             await this.supabase
                 .from('extraction_runs')

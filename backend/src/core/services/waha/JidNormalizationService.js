@@ -43,10 +43,10 @@ class JidNormalizationService {
     async resolveJid(rawPhone) {
         if (!rawPhone) return null;
 
-        // LID is a system identity, keep as is
-        if (rawPhone.endsWith('@lid')) {
-            return rawPhone;
-        }
+        // LID is a system identity, but we want to resolve to the canonical phone JID if possible
+        // if (rawPhone.endsWith('@lid')) {
+        //     return rawPhone;
+        // }
 
         const cleaned = this.extractDigits(rawPhone);
         if (!cleaned) return rawPhone;

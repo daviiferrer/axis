@@ -12,7 +12,8 @@ const crypto = require('crypto');
 const logger = require('../../../shared/Logger').createModuleLogger('guardrail');
 
 class GuardrailService {
-    constructor() {
+    constructor(settingsService = null) {
+        this.settingsService = settingsService;
         this.ctaPatterns = {
             link: /https?:\/\/[^\s]+/i,
             phone: /\(\d{2}\)\s?\d{4,5}-?\d{4}/,
@@ -50,7 +51,38 @@ class GuardrailService {
 
         // Store for active canary tokens
         this.activeCanaries = new Map();
+        // Default TTL, will be overridden by DB setting
         this.CANARY_TTL_MS = 300000; // 5 min
+    }
+
+    /**
+     * Get canary TTL from settings or use default.
+     */
+    async #getCanaryTtl() {
+        if (this.settingsService) {
+            return await this.settingsService.getCanaryTtl();
+        }
+        return this.CANARY_TTL_MS;
+    }
+
+    /**
+     * Get default CTA URL from settings.
+     */
+    async #getDefaultCtaUrl() {
+        if (this.settingsService) {
+            return await this.settingsService.getDefaultCtaUrl();
+        }
+        return null;
+    }
+
+    /**
+     * Get max response length from settings.
+     */
+    async #getMaxResponseLength() {
+        if (this.settingsService) {
+            return await this.settingsService.getMaxResponseLength();
+        }
+        return 500;
     }
 
     /**

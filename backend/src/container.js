@@ -126,7 +126,10 @@ function configureContainer() {
         schedulingService: asClass(SchedulingService).scoped(),
 
         // RAG Services (optional - disabled without API keys)
-        embeddingService: asClass(EmbeddingService).singleton(),
+        embeddingService: asClass(EmbeddingService).singleton().inject((c) => ({
+            settingsService: c.settingsService,
+            systemConfig: c.systemConfig
+        })),
         hybridSearchService: asClass(HybridSearchService).singleton(),
 
         // Singletons (Stateful/Global)

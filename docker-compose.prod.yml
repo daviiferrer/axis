@@ -1,0 +1,160 @@
+version: "3.8"
+
+services:
+  # ===========================================
+  # 1. Reverse Proxy (Nginx)
+  # ===========================================
+  nginx:
+    image: nginx:alpine
+    container_name: axis-nginx
+    restart: always
+    ports:
+      - "80:80"
+      # Uncomment for SSL (after configuring certificates)
+      # - "443:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Uncomment for SSL
+      # - ./docker/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - axis-network
+
+  # ===========================================
+  # 2. Frontend (Next.js)
+  # ===========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    container_name: axis-frontend
+    restart: always
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - axis-network
+
+  # ===========================================
+  # 3. Backend (Node.js API)
+  # ===========================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: axis-backend
+    restart: always
+    expose:
+      - "8000"
+    environment:
+      - PORT=8000
+      - NODE_ENV=production
+      # ==== Bootstrap Only (from .env) ====
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      # ==== Internal Docker Network ====
+      - REDIS_URL=redis://redis:6379
+      - WAHA_API_URL=http://waha:3000
+    depends_on:
+      redis:
+        condition: service_healthy
+      waha:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - axis-network
+
+  # ===========================================
+  # 4. WAHA Plus (WhatsApp API)
+  # ===========================================
+  waha:
+    image: devlikeapro/waha-plus:noweb
+    container_name: axis-waha
+    restart: always
+    expose:
+      - "3000"
+    environment:
+      - WHATSAPP_DEFAULT_ENGINE=NOWEB
+      - WAHA_LOG_LEVEL=info
+      # Dashboard credentials - set in Admin Panel (system_settings table)
+      # For initial setup, use defaults: admin / admin123
+      - WAHA_DASHBOARD_USERNAME=${WAHA_DASHBOARD_USERNAME:-admin}
+      - WAHA_DASHBOARD_PASSWORD=${WAHA_DASHBOARD_PASSWORD:-admin123}
+      - WHATSAPP_API_KEY=${WHATSAPP_API_KEY:-axis-waha-key}
+      # Webhook config
+      - WHATSAPP_HOOK_URL=http://backend:8000/api/v1/webhook/waha
+      - WHATSAPP_HOOK_EVENTS=message,message.any,message.ack,presence.update,session.status
+    volumes:
+      - waha_sessions:/app/sessions
+      - waha_config:/app/config
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - axis-network
+
+  # ===========================================
+  # 5. Redis (Cache & Queue)
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: axis-redis
+    restart: always
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - axis-network
+
+# ===========================================
+# Networks
+# ===========================================
+networks:
+  axis-network:
+    driver: bridge
+
+# ===========================================
+# Volumes
+# ===========================================
+volumes:
+  redis_data:
+  waha_sessions:
+  waha_config:

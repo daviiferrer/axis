@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import useSWR, { useSWRConfig } from "swr" // Fix import
-import { parsePhoneNumber } from "libphonenumber-js" // Import formatting lib
+import useSWR, { useSWRConfig } from "swr"
+import { parsePhoneNumber } from "libphonenumber-js"
 import {
     Search,
     Plus,
@@ -17,7 +17,11 @@ import {
     RefreshCw,
     Smartphone,
     Check,
-    CheckCheck
+    CheckCheck,
+    Image as ImageIcon,
+    FileText,
+    Camera,
+    X
 } from "lucide-react"
 
 import { Skeleton } from "@/components/ui/skeleton"
@@ -49,10 +53,11 @@ import {
 } from "@/components/ui/context-menu"
 import { useSocket } from "@/context/SocketContext"
 import { Trash2 } from "lucide-react"
-import { motion, useMotionValue, useSpring, useTransform, useMotionTemplate } from "framer-motion"
-import SentimentDisplay from "@/components/SentimentSlider/SentimentDisplay"
+import { motion, useMotionValue, useSpring, useTransform, useMotionTemplate, AnimatePresence } from "framer-motion"
+import { SentimentDisplay, useSentimentColors } from "@/components/SentimentSlider"
 
 import { wahaService, WahaSession, WahaChat } from "@/services/waha"
+import { useAuth } from "@/context/AuthContext"
 
 export interface WahaMessage {
     id: string;
@@ -88,7 +93,7 @@ function MessageTick({ ack }: { ack?: number }) {
     if (ack === 1) return <Check className="size-3 text-gray-400" />; // Sent (Server)
     if (ack === 2) return <CheckCheck className="size-3 text-gray-400" />; // Delivered
     if (ack >= 3) return <CheckCheck className="size-3 text-blue-500" />; // Read/Played
-    return null; // Clock?
+    return null;
 }
 
 
@@ -104,11 +109,16 @@ function ChatList({
     onSelectChat: (chat: WahaChat) => void,
     statusFilter?: 'ALL' | 'PROSPECTING' | 'QUALIFIED' | 'FINISHED'
 }) {
-    const { data: chats, error, isLoading, mutate: mutateChats } = useSWR(session ? `/chats/${session}` : null, () => wahaService.getChats(session), {
-        refreshInterval: 0, // Disable polling in favor of Socket
-        revalidateOnFocus: false,
-        keepPreviousData: true
-    })
+    // Fetch ALL chats regardless of session - session filter is optional now
+    const { data: chats, error, isLoading, mutate: mutateChats } = useSWR(
+        '/chats/all', // Always fetch
+        () => wahaService.getChats(), // No session = fetch all
+        {
+            refreshInterval: 0, // Disable polling in favor of Socket
+            revalidateOnFocus: false,
+            keepPreviousData: true
+        }
+    )
 
     const { mutate } = useSWRConfig(); // Global mutate for other keys
 
@@ -137,33 +147,12 @@ function ChatList({
         const handleMessageAck = (data: any) => {
             if (data.session !== session) return;
             console.log("Socket: Message Ack", data);
-            // Update specific message in cache
-            // We need to find which chat this belongs to, but usually we only care if it's the open chat
-            // We can optimistically update ALL cached message lists? No, too expensive.
-            // Usually we only update the active one.
-            // But we don't have selectedChatId inside this effect unless we include it in deps, which causes reconnects.
-            // Better: mutate all `/messages/*` keys? No.
-            // Strategy: The ack has messageId. We can't easily find the chat key without chatId.
-            // Backend event should send chatId!
-            // Let's blindly mutate the chats list to show status on sidebar if shown? Sidebar usually doesn't show ticks.
-            // The chat window needs it.
-            // Let's add a global listener that iterates matching keys? Hard with SWR.
-            // Let's rely on `mutateChats` for now, but for instant tick update we need the active chat.
         };
 
-        // Actually, let's put the ack listener INSIDE the ChatWindow component or passing current chat to this one.
-        // Or simply revalidate `mutateChats()`? No, that's just the sidebar.
-        // We need to revalidate `/messages/{activeChatId}`.
-        // If we don't have activeChatId here, we can't key it.
-        // Solution: Move socket listeners that depend on active chat to a separate effect that depends on selectedChatId?
-        // Or just `mutate((key) => key.startsWith('/messages/'), ...)`? (Not supported natively like that easily without cache provider access).
-
         socket.on('message.received', handleMessageReceived);
-        // socket.on('message.ack', handleMessageAck); // TODO: Implement robustly
 
         return () => {
             socket.off('message.received', handleMessageReceived);
-            // socket.off('message.ack', handleMessageAck);
         };
     }, [socket, session, mutateChats, mutate]);
 
@@ -172,11 +161,6 @@ function ChatList({
         if (!socket || !session || !selectedChatId) return;
 
         const handleAck = (data: any) => {
-            // data: { session, messageId, status, ack, ... } - wait, backend might not send chatId in ack payload?
-            // Checking WebhookController: emits { session, messageId, messageSuffix, status, ack }
-            // It does NOT emit chatId. This is a limitation.
-            // BUT, we can just revalidate the current open chat messages! 
-            // We assume the ack *might* be for this chat.
             console.log("Socket: Ack received, revalidating current chat");
             mutate(`/messages/${selectedChatId}`);
         };
@@ -190,6 +174,10 @@ function ChatList({
     const handleDeleteChat = async (chatId: string) => {
         if (confirm("Tem certeza que deseja excluir esta conversa?")) {
             try {
+                // Clear selection if deleting the active chat
+                if (selectedChatId === chatId) {
+                    onSelectChat(null as any); // Clear selection immediately
+                }
                 // Optimistic delete
                 mutateChats(chats?.filter(c => c.id !== chatId), false);
                 await wahaService.deleteChat(session, chatId);
@@ -216,7 +204,7 @@ function ChatList({
             </div>
         )
     }
-    if (!session) return <div className="p-8 text-center text-gray-400 text-sm font-inter font-light">Selecione uma sessão</div>
+    // Removed: if (!session) check - now shows all chats regardless of session
 
     // Treat 404 or empty array as "No chats"
     if (error || (chats && chats.length === 0)) {
@@ -301,7 +289,6 @@ function ChatList({
 }
 
 function QRCodeDisplay({ session, isVisible }: { session: string, isVisible: boolean }) {
-    // keepPreviousData: true prevents data from becoming undefined during revalidation (flicker fix)
     const { data: qrData, error } = useSWR(
         session && isVisible ? `/qr/${session}` : null,
         () => wahaService.getQR(session),
@@ -314,19 +301,12 @@ function QRCodeDisplay({ session, isVisible }: { session: string, isVisible: boo
 
     if (!isVisible) return null;
 
-    // Debug what we are actually receiving
-    console.log('[QRCodeDisplay] Raw QR data:', qrData);
-
-    // Handle case where Waha returns raw base64 string or JSON with data
     let base64 = '';
     if (typeof qrData === 'string') {
         base64 = qrData;
     } else if (qrData?.data) {
-        base64 = qrData.data; // Standard Waha JSON format
+        base64 = qrData.data;
     } else if (qrData?.url) {
-        // Some versions might return a direct URL (though we asked for json)
-        // If it's a URL, we might need a different tag or fetch it.
-        // For now, assume base64 is primary.
         console.warn('[QRCodeDisplay] Received URL instead of base64:', qrData.url);
     }
 
@@ -334,14 +314,10 @@ function QRCodeDisplay({ session, isVisible }: { session: string, isVisible: boo
 
     return (
         <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-xl flex flex-col items-center justify-center h-full p-8 text-center animate-in fade-in duration-500">
-            {/* --- Ambient Glows --- */}
             <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-blue-100 rounded-full mix-blend-multiply filter blur-[100px] opacity-60 pointer-events-none" />
             <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-cyan-50 rounded-full mix-blend-multiply filter blur-[100px] opacity-50 pointer-events-none" />
 
             <div className="relative z-10 flex flex-col items-center max-w-2xl w-full">
-                {/* Icon Wrapper */}
-
-
                 <h1 className="font-mono text-4xl md:text-[50px] font-extrabold tracking-[-0.04em] text-gray-900 mb-6 leading-[1.1]">
                     Conectar <span className="text-blue-600">WhatsApp</span>
                 </h1>
@@ -350,7 +326,6 @@ function QRCodeDisplay({ session, isVisible }: { session: string, isVisible: boo
                     Abra o app no seu celular, vá em <strong className="font-semibold text-gray-900">Aparelhos Conectados</strong> e aponte a câmera.
                 </p>
 
-                {/* QR Code Container */}
                 <div className="bg-white p-5 rounded-3xl shadow-2xl ring-1 ring-gray-100 transition-all duration-300">
                     {qrSrc ? (
                         <div className="relative size-[280px] bg-white rounded-2xl overflow-hidden group/qr">
@@ -369,17 +344,11 @@ function QRCodeDisplay({ session, isVisible }: { session: string, isVisible: boo
     )
 }
 
-import { useAuth } from "@/context/AuthContext"
-
-// ... imports remain same until component ...
-
 export default function ChatsPage() {
     const { user } = useAuth()
-    // Initialize from localStorage if available to avoid loading flicker
     const [currentSession, setCurrentSession] = useState<string | null>(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('lastSession')
-            // FIX: Force clear 'Teste_2' if found (invalid session causing issues)
             if (saved === 'Teste_2') return null
             return saved
         }
@@ -394,31 +363,24 @@ export default function ChatsPage() {
     })
     const { data: sessionInfo } = useSWR(currentSession ? `/session/${currentSession}` : null, () => wahaService.getSession(currentSession!))
 
-    // Auto-select session (simplified)
     useEffect(() => {
         if (!sessions) return
 
-        // If we have a session in state, ensure it's valid (optional, but good safety)
-        // If no session is selected, select the first one
         if (sessions.length > 0 && !currentSession) {
             const defaultSession = sessions[0].name
             setCurrentSession(defaultSession)
             localStorage.setItem('lastSession', defaultSession)
         } else if (currentSession && sessions.length > 0) {
-            // Verify current session actually exists in the fetched list
             const sessionExists = sessions.some(s => s.name === currentSession)
             if (!sessionExists) {
-                // Session from localStorage is invalid/deleted. Switch to first valid.
                 console.warn('[ChatsPage] Stored session invalid, switching to default.')
                 const defaultSession = sessions[0].name
                 setCurrentSession(defaultSession)
                 localStorage.setItem('lastSession', defaultSession)
             } else {
-                // Session is valid, just ensure it's saved
                 localStorage.setItem('lastSession', currentSession)
             }
         } else if (sessions.length === 0 && currentSession) {
-            // No sessions available at all, clear current
             setCurrentSession(null)
             localStorage.removeItem('lastSession')
         }
@@ -438,7 +400,6 @@ export default function ChatsPage() {
             fromMe: true
         };
 
-        // Optimistic UI: Update messages list immediately
         const key = `/messages/${selectedChat.id}`;
         mutate(
             key,
@@ -448,77 +409,34 @@ export default function ChatsPage() {
 
         try {
             await wahaService.sendMessage(currentSession, selectedChat.id, text)
-            // Socket will handle the confirmation/real update
         } catch (e) {
             console.error("Failed to send", e)
             mutate(key); // Revert on error
         }
     }
 
-    // Messages for selected chat
     const { data: messages } = useSWR(
         currentSession && selectedChat ? `/messages/${selectedChat.id}` : null,
         () => wahaService.getMessages(currentSession!, selectedChat!.id),
-        { refreshInterval: 3000 }
+        {
+            refreshInterval: 0, // Socket handles real-time updates
+            revalidateOnFocus: false,
+            keepPreviousData: true
+        }
     )
 
-    // Health Check
-    const [isWahaHealthy, setIsWahaHealthy] = useState(true)
 
-    useEffect(() => {
-        const check = async () => {
-            const healthy = await wahaService.checkHealth()
-            setIsWahaHealthy(healthy)
-        }
 
-        check() // Initial check
-        const interval = setInterval(check, 5000) // Poll every 5s
-        return () => clearInterval(interval)
-    }, [])
-
-    // Status tab state
     const [activeStatusTab, setActiveStatusTab] = useState<'ALL' | 'PROSPECTING' | 'QUALIFIED' | 'FINISHED'>('ALL')
-
-    // ... (rest of render)
 
     return (
         <div className="h-full w-full flex flex-row bg-background overflow-hidden relative">
-            {/* ... (Waha Unavailable Overlay) ... */}
-            {!isWahaHealthy && (
-                // ... overlay content ...
-                <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-300">
-                    <div className="size-24 rounded-full bg-red-50 flex items-center justify-center mb-6 shadow-[0_0_40px_-10px_rgba(239,68,68,0.3)]">
-                        <div className="relative">
-                            <Smartphone className="size-10 text-red-500/50" />
-                            <div className="absolute -bottom-1 -right-1 size-5 bg-red-500 rounded-full flex items-center justify-center ring-4 ring-white">
-                                <span className="text-white font-bold text-[10px]">!</span>
-                            </div>
-                        </div>
-                    </div>
 
-                    <h2 className="text-2xl font-mono font-bold text-gray-900 mb-3">Waha Indisponível</h2>
-                    <p className="text-gray-500 max-w-md mb-8 leading-relaxed font-inter">
-                        Não foi possível conectar ao serviço do WhatsApp. Verifique se o servidor backend está rodando corretamente.
-                    </p>
 
-                    <Button
-                        onClick={() => window.location.reload()}
-                        className="bg-gray-900 text-white hover:bg-gray-800 rounded-full px-8 shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5"
-                    >
-                        <RefreshCw className="mr-2 size-4" />
-                        Tentar Novamente
-                    </Button>
-                </div>
-            )}
-
-            {/* --- LEFT SIDEBAR (Fixed Width) --- */}
             <div className="w-[380px] min-w-[320px] bg-white border-r border-gray-100 flex flex-col shrink-0 overflow-hidden h-full shadow-[4px_0_24px_-12px_rgba(0,0,0,0.05)] z-10">
-
-                {/* Search & Header */}
                 <div className="p-4 pb-2 bg-white z-10">
                     <h2 className="text-2xl font-bold tracking-tight text-gray-900 mb-4 font-inter">Conversas</h2>
 
-                    {/* Status Tabs */}
                     <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1 scrollbar-hide">
                         {[
                             { id: 'ALL', label: 'Todas' },
@@ -551,7 +469,7 @@ export default function ChatsPage() {
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-hidden bg-white">
+                <div className="flex-1 overflow-hidden bg-white flex flex-col">
                     <ChatList
                         session={currentSession || ""}
                         selectedChatId={selectedChat?.id || null}
@@ -561,7 +479,6 @@ export default function ChatsPage() {
                 </div>
             </div>
 
-            {/* --- RIGHT CONTENT --- */}
             <div className="flex-1 bg-white relative flex flex-col min-w-0">
                 {(!currentSession) ? (
                     <div className="h-full flex flex-col items-center justify-center p-8 text-center">
@@ -600,7 +517,8 @@ function ChatWindow({
     session,
     chat,
     messages,
-    onSendMessage
+    onSendMessage,
+    user
 }: {
     session: string,
     chat: WahaChat,
@@ -609,38 +527,32 @@ function ChatWindow({
     user: any
 }) {
     const [input, setInput] = useState("")
+    const [isAttachOpen, setIsAttachOpen] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Dynamic User Info
     const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || "Usuário";
-    const userRole = user?.role || "Admin"; // Provided by AuthContext custom enrichment
+    const userRole = user?.role || "Admin";
 
-    // --- Sentiment Logic (Visual Integration) ---
-    const [aiSentiment, setAiSentiment] = useState(2);
-    const motionValue = useMotionValue(aiSentiment);
-    useEffect(() => { motionValue.set(aiSentiment); }, [aiSentiment, motionValue]);
-
-    const smoothValue = useSpring(motionValue, { stiffness: 300, damping: 30, mass: 0.8 });
-
-    // Map 0-4 to background colors
-    const headerBgColor = useTransform(
-        smoothValue,
-        [0, 1, 2, 3, 4],
-        ['#FEF2F2', '#FFFBEB', '#ffffff', '#F0FDF4', '#ECFDF5']
+    // --- Sentiment Logic (Real-time Integration) ---
+    const { data: sentimentData } = useSWR(
+        session && chat ? `/sentiment/${session}/${chat.id}` : null,
+        () => wahaService.getLeadSentiment(session, chat.id),
+        {
+            refreshInterval: 5000, // Poll every 5s for updates
+            keepPreviousData: true
+        }
     );
 
-    // Gradient bleed definition
-    const bodyGradientStart = useTransform(
-        smoothValue,
-        [0, 1, 2, 3, 4],
-        ['rgba(254, 242, 242, 1)', 'rgba(255, 251, 235, 1)', 'rgba(255, 255, 255, 0)', 'rgba(240, 253, 244, 1)', 'rgba(236, 253, 245, 1)']
-    );
+    const aiSentiment = sentimentData?.sentimentIndex ?? 2; // Default to Neutral (2) if loading/error
+
+    // Use our new hook for colors
+    const { headerBgColor, bodyGradientStart } = useSentimentColors(aiSentiment);
 
     // --- Scroll Fade Logic ---
     const scrollTop = useMotionValue(0);
     const distBottom = useMotionValue(0);
 
-    // Smooth opacity mapping
     const maskTopColor = useTransform(scrollTop, [0, 60], ["black", "transparent"]);
     const maskBottomColor = useTransform(distBottom, [0, 60], ["black", "transparent"]);
 
@@ -661,6 +573,11 @@ function ChatWindow({
         // Reset state on chat change
         setPresence({ status: 'offline' });
         setActing(null);
+
+        // Subscribe to presence updates for this chat
+        wahaService.subscribePresence(session, chat.id).catch(err => {
+            console.error('[ChatWindow] Failed to subscribe to presence:', err);
+        });
 
         const handlePresence = (data: any) => {
             if (data.session !== session || data.chatId !== chat.id) return;
@@ -687,7 +604,8 @@ function ChatWindow({
         <div className="flex flex-col h-full w-full overflow-hidden">
             {/* Header */}
             <motion.div
-                className="h-16 shrink-0 border-b border-border px-6 flex items-center justify-between sticky top-0 z-50 transition-colors bg-white/80 backdrop-blur-md"
+                className="h-16 w-full shrink-0 border-b border-border px-6 flex items-center justify-between sticky top-0 z-50 transition-colors backdrop-blur-md"
+                style={{ backgroundColor: headerBgColor }}
             >
                 <div className="flex items-center gap-3">
                     <Avatar className="size-9 ring-2 ring-white/50 shadow-sm">
@@ -713,7 +631,10 @@ function ChatWindow({
                             </span>
                         ) : (
                             <span className="text-[10px] text-gray-400 font-light">
-                                Visto por último hoje
+                                {presence.lastSeen
+                                    ? `Visto por último ${new Date(presence.lastSeen * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                    : "Visto por último hoje"
+                                }
                             </span>
                         )}
                     </div>
@@ -725,7 +646,6 @@ function ChatWindow({
                         <SentimentDisplay
                             value={aiSentiment}
                             variant="header"
-                            onManualSelect={setAiSentiment} // Allow tests/demos?
                         />
                     </div>
                 </div>
@@ -736,7 +656,7 @@ function ChatWindow({
             </motion.div>
 
             {/* Messages */}
-            <div className="flex-1 min-h-0 relative">
+            <div className="flex-1 min-h-0 relative flex flex-col">
                 {/* Gradient Bleed Overlay */}
                 <motion.div
                     className="absolute top-0 left-0 w-full h-32 pointer-events-none z-10"
@@ -747,6 +667,7 @@ function ChatWindow({
                         )
                     }}
                 />
+
                 {/* --- Messages Container (with fluid fade) --- */}
                 <motion.div
                     className="flex-1 overflow-y-auto px-4 sm:px-6 pt-6 pb-20 z-10 scrollbar-hide flex flex-col gap-4"
@@ -768,16 +689,24 @@ function ChatWindow({
                                 {/* Label */}
                                 {msg.fromMe ? (
                                     <span className="text-[10px] text-gray-400 mb-1 px-1">
-                                        {userName}, Humano, {userRole}
+                                        {msg.isAi ? (
+                                            <>
+                                                {msg.author}, IA, Atendente
+                                            </>
+                                        ) : (
+                                            <>
+                                                {userName}, Humano, {userRole}
+                                            </>
+                                        )}
                                     </span>
                                 ) : null}
 
                                 {/* Bubble */}
-                                <div className={`p-2.5 rounded-2xl text-left shadow-sm ${msg.fromMe
-                                    ? 'bg-[#155dfc]/10 rounded-tr-sm text-gray-900 border border-[#155dfc]/20'
-                                    : 'bg-white rounded-tl-sm text-gray-800 border border-gray-100'
+                                <div className={`p-2.5 rounded-2xl text-left ${msg.fromMe
+                                    ? 'bg-[#155dfc]/10 rounded-tr-sm text-gray-900'
+                                    : 'bg-gray-100 rounded-tl-sm text-gray-800'
                                     }`}>
-                                    <p className="text-[13px] font-normal leading-relaxed break-all">{msg.body}</p>
+                                    <p className="text-[13px] font-normal leading-relaxed whitespace-pre-wrap break-words">{msg.body}</p>
                                     <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
                                         <span className="text-[10px] text-gray-500">
                                             {new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -801,43 +730,68 @@ function ChatWindow({
                 </motion.div>
             </div>
 
-            {/* Input */}
-            <div className="shrink-0 p-4 bg-white border-t border-border z-20">
-                <div className="max-w-3xl mx-auto relative flex items-center gap-2">
-                    <Button size="icon" variant="ghost" className="text-gray-400 hover:text-blue-600 transition-colors">
-                        <Paperclip className="size-5" />
-                    </Button>
-                    <Input
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                if (input.trim()) {
-                                    onSendMessage(input);
-                                    setInput("");
-                                }
-                            }
-                        }}
-                        placeholder="Digite sua mensagem..."
-                        className="flex-1 bg-gray-50 border-gray-200 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all h-11"
-                    />
-                    {input.trim() ? (
+            {/* --- INPUT --- */}
+            <div className="absolute bottom-0 w-full p-3 sm:p-4 bg-transparent z-20 pb-safe-offset pointer-events-none">
+                <form
+                    onSubmit={(e) => { e.preventDefault(); if (input.trim()) { onSendMessage(input); setInput(""); } }}
+                    className="max-w-3xl mx-auto relative flex items-center gap-2 pointer-events-auto"
+                >
+                    <div className="flex-1 bg-gray-50 border border-gray-200 rounded-full h-12 px-2 flex items-center transition-all gap-1 shadow-lg shadow-black/5">
+
+                        {/* Attachment Button (Inside) */}
+                        <div className="relative">
+                            <AnimatePresence>
+                                {isAttachOpen && (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                                        className="absolute bottom-12 left-0 bg-white rounded-xl shadow-xl border border-gray-100 p-2 flex flex-col gap-1 min-w-[160px] z-50 origin-bottom-left mb-1"
+                                    >
+                                        <button type="button" className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 rounded-lg text-sm text-gray-700 transition-colors text-left w-full">
+                                            <div className="bg-purple-100 p-1.5 rounded-full text-purple-600"><FileText size={16} /></div>
+                                            <span className="font-medium">Documento</span>
+                                        </button>
+                                        <button type="button" className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 rounded-lg text-sm text-gray-700 transition-colors text-left w-full">
+                                            <div className="bg-pink-100 p-1.5 rounded-full text-pink-600"><ImageIcon size={16} /></div>
+                                            <span className="font-medium">Galeria</span>
+                                        </button>
+                                        <button type="button" className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 rounded-lg text-sm text-gray-700 transition-colors text-left w-full">
+                                            <div className="bg-blue-100 p-1.5 rounded-full text-blue-600"><Camera size={16} /></div>
+                                            <span className="font-medium">Câmera</span>
+                                        </button>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                            <Button
+                                type="button"
+                                onClick={() => setIsAttachOpen(!isAttachOpen)}
+                                variant="ghost"
+                                className={`p-2 hover:bg-gray-200/50 rounded-full shrink-0 transition-colors ${isAttachOpen ? 'text-gray-800 bg-gray-100' : 'text-gray-400'}`}
+                            >
+                                {isAttachOpen ? <X className="size-5" /> : <Paperclip className="size-5" />}
+                            </Button>
+                        </div>
+
+                        {/* Input Field */}
+                        <input
+                            type="text"
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            placeholder="Digite sua mensagem..."
+                            className="flex-1 bg-transparent border-none outline-none text-sm text-gray-700 placeholder:text-gray-400 h-full px-2"
+                        />
+
+                        {/* Send/Mic Button (Inside) */}
                         <Button
-                            onClick={() => {
-                                onSendMessage(input);
-                                setInput("");
-                            }}
-                            className="size-11 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 transition-all hover:scale-105 active:scale-95"
+                            type="submit"
+                            variant="ghost"
+                            className={`p-2 rounded-full transition-colors shrink-0 ${input ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-400 hover:bg-gray-200/50'}`}
                         >
-                            <Send className="size-5 ml-0.5" />
+                            {input ? <Send className="size-5 fill-current" /> : <Mic className="size-5" />}
                         </Button>
-                    ) : (
-                        <Button size="icon" variant="ghost" className="text-gray-400 hover:text-blue-600 transition-colors">
-                            <Mic className="size-5" />
-                        </Button>
-                    )}
-                </div>
+                    </div>
+                </form>
             </div>
         </div>
     )

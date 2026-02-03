@@ -748,71 +748,6 @@ export function NodeEditorPanel({ selectedNode, onClose, onUpdateNode }: NodeEdi
                                     </div>
                                 )}
 
-                                <div className="space-y-2">
-                                    <Label className="text-xs text-gray-500 pl-1">Instrução Extra (Opcional)</Label>
-                                    <Textarea
-                                        rows={4}
-                                        value={formData.instruction_override || ''}
-                                        onChange={(e) => handleChange('instruction_override', e.target.value)}
-                                        placeholder="Contexto adicional para este passo específico..."
-                                        className="bg-white/50 border-gray-200 text-sm resize-none rounded-xl focus:ring-indigo-500/10"
-                                    />
-                                </div>
-
-                                {/* Business Context Configuration (Node-Local) */}
-                                <div className="space-y-4 pt-4 border-t border-gray-100">
-                                    <div className="flex items-center gap-2">
-                                        <Building2 className="w-4 h-4 text-gray-600" />
-                                        <Label className="text-sm font-semibold text-gray-900">Contexto do Negócio</Label>
-                                    </div>
-                                    <p className="text-[11px] text-gray-500">
-                                        Quem você é neste momento da conversa? (Ramo, experiência, diferencial da empresa)
-                                    </p>
-
-                                    <div className="space-y-3">
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1">
-                                                <Label className="text-[10px] text-gray-400 uppercase">Nome Comercial</Label>
-                                                <Input
-                                                    value={formData.company_context?.name || ''}
-                                                    onChange={(e) => handleChange('company_context', {
-                                                        ...formData.company_context,
-                                                        name: e.target.value
-                                                    })}
-                                                    placeholder="Ex: Oficina do Carlos"
-                                                    className="h-9 text-xs bg-white/50"
-                                                />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <Label className="text-[10px] text-gray-400 uppercase">Ramo/Atividade</Label>
-                                                <Input
-                                                    value={formData.company_context?.industry || ''}
-                                                    onChange={(e) => handleChange('company_context', {
-                                                        ...formData.company_context,
-                                                        industry: e.target.value
-                                                    })}
-                                                    placeholder="Ex: Centro Automotivo"
-                                                    className="h-9 text-xs bg-white/50"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-1">
-                                            <Label className="text-[10px] text-gray-400 uppercase">Proposta de Valor (Pitch)</Label>
-                                            <Textarea
-                                                rows={3}
-                                                value={formData.company_context?.value_proposition || ''}
-                                                onChange={(e) => handleChange('company_context', {
-                                                    ...formData.company_context,
-                                                    value_proposition: e.target.value
-                                                })}
-                                                placeholder="Ex: Especialistas em injeção eletrônica com diagnóstico em 15min. Atendemos todas as marcas com garantia de 6 meses."
-                                                className="text-xs resize-none bg-white/50"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
                                 {/* Industry Vertical Selection (NEW) */}
                                 <div className="space-y-4 pt-4 border-t border-gray-100">
                                     <div className="space-y-3">
@@ -843,6 +778,60 @@ export function NodeEditorPanel({ selectedNode, onClose, onUpdateNode }: NodeEdi
                                                     <div className="flex items-center gap-2">
                                                         <Smartphone className="w-4 h-4 text-green-600" />
                                                         <span>Assistência Técnica</span>
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="imobiliaria">
+                                                    <div className="flex items-center gap-2">
+                                                        <Building2 className="w-4 h-4 text-purple-600" />
+                                                        <span>Imobiliária</span>
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="clinica">
+                                                    <div className="flex items-center gap-2">
+                                                        <Users className="w-4 h-4 text-pink-600" />
+                                                        <span>Clínica Médica/Odonto</span>
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="ecommerce">
+                                                    <div className="flex items-center gap-2">
+                                                        <Globe className="w-4 h-4 text-orange-600" />
+                                                        <span>E-commerce</span>
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="saas">
+                                                    <div className="flex items-center gap-2">
+                                                        <Globe className="w-4 h-4 text-indigo-600" />
+                                                        <span>SaaS / Software</span>
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="agencia">
+                                                    <div className="flex items-center gap-2">
+                                                        <Megaphone className="w-4 h-4 text-cyan-600" />
+                                                        <span>Agência (Marketing/Design)</span>
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="consultoria">
+                                                    <div className="flex items-center gap-2">
+                                                        <Brain className="w-4 h-4 text-teal-600" />
+                                                        <span>Consultoria</span>
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="academia">
+                                                    <div className="flex items-center gap-2">
+                                                        <Users className="w-4 h-4 text-red-600" />
+                                                        <span>Academia/Fitness</span>
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="restaurante">
+                                                    <div className="flex items-center gap-2">
+                                                        <Tag className="w-4 h-4 text-amber-600" />
+                                                        <span>Restaurante/Delivery</span>
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="generic">
+                                                    <div className="flex items-center gap-2">
+                                                        <Settings className="w-4 h-4 text-gray-500" />
+                                                        <span>Genérico</span>
                                                     </div>
                                                 </SelectItem>
                                             </SelectContent>
@@ -967,68 +956,6 @@ export function NodeEditorPanel({ selectedNode, onClose, onUpdateNode }: NodeEdi
                                             </div>
                                         </div>
                                     )}
-
-                                    {(!formData.industry_vertical || formData.industry_vertical === 'oficina_mecanica') && (
-                                        <div className="animate-in fade-in zoom-in-95 duration-200">
-                                            {/* Standard Product Config (Already implemented below, just wrapped or kept outside) */}
-                                            {/* We leave the existing product config visible for 'oficina_mecanica' or default */}
-                                        </div>
-                                    )}
-
-                                    {/* Product Configuration (New Feature) */}
-                                    <Separator className="bg-gray-100" />
-                                    <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-bottom-1 delay-100">
-                                        <div className="flex items-center gap-2">
-                                            <Tag className="w-4 h-4 text-purple-600" />
-                                            <Label className="text-sm font-semibold text-gray-900">Venda de Produto/Serviço</Label>
-                                        </div>
-                                        <p className="text-[11px] text-gray-500 leading-tight">
-                                            Ensine o Agente sobre o que ele deve vender NESTE passo.
-                                        </p>
-
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1">
-                                                <Label className="text-[10px] text-gray-400 uppercase">Nome do Item</Label>
-                                                <Input
-                                                    value={formData.product?.name || ''}
-                                                    onChange={(e) => handleChange('product', { ...formData.product, name: e.target.value })}
-                                                    placeholder="ex: Troca de Óleo"
-                                                    className="h-9 text-xs bg-white/50"
-                                                />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <Label className="text-[10px] text-gray-400 uppercase">Preço</Label>
-                                                <Input
-                                                    value={formData.product?.price || ''}
-                                                    onChange={(e) => handleChange('product', { ...formData.product, price: e.target.value })}
-                                                    placeholder="ex: R$ 150,00"
-                                                    className="h-9 text-xs bg-white/50"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-1">
-                                            <Label className="text-[10px] text-gray-400 uppercase">Argumento de Venda (Benefício)</Label>
-                                            <Textarea
-                                                rows={2}
-                                                value={formData.product?.description || ''}
-                                                onChange={(e) => handleChange('product', { ...formData.product, description: e.target.value })}
-                                                placeholder="O que o cliente ganha com isso? (ex: Economia de combustível)"
-                                                className="min-h-[60px] text-xs resize-none bg-white/50"
-                                            />
-                                        </div>
-
-                                        <div className="space-y-1">
-                                            <Label className="text-[10px] text-gray-400 uppercase">Diferenciais (Separe por vírgula)</Label>
-                                            <Input
-                                                value={Array.isArray(formData.product?.differentials) ? formData.product.differentials.join(', ') : (formData.product?.differentials || '')}
-                                                onChange={(e) => handleChange('product', { ...formData.product, differentials: e.target.value.split(',').map((s: string) => s.trim()) })}
-                                                placeholder="Garantia estendida, Café grátis, Parcelamento em 10x..."
-                                                className="h-9 text-xs bg-white/50"
-                                            />
-                                        </div>
-                                    </div>
-
                                 </div>
                             </div>
                         )}

@@ -6,8 +6,9 @@
 module.exports = {
     /**
      * Enable BullMQ for asynchronous job processing
-     * When false: Uses simple polling (suitable for single-instance deployments)
-     * When true: Uses BullMQ queues (required for multi-instance deployments)    ENABLE_BULLMQ: true, // FORCE ENABLED
+     * When true: Uses BullMQ queues (required for multi-instance deployments)
+     */
+    ENABLE_BULLMQ: true, // FORCE ENABLED
 
     /**
      * Enable Redis distributed locking

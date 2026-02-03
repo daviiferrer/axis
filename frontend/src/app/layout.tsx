@@ -4,6 +4,8 @@ import "./globals.css";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { AuthProvider } from "@/context/AuthContext";
 import { SocketProvider } from "@/context/SocketContext";
+import { GlobalAlerts } from "@/components/GlobalAlerts";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const jetbrainsMono = JetBrains_Mono({
@@ -27,6 +29,8 @@ export default function RootLayout({
                 <AuthProvider>
                     <SocketProvider>
                         <ScrollToTop />
+                        <GlobalAlerts />
+                        <Toaster position="top-right" theme="dark" richColors />
                         {children}
                     </SocketProvider>
                 </AuthProvider>

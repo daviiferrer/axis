@@ -54,11 +54,38 @@ export interface WahaMessage {
     mediaUrl?: string; // If we implement media download
     fromMe: boolean;
     _data?: any; // Raw Waha data
+    author?: string;
+    isAi?: boolean;
+    ack?: number;
 }
 
 export const wahaService = {
     // Sessions
     getSessions: async (all = false): Promise<WahaSession[]> => {
+        // HYBRID: Try DB first (Resilience), API as fallback
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                // If we have a user session, fetch from DB
+                const { data, error } = await supabase
+                    .from('sessions')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (data && !error) {
+                    return data.map(s => ({
+                        name: s.session_name,
+                        status: s.status,
+                        config: s.config,
+                        me: s.me
+                    })); // Successful DB read
+                }
+            }
+        } catch (dbError) {
+            console.warn('[WahaService] DB Fetch failed, falling back to API', dbError);
+        }
+
+        // Fallback to API if DB fails or is empty/unavailable
         const response = await api.get(`/sessions?all=${all}`);
         return response.data;
     },
@@ -111,6 +138,16 @@ export const wahaService = {
     },
 
     // Auth
+    getLeadSentiment: async (session: string, chatId: string) => {
+        const response = await api.get(`/chatting/chats/${session}/${encodeURIComponent(chatId)}/sentiment`);
+        return response.data; // { sentimentIndex: number, pleasure: number, ... }
+    },
+
+    subscribePresence: async (session: string, chatId: string) => {
+        const response = await api.post('/chatting/subscribePresence', { session, chatId });
+        return response.data;
+    },
+
     getAuthQR: async (session: string) => {
         // Returns base64 string directly from backend logic
         const response = await api.get(`/auth/${session}/qr`);
@@ -132,8 +169,10 @@ export const wahaService = {
     },
 
     // Chatting
-    getChats: async (session: string): Promise<WahaChat[]> => {
-        const response = await api.get(`/chatting/chats?session=${session}`);
+    getChats: async (session?: string): Promise<WahaChat[]> => {
+        // Session is optional - if not provided, fetch ALL chats
+        const params = session ? `?session=${session}` : '';
+        const response = await api.get(`/chatting/chats${params}`);
         return response.data;
     },
 
@@ -161,3 +200,50 @@ export const wahaService = {
         }
     }
 };
+
+/**
+ * Subscribe to real-time session updates via Supabase Realtime.
+ * This eliminates the need for aggressive polling.
+ * 
+ * @param callback - Function to call with updated sessions data
+ * @returns Unsubscribe function
+ */
+export function subscribeToSessions(callback: (sessions: WahaSession[]) => void): () => void {
+    const channel = supabase
+        .channel('sessions-realtime')
+        .on('postgres_changes', {
+            event: '*', // INSERT, UPDATE, DELETE
+            schema: 'public',
+            table: 'sessions'
+        }, async (payload) => {
+            console.log('[WahaService] Session change detected:', payload.eventType);
+
+            // Re-fetch all sessions on any change
+            try {
+                const { data, error } = await supabase
+                    .from('sessions')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (data && !error) {
+                    const mapped = data.map(s => ({
+                        name: s.session_name,
+                        status: s.status,
+                        config: s.config,
+                        me: s.me
+                    }));
+                    callback(mapped);
+                }
+            } catch (err) {
+                console.error('[WahaService] Failed to fetch sessions after realtime event', err);
+            }
+        })
+        .subscribe((status) => {
+            console.log('[WahaService] Realtime subscription status:', status);
+        });
+
+    // Return cleanup function
+    return () => {
+        supabase.removeChannel(channel);
+    };
+}
