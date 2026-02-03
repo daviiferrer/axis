@@ -32,7 +32,7 @@ export default function AdminSettingsPage() {
         toast.success('Configurações salvas com sucesso!');
     };
 
-    if ((user as any)?.role !== 'super_admin' && (user as any)?.role !== 'owner') {
+    if (!(user as any)?.is_super_admin) {
         return (
             <div className="p-8 flex justify-center items-center text-red-500 bg-red-50 rounded-lg border border-red-200 m-8">
                 Acesso negado. Apenas super administradores podem acessar esta página.

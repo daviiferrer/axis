@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // Fetch extra profile data (role only, company logic removed)
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
-                    .select('role')
+                    .select('role, is_super_admin')
                     .eq('id', currentSession.user.id)
                     .maybeSingle()
 
@@ -50,10 +50,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // Construct final user object with profile data
                 const userWithProfile = {
                     ...currentSession.user,
-                    role: profile?.role || 'owner'
+                    role: profile?.role || 'owner',
+                    is_super_admin: profile?.is_super_admin || false
                 }
 
-                setUser(userWithProfile as User & { role: string })
+                setUser(userWithProfile as User & { role: string; is_super_admin: boolean })
             } catch (error) {
                 console.error('[AuthContext] Unexpected error fetching profile:', error)
                 setUser(currentSession.user)
