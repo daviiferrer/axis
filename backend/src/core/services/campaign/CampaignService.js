@@ -77,8 +77,9 @@ class CampaignService {
     }
 
 
-    async listCampaigns() {
-        const { data, error } = await this.supabase
+    async listCampaigns(scopedClient = null) {
+        const client = scopedClient || this.supabase;
+        const { data, error } = await client
             .from('campaigns')
             .select('*')
             .order('created_at', { ascending: false });
@@ -87,31 +88,27 @@ class CampaignService {
         return data;
     }
 
-    async createCampaign(userId, campaignData) {
+    async createCampaign(userId, campaignData, scopedClient = null) {
         // campaignData: { name, description, session_id }
-        // company_id logic removed
-        // const { data: profile } ...
+        const client = scopedClient || this.supabase;
 
-        const { data, error } = await this.supabase
+        const { data, error } = await client
             .from('campaigns')
             .insert({
-                // company_id: profile.company_id, // DEPRECATED/DROPPED
                 user_id: userId,
                 name: campaignData.name,
                 description: campaignData.description,
-                // session_id managed via Graph Nodes
-                // type: campaignData.type || 'inbound', // REMOVED: Column does not exist
                 status: 'draft'
             })
-            .select() // Ensure we return the created object
-
+            .select()
 
         if (error) throw error;
         return data;
     }
 
-    async updateCampaignStatus(campaignId, status) {
-        const { data, error } = await this.supabase
+    async updateCampaignStatus(campaignId, status, scopedClient = null) {
+        const client = scopedClient || this.supabase;
+        const { data, error } = await client
             .from('campaigns')
             .update({ status })
             .eq('id', campaignId)
@@ -122,13 +119,9 @@ class CampaignService {
         return data;
     }
 
-    async deleteCampaign(campaignId) {
-        // 1. Delete Campaign
-        // (Cascade Delete in DB will handle cleaning up instances and chats. 
-        //  Leads are also cascaded now based on migration 007.)
-
-        // 3. Delete Campaign
-        const { error } = await this.supabase
+    async deleteCampaign(campaignId, scopedClient = null) {
+        const client = scopedClient || this.supabase;
+        const { error } = await client
             .from('campaigns')
             .delete()
             .eq('id', campaignId);
@@ -139,8 +132,9 @@ class CampaignService {
 
     // --- Flow Management ---
 
-    async getFlow(campaignId) {
-        const { data, error } = await this.supabase
+    async getFlow(campaignId, scopedClient = null) {
+        const client = scopedClient || this.supabase;
+        const { data, error } = await client
             .from('campaigns')
             .select('graph')
             .eq('id', campaignId)
@@ -154,9 +148,10 @@ class CampaignService {
         };
     }
 
-    async saveFlow(campaignId, flowData) {
+    async saveFlow(campaignId, flowData, scopedClient = null) {
         // Update the 'graph' jsonb column directly on the campaign
-        const { data, error } = await this.supabase
+        const client = scopedClient || this.supabase;
+        const { data, error } = await client
             .from('campaigns')
             .update({
                 graph: flowData,
@@ -170,13 +165,14 @@ class CampaignService {
         return { flow_data: data.graph };
     }
 
-    async publishFlow(campaignId) {
+    async publishFlow(campaignId, scopedClient = null) {
         // In the single-table model, saving is effectively publishing 
         // unless we separate 'graph' (draft) and 'published_graph' (live).
         // For now, assuming direct manipulation as per user request ("não ficar criando tabelas toda hora").
 
         // 1. Fetch Campaign with Graph
-        const { data: campaign, error } = await this.supabase
+        const client = scopedClient || this.supabase;
+        const { data: campaign, error } = await client
             .from('campaigns')
             .select('status, graph')
             .eq('id', campaignId)

@@ -201,7 +201,16 @@ class WahaSessionController {
                     webhookUrl = settings.waha_webhook_url;
                 }
 
-                // Default if missing (User Requirement for VPS/Docker)
+                // --- STABILIZATION: Production URL Logic ---
+                // If we are on the known production domain, force it as priority if not set in settings
+                const isProduction = process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_API_URL?.includes('axischat.com.br');
+
+                if (!webhookUrl && isProduction) {
+                    // Use the public HTTPS endpoint to ensure SSL/Nginx compatibility
+                    webhookUrl = 'https://axischat.com.br/api/v1/webhook/waha';
+                }
+
+                // Default fallback for Local Docker Development
                 if (!webhookUrl) {
                     webhookUrl = 'http://host.docker.internal:8000/api/v1/webhook/waha';
                 }

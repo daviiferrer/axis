@@ -50,7 +50,7 @@ const createAuthMiddleware = () => async (req, res, next) => {
         // We always need the Profile to know System Roles (admin/owner/member)
         const { data: profile } = await supabase
             .from('profiles')
-            .select('id, role')
+            .select('id, role, company_id')
             .eq('id', user.id)
             .single();
 

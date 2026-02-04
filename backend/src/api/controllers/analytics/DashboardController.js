@@ -9,7 +9,7 @@ class DashboardController {
 
     async getOverview(req, res) {
         try {
-            const companyId = req.user?.id;
+            const companyId = req.user?.profile?.company_id;
             const data = await this.dashboardService.getOverview(companyId);
             return res.json(data);
         } catch (error) {
@@ -20,7 +20,7 @@ class DashboardController {
 
     async getTemporalPatterns(req, res) {
         try {
-            const companyId = req.user?.id;
+            const companyId = req.user?.profile?.company_id;
             const days = parseInt(req.query.days || '7');
             const data = await this.dashboardService.getTemporalPatterns(companyId, days);
             return res.json(data);
@@ -32,7 +32,7 @@ class DashboardController {
 
     async getRecentActivity(req, res) {
         try {
-            const companyId = req.user?.id;
+            const companyId = req.user?.profile?.company_id;
             const limit = parseInt(req.query.limit || '10');
             const data = await this.dashboardService.getRecentActivity(companyId, limit);
             return res.json(data);
@@ -44,7 +44,7 @@ class DashboardController {
 
     async getCampaignMetrics(req, res) {
         try {
-            const companyId = req.user?.id;
+            const companyId = req.user?.profile?.company_id;
             const data = await this.dashboardService.getCampaignMetrics(companyId);
             return res.json(data);
         } catch (error) {
@@ -55,7 +55,7 @@ class DashboardController {
 
     async getLeadsBySource(req, res) {
         try {
-            const companyId = req.user?.id;
+            const companyId = req.user?.profile?.company_id;
             const data = await this.dashboardService.getLeadsBySource(companyId);
             return res.json(data);
         } catch (error) {

@@ -6,8 +6,9 @@ class LeadService {
         this.supabase = supabaseClient;
     }
 
-    async getLead(leadId) {
-        const { data, error } = await this.supabase
+    async getLead(leadId, scopedClient = null) {
+        const client = scopedClient || this.supabase;
+        const { data, error } = await client
             .from('leads')
             .select('*, campaigns(*, agents(*))')
             .eq('id', leadId)
@@ -21,8 +22,9 @@ class LeadService {
         return this.updateLead(leadId, { status });
     }
 
-    async updateLead(leadId, updates) {
-        const { data, error } = await this.supabase
+    async updateLead(leadId, updates, scopedClient = null) {
+        const client = scopedClient || this.supabase;
+        const { data, error } = await client
             .from('leads')
             .update({ ...updates, updated_at: new Date().toISOString() })
             .eq('id', leadId)
@@ -113,7 +115,7 @@ class LeadService {
      * Imports multiple leads for a campaign.
      * Sets source = 'imported'.
      */
-    async importLeads(campaignId, leadsData, userId) {
+    async importLeads(campaignId, leadsData, userId, scopedClient = null) {
         if (!leadsData || leadsData.length === 0) return { count: 0 };
 
         const payload = leadsData.map(lead => ({
@@ -126,7 +128,8 @@ class LeadService {
             created_at: new Date().toISOString()
         }));
 
-        const { data, error } = await this.supabase
+        const client = scopedClient || this.supabase;
+        const { data, error } = await client
             .from('leads')
             .insert(payload) // Changed to insert to avoid non-existent constraint error
             .select();

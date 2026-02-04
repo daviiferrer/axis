@@ -11,7 +11,7 @@ class WahaClient {
     constructor({ systemConfig } = {}) {
         const config = systemConfig || {};
         this.baseUrl = config.wahaUrl || process.env.WAHA_API_URL || 'http://localhost:3000';
-        this.apiKey = config.apiKey || '';
+        this.apiKey = config.apiKey || process.env.WAHA_API_KEY || '';
         this.http = axios; // Default to axios, inject if needed in future
 
         this.#endpoints = {

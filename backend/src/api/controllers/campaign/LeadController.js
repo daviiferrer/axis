@@ -1,11 +1,14 @@
+const { getRequestClient } = require('../../shared/SupabaseHelper');
+
 /**
  * LeadController - Handles lead-specific API requests.
  */
 class LeadController {
-    constructor({ workflowEngine, leadService, csvParserService }) {
+    constructor({ workflowEngine, leadService, csvParserService, supabaseClient }) {
         this.workflowEngine = workflowEngine;
         this.leadService = leadService;
         this.csvParserService = csvParserService;
+        this.supabase = supabaseClient;
     }
 
     async importLeads(req, res) {
@@ -36,7 +39,8 @@ class LeadController {
                 return res.status(400).json({ error: 'Campaign ID missing' });
             }
 
-            const result = await this.leadService.importLeads(targetCampaignId, leadsToImport, userId);
+            const scopedClient = getRequestClient(req, this.supabase);
+            const result = await this.leadService.importLeads(targetCampaignId, leadsToImport, userId, scopedClient);
             res.json({ success: true, imported: result.count });
         } catch (error) {
             console.error('[LeadController] Import Error:', error);
@@ -49,10 +53,11 @@ class LeadController {
             const { id } = req.params;
             const { chatId } = req.body;
 
+            const scopedClient = getRequestClient(req, this.supabase);
             const updatedLead = await this.leadService.updateLead(id, {
                 status: 'manual_intervention',
                 owner: 'human'
-            });
+            }, scopedClient);
 
             // Emit update to socket
             this.workflowEngine.socketService.emit('lead.update', {
@@ -73,9 +78,12 @@ class LeadController {
             const { id } = req.params;
             const { force } = req.body;
 
-            const lead = await this.leadService.getLead(id);
+            const scopedClient = getRequestClient(req, this.supabase);
+            const lead = await this.leadService.getLead(id, scopedClient);
             if (!lead) return res.status(404).json({ error: 'Lead not found' });
 
+            // Note: processLead is an Engine method, it likely uses its own admin access or we might need to verify if it needs scoping.
+            // Engine usually needs full access to execute flow. The permission check is done at 'getLead' above.
             await this.workflowEngine.processLead(lead, { forceTrigger: true, ignoreManualStop: force === true });
 
             res.json({ success: true, message: 'AI Triggered' });

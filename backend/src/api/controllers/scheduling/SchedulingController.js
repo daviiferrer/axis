@@ -13,7 +13,7 @@ class SchedulingController {
      */
     async getSlots(req, res) {
         try {
-            const companyId = req.user?.company_id;
+            const companyId = req.user?.profile?.company_id;
             const days = parseInt(req.query.days) || 7;
 
             if (!companyId) {
@@ -34,7 +34,7 @@ class SchedulingController {
      */
     async createBooking(req, res) {
         try {
-            const companyId = req.user?.company_id;
+            const companyId = req.user?.profile?.company_id;
             const { leadId, startTime, endTime, title, attendeeName, attendeePhone, notes } = req.body;
 
             if (!companyId) {
@@ -78,7 +78,7 @@ class SchedulingController {
      */
     async getUpcoming(req, res) {
         try {
-            const companyId = req.user?.company_id;
+            const companyId = req.user?.profile?.company_id;
             const limit = parseInt(req.query.limit) || 10;
 
             if (!companyId) {
@@ -99,7 +99,7 @@ class SchedulingController {
      */
     async getMetrics(req, res) {
         try {
-            const companyId = req.user?.company_id;
+            const companyId = req.user?.profile?.company_id;
 
             if (!companyId) {
                 return res.status(400).json({ error: 'Company ID required' });

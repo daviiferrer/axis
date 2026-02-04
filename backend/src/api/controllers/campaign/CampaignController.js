@@ -1,6 +1,8 @@
 /**
  * CampaignController - Handles campaign-related API requests.
  */
+const { getRequestClient } = require('../../shared/SupabaseHelper');
+
 class CampaignController {
     constructor({ campaignService, supabaseClient }) {
         this.campaignService = campaignService;
@@ -9,7 +11,8 @@ class CampaignController {
 
     async listCampaigns(req, res) {
         try {
-            const campaigns = await this.campaignService.listCampaigns();
+            const scopedClient = getRequestClient(req, this.supabase);
+            const campaigns = await this.campaignService.listCampaigns(scopedClient);
             res.json(campaigns);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -22,7 +25,8 @@ class CampaignController {
             if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
             const campaignData = req.body;
-            const newCampaign = await this.campaignService.createCampaign(userId, campaignData);
+            const scopedClient = getRequestClient(req, this.supabase);
+            const newCampaign = await this.campaignService.createCampaign(userId, campaignData, scopedClient);
 
             res.status(201).json({ success: true, campaign: newCampaign });
         } catch (error) {
@@ -57,7 +61,8 @@ class CampaignController {
                 return res.status(400).json({ error: 'Invalid status' });
             }
 
-            const updated = await this.campaignService.updateCampaignStatus(id, status);
+            const scopedClient = getRequestClient(req, this.supabase);
+            const updated = await this.campaignService.updateCampaignStatus(id, status, scopedClient);
             res.json({ success: true, campaign: updated });
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -67,7 +72,8 @@ class CampaignController {
     async deleteCampaign(req, res) {
         try {
             const { id } = req.params;
-            await this.campaignService.deleteCampaign(id);
+            const scopedClient = getRequestClient(req, this.supabase);
+            await this.campaignService.deleteCampaign(id, scopedClient);
             res.json({ success: true });
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -77,7 +83,8 @@ class CampaignController {
     async getFlow(req, res) {
         try {
             const { id } = req.params;
-            const flow = await this.campaignService.getFlow(id);
+            const scopedClient = getRequestClient(req, this.supabase);
+            const flow = await this.campaignService.getFlow(id, scopedClient);
             res.json(flow);
         } catch (error) {
             console.error('[CampaignController] getFlow Error:', error);
@@ -99,7 +106,8 @@ class CampaignController {
                 }
             }
 
-            const result = await this.campaignService.saveFlow(id, flowData);
+            const scopedClient = getRequestClient(req, this.supabase);
+            const result = await this.campaignService.saveFlow(id, flowData, scopedClient);
             console.log(`[CampaignController] ✅ Flow saved successfully.`);
             res.json({ success: true, flow: result });
         } catch (error) {
@@ -111,7 +119,8 @@ class CampaignController {
     async publishFlow(req, res) {
         try {
             const { id } = req.params;
-            const result = await this.campaignService.publishFlow(id);
+            const scopedClient = getRequestClient(req, this.supabase);
+            const result = await this.campaignService.publishFlow(id, scopedClient);
             res.json({ success: true, flow: result });
         } catch (error) {
             res.status(500).json({ error: error.message });
