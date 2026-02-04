@@ -20,20 +20,18 @@ class ChatController {
             // 1. Fetch ALL active sessions from WAHA (Physical State)
             const allSessions = await this.wahaClient.getSessions();
 
-            // 2. Fetch User's Owned Agents/Sessions from DB (Logical State)
-            // Use internal modelService or direct supabase access
-            // Since this.modelService.supabase might be admin, we manually filter by created_by
-            const { data: userAgents, error } = await this.modelService.supabase
-                .from('agents')
-                .select('name')
-                .eq('created_by', userId);
+            // 2. Fetch User's Owned Sessions from DB (Logical State)
+            const { data: userSessions, error } = await this.modelService.supabase
+                .from('sessions')
+                .select('session_name')
+                .eq('user_id', userId);
 
             if (error) {
-                console.error('[ChatController] Error fetching user agents:', error);
+                console.error('[ChatController] Error fetching user sessions:', error);
                 throw error;
             }
 
-            const allowedSessionNames = new Set(userAgents?.map(a => a.name) || []);
+            const allowedSessionNames = new Set(userSessions?.map(s => s.session_name) || []);
 
             // 3. Filter: Only return sessions that verify: WAHA_EXIST && USER_OWNS
             const filteredSessions = allSessions.filter(session => allowedSessionNames.has(session.name));

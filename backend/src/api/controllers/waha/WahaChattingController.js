@@ -67,23 +67,19 @@ class WahaChattingController {
                 const userId = req.user?.id;
                 if (!userId) throw new Error('Unauthorized');
 
-                // Fetch Allowlist of sessions
-                const { data: userAgents } = await this.supabase
-                    .from('agents')
-                    .select('name')
-                    .eq('created_by', userId);
+                // Fetch Allowlist of sessions owned by user
+                const { data: userSessions } = await this.supabase
+                    .from('sessions')
+                    .select('session_name')
+                    .eq('user_id', userId);
 
-                const allowedSessions = new Set(userAgents?.map(a => a.name) || []);
+                const allowedSessions = new Set(userSessions?.map(s => s.session_name) || []);
 
                 // If user has no sessions, return empty
                 if (allowedSessions.size === 0) {
                     formattedChats = [];
                 } else {
-                    // Filter data in memory (safer than complex unrelated join if data is small, usually 50) 
-                    // or better: apply filter in query.
-
-                    // Actually, let's re-run query logic with filter.
-                    // Doing it in-memory for safety on existing result set
+                    // Filter data in memory
                     const safeData = (data || []).filter(c => allowedSessions.has(c.session_name));
                     formattedChats = formatChats(safeData);
                 }
