@@ -1,4 +1,4 @@
-const { getRequestClient } = require('../../shared/SupabaseHelper');
+const { getRequestClient } = require('../../../shared/SupabaseHelper');
 
 /**
  * LeadController - Handles lead-specific API requests.
