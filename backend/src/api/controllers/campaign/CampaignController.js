@@ -1,7 +1,7 @@
 /**
  * CampaignController - Handles campaign-related API requests.
  */
-const { getRequestClient } = require('../../shared/SupabaseHelper');
+const { getRequestClient } = require('../../../shared/SupabaseHelper');
 
 class CampaignController {
     constructor({ campaignService, supabaseClient }) {

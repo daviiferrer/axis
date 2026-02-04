@@ -133,7 +133,7 @@ class DashboardService {
         // We will fetch campaigns and then get counts.
         const { data: campaigns, error } = await this.supabase
             .from('campaigns')
-            .select('id, name, type, status')
+            .select('id, name, status')
             .eq('user_id', companyId);
 
         if (error) throw error;
@@ -153,7 +153,7 @@ class DashboardService {
             return {
                 id: c.id,
                 name: c.name,
-                type: c.type || 'inbound',
+                type: 'inbound', // Defaulting to inbound as 'type' column is missing in DB
                 status: c.status,
                 leads_count: leadsCount || 0,
                 conversions: conversions || 0,
