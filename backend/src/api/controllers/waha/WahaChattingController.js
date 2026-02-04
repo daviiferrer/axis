@@ -57,9 +57,36 @@ class WahaChattingController {
                     query = query.eq('session_name', session);
                 }
 
-                const { data, error } = await query;
-                if (error) throw error;
-                formattedChats = formatChats(data || []);
+                const result = await query;
+                const { data, error } = result;
+
+                // SECURITY CHECK: Verify that the chats belong to sessions owned by this user
+                // The query above filters by session if provided, but we must ensure the USER owns that session.
+                // If no session provided, we must limit to ALL sessions owned by user.
+
+                const userId = req.user?.id;
+                if (!userId) throw new Error('Unauthorized');
+
+                // Fetch Allowlist of sessions
+                const { data: userAgents } = await this.supabase
+                    .from('agents')
+                    .select('name')
+                    .eq('created_by', userId);
+
+                const allowedSessions = new Set(userAgents?.map(a => a.name) || []);
+
+                // If user has no sessions, return empty
+                if (allowedSessions.size === 0) {
+                    formattedChats = [];
+                } else {
+                    // Filter data in memory (safer than complex unrelated join if data is small, usually 50) 
+                    // or better: apply filter in query.
+
+                    // Actually, let's re-run query logic with filter.
+                    // Doing it in-memory for safety on existing result set
+                    const safeData = (data || []).filter(c => allowedSessions.has(c.session_name));
+                    formattedChats = formatChats(safeData);
+                }
 
             } catch (fullQueryError) {
                 console.warn('[WahaChattingController] Full chat query failed (likely schema issue), falling back to simple query:', fullQueryError.message);

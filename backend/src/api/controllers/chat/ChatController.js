@@ -12,9 +12,37 @@ class ChatController {
 
     async getSessions(req, res) {
         try {
-            const sessions = await this.wahaClient.getSessions();
-            res.json(sessions);
+            const userId = req.user?.id;
+            if (!userId) {
+                return res.status(401).json({ error: 'Unauthorized' });
+            }
+
+            // 1. Fetch ALL active sessions from WAHA (Physical State)
+            const allSessions = await this.wahaClient.getSessions();
+
+            // 2. Fetch User's Owned Agents/Sessions from DB (Logical State)
+            // Use internal modelService or direct supabase access
+            // Since this.modelService.supabase might be admin, we manually filter by created_by
+            const { data: userAgents, error } = await this.modelService.supabase
+                .from('agents')
+                .select('name')
+                .eq('created_by', userId);
+
+            if (error) {
+                console.error('[ChatController] Error fetching user agents:', error);
+                throw error;
+            }
+
+            const allowedSessionNames = new Set(userAgents?.map(a => a.name) || []);
+
+            // 3. Filter: Only return sessions that verify: WAHA_EXIST && USER_OWNS
+            const filteredSessions = allSessions.filter(session => allowedSessionNames.has(session.name));
+
+            console.log(`[ChatController] getSessions: User ${userId} requested sessions. Returning ${filteredSessions.length} of ${allSessions.length} available.`);
+
+            res.json(filteredSessions);
         } catch (error) {
+            console.error('[ChatController] getSessions error:', error);
             res.status(500).json({ error: 'Failed to fetch sessions' });
         }
     }
