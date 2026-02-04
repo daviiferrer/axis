@@ -85,6 +85,7 @@ services:
       # ==== Internal Docker Network ====
       - REDIS_URL=redis://redis:6379
       - WAHA_API_URL=http://waha:3000
+      - WAHA_API_KEY=${WHATSAPP_API_KEY:-axis-waha-key}
     depends_on:
       redis:
         condition: service_healthy

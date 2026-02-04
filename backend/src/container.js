@@ -76,6 +76,7 @@ function configureContainer() {
         // 1. Configuration (Values)
         systemConfig: asValue({
             wahaUrl: process.env.WAHA_API_URL || 'http://localhost:3000',
+            apiKey: process.env.WAHA_API_KEY || '',
             geminiKey: process.env.GEMINI_API_KEY,
             redisUrl: process.env.REDIS_URL,
             nodeEnv: process.env.NODE_ENV || 'development'
