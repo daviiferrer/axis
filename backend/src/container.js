@@ -79,7 +79,6 @@ function configureContainer() {
         systemConfig: asValue({
             wahaUrl: process.env.WAHA_API_URL || 'http://localhost:3000',
             apiKey: process.env.WAHA_API_KEY || '',
-            geminiKey: process.env.GEMINI_API_KEY,
             redisUrl: process.env.REDIS_URL,
             nodeEnv: process.env.NODE_ENV || 'development'
         }),
@@ -172,6 +171,7 @@ function configureContainer() {
         // 4. Controllers (Registered as CLASSIC because they use positional args currently)
         // 4. Controllers (Registered as PROXY by default in this container)
         settingsController: asClass(SettingsController),
+        userParamsController: asClass(UserParamsController),
         analyticsController: asClass(AnalyticsController),
         dashboardController: asClass(DashboardController),
         schedulingController: asClass(SchedulingController),

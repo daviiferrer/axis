@@ -244,9 +244,7 @@ class ConfigService {
         return await this.get('redis_url', userId) || 'redis://localhost:6379';
     }
 
-    async getGeminiApiKey(userId = null) {
-        return await this.get('gemini_api_key', userId) || '';
-    }
+
 
     async getApifyToken(userId = null) {
         return await this.get('apify_token', userId) || '';

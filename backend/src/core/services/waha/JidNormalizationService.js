@@ -134,22 +134,41 @@ class JidNormalizationService {
     extractRealNumber(payload) {
         if (!payload) return null;
 
-        const realJid = payload._data?.Info?.SenderAlt || payload._data?.Info?.RecipientAlt;
-        if (realJid && realJid.includes('@s.whatsapp.net')) {
-            // Extract number from JID (e.g. 555195698519:81@s.whatsapp.net -> 555195698519)
-            // Handle JIDs with device ID suffix (:81)
-            let cleanJid = realJid.replace('@s.whatsapp.net', '');
-            if (cleanJid.includes(':')) {
-                cleanJid = cleanJid.split(':')[0];
-            }
-            return cleanJid;
+        // 1. Try generic WAHA/Baileys properties for canonical JID
+        // _data.Info.Chat is often the canonical chat JID even for LIDs
+        let candidate = payload._data?.key?.remoteJidAlt ||
+            payload._data?.Info?.Chat ||
+            payload._data?.Info?.SenderAlt ||
+            payload._data?.Info?.RecipientAlt ||
+            payload._data?.key?.remoteJid ||
+            payload._data?.to;
+
+        if (candidate && candidate.includes('@s.whatsapp.net')) {
+            return this.cleanJid(candidate);
         }
 
+        // 2. If payload.from is a LID, we might be out of luck unless _data helps.
+        // But if payload.from is NOT a LID, use it.
         if (payload.from && !payload.from.endsWith('@lid')) {
             return this.extractDigits(payload.from);
         }
 
+        // 3. Last resort: specific check for when 'to' is the real number (outbound)
+        if (payload.to && !payload.to.endsWith('@lid') && (payload.fromMe || payload._data?.id?.fromMe)) {
+            return this.extractDigits(payload.to);
+        }
+
         return null;
+    }
+
+    cleanJid(jid) {
+        if (!jid) return null;
+        let clean = jid.replace('@s.whatsapp.net', '');
+        clean = clean.replace('@c.us', '');
+        if (clean.includes(':')) {
+            clean = clean.split(':')[0];
+        }
+        return this.extractDigits(clean);
     }
 }
 

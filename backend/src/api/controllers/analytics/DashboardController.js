@@ -9,8 +9,8 @@ class DashboardController {
 
     async getOverview(req, res) {
         try {
-            const companyId = req.user?.profile?.company_id;
-            const data = await this.dashboardService.getOverview(companyId);
+            const userId = req.user?.id;
+            const data = await this.dashboardService.getOverview(userId);
             return res.json(data);
         } catch (error) {
             console.error('[DashboardController] getOverview error:', error);
@@ -20,9 +20,9 @@ class DashboardController {
 
     async getTemporalPatterns(req, res) {
         try {
-            const companyId = req.user?.profile?.company_id;
+            const userId = req.user?.id;
             const days = parseInt(req.query.days || '7');
-            const data = await this.dashboardService.getTemporalPatterns(companyId, days);
+            const data = await this.dashboardService.getTemporalPatterns(userId, days);
             return res.json(data);
         } catch (error) {
             console.error('[DashboardController] getTemporalPatterns error:', error);
@@ -32,9 +32,9 @@ class DashboardController {
 
     async getRecentActivity(req, res) {
         try {
-            const companyId = req.user?.profile?.company_id;
+            const userId = req.user?.id;
             const limit = parseInt(req.query.limit || '10');
-            const data = await this.dashboardService.getRecentActivity(companyId, limit);
+            const data = await this.dashboardService.getRecentActivity(userId, limit);
             return res.json(data);
         } catch (error) {
             console.error('[DashboardController] getRecentActivity error:', error);
@@ -44,8 +44,8 @@ class DashboardController {
 
     async getCampaignMetrics(req, res) {
         try {
-            const companyId = req.user?.profile?.company_id;
-            const data = await this.dashboardService.getCampaignMetrics(companyId);
+            const userId = req.user?.id;
+            const data = await this.dashboardService.getCampaignMetrics(userId);
             return res.json(data);
         } catch (error) {
             console.error('[DashboardController] getCampaignMetrics error:', error);
@@ -55,8 +55,8 @@ class DashboardController {
 
     async getLeadsBySource(req, res) {
         try {
-            const companyId = req.user?.profile?.company_id;
-            const data = await this.dashboardService.getLeadsBySource(companyId);
+            const userId = req.user?.id;
+            const data = await this.dashboardService.getLeadsBySource(userId);
             return res.json(data);
         } catch (error) {
             console.error('[DashboardController] getLeadsBySource error:', error);

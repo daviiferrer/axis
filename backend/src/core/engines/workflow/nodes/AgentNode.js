@@ -39,7 +39,7 @@ class AgentNode {
         // Extract Node Configuration (Fluid Context)
         const sessionName = nodeConfig.data?.sessionName || campaign.session_name || campaign.waha_session_name;
         // Check legacy or new location for tenantId
-        const tenantId = nodeConfig.data?.tenantId || campaign.company_id || 'default';
+        const tenantId = nodeConfig.data?.tenantId || 'default';
 
         logger.info({ sessionName, tenantId, nodeId: nodeConfig.id }, '✅ AgentNode Context Resolved');
 
@@ -120,7 +120,6 @@ class AgentNode {
                 systemInstruction,
                 "Gere a próxima resposta baseada no histórico.",
                 {
-                    companyId: campaign.company_id,
                     campaignId: campaign.id,
                     chatId: chat.id,
                     userId: campaign.user_id, // Pass owner for SaaS logging
@@ -262,24 +261,33 @@ class AgentNode {
             let sentId = `sim_${Date.now()}`;
 
             if (!isSimulation) {
-                logger.debug({ session: sessionName, wahaChatId, bodyPreview: msgText.substring(0, 30) }, 'Sending to WAHA');
-                const sent = await this.wahaClient.sendText(sessionName, wahaChatId, msgText);
-                sentId = sent?.id;
+                try {
+                    logger.info({ session: sessionName, wahaChatId, bodyPreview: msgText.substring(0, 30) }, '📤 Sending to WAHA...');
+                    const sent = await this.wahaClient.sendText(sessionName, wahaChatId, msgText);
+                    sentId = sent?.id;
+                    logger.info({ sentId }, '✅ Message sent to WAHA');
+                } catch (sendError) {
+                    logger.error({ error: sendError.message, stack: sendError.stack }, '❌ Failed to send message via WAHA client');
+                }
             } else {
                 logger.info({ session: sessionName }, 'SIMULATION MODE: Skipping real send');
             }
 
             // 2c. Log Message
-            await this.supabase.from('messages').insert({
-                message_id: sentId || `sim_${Date.now()}`,
-                chat_id: dbChatId,
-                body: msgText,
-                from_me: true,
-                author: authorName,
-                is_ai: true,
-                is_demo: isSimulation,
-                ai_thought: aiResponse.thought
-            });
+            try {
+                await this.supabase.from('messages').insert({
+                    message_id: sentId || `sim_${Date.now()}`,
+                    chat_id: dbChatId,
+                    body: msgText,
+                    from_me: true,
+                    author: authorName,
+                    is_ai: true,
+                    is_demo: isSimulation,
+                    ai_thought: aiResponse.thought
+                });
+            } catch (dbError) {
+                logger.error({ error: dbError.message }, '❌ Failed to log sent message to DB');
+            }
         }
     }
 

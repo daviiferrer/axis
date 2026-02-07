@@ -26,20 +26,11 @@ const SALES_SAFETY_SETTINGS = [
  * NÃO há modelo padrão hardcoded - se não for passado, lança erro.
  */
 class GeminiClient {
-    constructor({ systemConfig, billingService, settingsService }) {
-        const apiKey = systemConfig?.geminiKey;
+    constructor({ billingService, settingsService }) {
         this.billingService = billingService;
         this.settingsService = settingsService;
-        this.apiKey = apiKey;
-
-        // If key is present, init immediately. If not, we'll try lazy load.
-        this.genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
-
-        if (!apiKey) {
-            logger.info("ℹ️ GeminiClient: No env API Key. Will attempt to load from SettingsService on demand.");
-        }
-
-        // ... rest of init
+        this.apiKey = null;
+        this.genAI = null;
 
         // Circuit Breaker configuration
         // More tolerant settings for production - don't open too quickly
@@ -129,8 +120,14 @@ class GeminiClient {
     async _ensureClient(modelName, methodName, context = {}) {
         const userId = context.userId;
 
+        if (!userId) {
+            const error = `[GeminiClient] ERRO CRÍTICO: Usuário não identificado para contexto de IA. impossível carregar chave.`;
+            logger.error(error);
+            throw new Error(error);
+        }
+
         // 1. Try to load user-specific key (Priority)
-        if (this.settingsService && userId) {
+        if (this.settingsService) {
             const userKey = await this.settingsService.getProviderKey(userId, 'gemini');
             if (userKey) {
                 // Return a new instance for this request (or cache it)

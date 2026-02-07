@@ -124,6 +124,12 @@ async function bootstrap() {
         billingController: makeLazyController('billingController'),
         companyController: makeLazyController('companyController'),
 
+        // System & User
+        userParamsController: makeLazyController('userParamsController'),
+
+        // Scheduling
+        schedulingController: makeLazyController('schedulingController'),
+
         // WAHA Controllers
         wahaSessionController: makeLazyController('wahaSessionController'),
         wahaAuthController: makeLazyController('wahaAuthController'),

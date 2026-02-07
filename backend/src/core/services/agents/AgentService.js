@@ -57,6 +57,8 @@ class AgentService {
             .from('agents')
             .insert({
                 ...cleanedData,
+                user_id: userId, // CRITICAL: Assign ownership
+                created_by: userId, // REQUIRED by RLS Policy
                 provider: provider,
                 model: cleanedData.model || this.#getDefaultModel(provider)
             })

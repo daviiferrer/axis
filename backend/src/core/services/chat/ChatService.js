@@ -256,10 +256,12 @@ class ChatService {
         // Outgoing message (fromMe = true) usually has 'to' as null in some WAHA versions.
         // We MUST check _data.Info.Chat which is the canonical chat JID.
         if ((!chatId || isLid) && _data) {
-            const canonical = _data.Info?.Chat || _data.to || _data.id?.remote || _data.key?.remote;
-            if (canonical && !canonical.endsWith('@lid')) {
-                logger.info({ original: chatId, canonical }, '🔄 Resolved LID to Canonical JID via _data');
-                chatId = canonical; // Override LID with real JID
+            // Use centralized service to extract real number
+            const realNumber = this.jidService.extractRealNumber(payload);
+            if (realNumber) {
+                const canonical = `${realNumber}@s.whatsapp.net`;
+                logger.info({ original: chatId, canonical }, '🔄 Resolved LID to Canonical JID via JidService');
+                chatId = canonical;
             }
         }
 
@@ -270,6 +272,12 @@ class ChatService {
         if (!chatId) {
             // One last try: check if it's a Status Update? (usually status@broadcast)
             if (from === 'status@broadcast') return null;
+
+            // If it's fromMe (outbound echo), downgrade to DEBUG/INFO to avoid scary logs
+            if (fromMe) {
+                logger.debug({ payload }, 'ℹ️ Outbound message echo ignored (chatId could not be resolved, likely pending status)');
+                return null;
+            }
 
             logger.warn({ payload }, '⚠️ Incoming message ignored: chatId could not be resolved');
             return null;
