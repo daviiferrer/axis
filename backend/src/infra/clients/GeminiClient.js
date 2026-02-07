@@ -191,13 +191,14 @@ class GeminiClient {
         const lastMessage = history[history.length - 1];
         const result = await chat.sendMessage(lastMessage.parts);
         const response = result.response;
+        const usage = response.usageMetadata || {};
 
         const total_ms = Math.round(performance.now() - start);
         const metrics = {
             model,
             total_ms,
-            prompt_tokens: history.reduce((acc, m) => acc + (m.parts?.[0]?.text?.length || 0), 0),
-            completion_tokens: response.text()?.length || 0
+            prompt_tokens: usage.promptTokenCount || 0,
+            completion_tokens: usage.candidatesTokenCount || 0
         };
 
         logger.info({ metrics }, 'Gemini generation completed');
@@ -225,11 +226,17 @@ class GeminiClient {
 
         const result = await genModel.generateContent(prompt);
         const response = result.response;
+        const usage = response.usageMetadata || {};
 
         const total_ms = Math.round(performance.now() - start);
-        logger.info({ model, total_ms }, 'Simple generation completed');
+        const metrics = {
+            model,
+            total_ms,
+            prompt_tokens: usage.promptTokenCount || 0,
+            completion_tokens: usage.candidatesTokenCount || 0
+        };
 
-        const metrics = { model, total_ms };
+        logger.info({ model, total_ms, metrics }, 'Simple generation completed');
         response._metrics = metrics;
 
         // BILLING & LOGGING HOOK
@@ -249,7 +256,7 @@ class GeminiClient {
         const start = performance.now();
         const model = await this._ensureClient(modelName, 'generateContentStream', options);
         let ttft = null;
-        let tokenCount = 0;
+        let chunkCount = 0;
 
         const genModel = this.genAI.getGenerativeModel({
             model,
@@ -268,14 +275,27 @@ class GeminiClient {
                     ttft = Math.round(performance.now() - start);
                     logger.debug({ ttft_ms: ttft }, 'Time to first token');
                 }
-                tokenCount++;
+                chunkCount++;
                 yield chunk;
             }
 
             const total_ms = Math.round(performance.now() - start);
-            const tpot = tokenCount > 1 ? Math.round((total_ms - ttft) / (tokenCount - 1)) : 0;
+            const tpot = chunkCount > 1 ? Math.round((total_ms - ttft) / (chunkCount - 1)) : 0;
 
-            const metrics = { model, ttft_ms: ttft, tpot_ms: tpot, total_ms, token_count: tokenCount };
+            // Wait for the full response to get accurate usage metadata
+            const fullResponse = await result.response;
+            const usage = fullResponse.usageMetadata || {};
+
+            const metrics = {
+                model,
+                ttft_ms: ttft,
+                tpot_ms: tpot,
+                total_ms,
+                token_count: chunkCount, // chunks
+                prompt_tokens: usage.promptTokenCount || 0,
+                completion_tokens: usage.candidatesTokenCount || 0
+            };
+
             logger.info({ metrics }, 'Gemini stream completed');
             updateTraceContext({ cognitive_metrics: metrics });
         })();
