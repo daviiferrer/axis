@@ -2,7 +2,9 @@ const path = require('path');
 const dotenv = require('dotenv');
 
 // 1. Environment Loading
-const rootEnvPath = path.resolve(__dirname, '../../.env');
+// 1. Environment Loading
+const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
+const rootEnvPath = path.resolve(__dirname, '../../', envFile);
 const result = dotenv.config({ path: rootEnvPath });
 
 if (result.error) {

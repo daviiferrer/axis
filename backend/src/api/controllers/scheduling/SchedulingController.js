@@ -13,14 +13,12 @@ class SchedulingController {
      */
     async getSlots(req, res) {
         try {
-            const companyId = req.user?.profile?.company_id;
+            const userId = req.user?.id;
             const days = parseInt(req.query.days) || 7;
 
-            if (!companyId) {
-                return res.status(400).json({ error: 'Company ID required' });
-            }
+            // if (!companyId) ... removed
 
-            const slots = await this.schedulingService.getAvailableSlots(companyId, days);
+            const slots = await this.schedulingService.getAvailableSlots(userId, days);
             return res.json(slots);
         } catch (error) {
             console.error('Error fetching slots:', error);
@@ -34,19 +32,17 @@ class SchedulingController {
      */
     async createBooking(req, res) {
         try {
-            const companyId = req.user?.profile?.company_id;
+            const userId = req.user?.id;
             const { leadId, startTime, endTime, title, attendeeName, attendeePhone, notes } = req.body;
 
-            if (!companyId) {
-                return res.status(400).json({ error: 'Company ID required' });
-            }
+            // if (!companyId) ... removed
 
             if (!startTime) {
                 return res.status(400).json({ error: 'Start time is required' });
             }
 
             const result = await this.schedulingService.createAppointment({
-                companyId,
+                userId,
                 leadId,
                 campaignId: req.body.campaignId,
                 startTime,
@@ -78,14 +74,12 @@ class SchedulingController {
      */
     async getUpcoming(req, res) {
         try {
-            const companyId = req.user?.profile?.company_id;
+            const userId = req.user?.id;
             const limit = parseInt(req.query.limit) || 10;
 
-            if (!companyId) {
-                return res.status(400).json({ error: 'Company ID required' });
-            }
+            // if (!companyId) ... removed
 
-            const appointments = await this.schedulingService.getUpcoming(companyId, limit);
+            const appointments = await this.schedulingService.getUpcoming(userId, limit);
             return res.json(appointments);
         } catch (error) {
             console.error('Error fetching upcoming:', error);
@@ -99,13 +93,11 @@ class SchedulingController {
      */
     async getMetrics(req, res) {
         try {
-            const companyId = req.user?.profile?.company_id;
+            const userId = req.user?.id;
 
-            if (!companyId) {
-                return res.status(400).json({ error: 'Company ID required' });
-            }
+            // if (!companyId) ... removed
 
-            const metrics = await this.schedulingService.getMetrics(companyId);
+            const metrics = await this.schedulingService.getMetrics(userId);
             return res.json(metrics);
         } catch (error) {
             console.error('Error fetching metrics:', error);

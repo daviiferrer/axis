@@ -21,7 +21,7 @@ services:
     image: devlikeapro/waha-plus:noweb
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3001:3000" # Mapped to 3001 to avoid conflict with Frontend (3000)
     environment:
       - WHATSAPP_DEFAULT_ENGINE=NOWEB
       - WAHA_LOG_LEVEL=info

@@ -7,11 +7,13 @@ const logger = require('../../shared/Logger').createModuleLogger('waha-client');
  */
 class WahaClient {
     #endpoints;
+    #configService;
+    #initialized = false;
 
-    constructor({ systemConfig } = {}) {
-        const config = systemConfig || {};
-        this.baseUrl = config.wahaUrl || process.env.WAHA_API_URL || 'http://localhost:3000';
-        this.apiKey = config.apiKey || process.env.WAHA_API_KEY || '';
+    constructor({ configService } = {}) {
+        this.#configService = configService;
+        this.baseUrl = null;
+        this.apiKey = null;
         this.http = axios; // Default to axios, inject if needed in future
 
         this.#endpoints = {
@@ -60,10 +62,42 @@ class WahaClient {
         };
     }
 
+    /**
+     * Lazy initialize - loads config on first call
+     */
+    async #initialize() {
+        if (this.#initialized) return;
+
+        try {
+            if (this.#configService) {
+                this.baseUrl = await this.#configService.getWahaApiUrl();
+                this.apiKey = await this.#configService.getWahaApiKey();
+            }
+
+            if (!this.baseUrl) {
+                logger.warn('⚠️ WAHA_API_URL not configured, using fallback');
+                this.baseUrl = process.env.WAHA_API_URL || 'http://waha:3000';
+            }
+
+            // Allow override via env if not in ConfigService (redundant if getWahaUrl has default)
+            if (!this.apiKey && process.env.WAHA_API_KEY) {
+                this.apiKey = process.env.WAHA_API_KEY;
+            }
+
+            this.#initialized = true;
+            logger.info({ baseUrl: this.baseUrl }, '✅ WahaClient initialized');
+
+        } catch (error) {
+            logger.error({ error: error.message }, '❌ WahaClient initialization failed');
+            throw error;
+        }
+    }
+
     async #getHeaders() {
+        await this.#initialize();
         return {
             'Content-Type': 'application/json',
-            'X-Api-Key': this.apiKey
+            ...(this.apiKey && { 'X-Api-Key': this.apiKey })
         };
     }
 

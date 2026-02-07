@@ -51,24 +51,32 @@ class SettingsService {
     }
 
     /**
-     * Validates if a provider API key exists for a user.
+     * Validates if a provider API key exists for a user (NOW IN PROFILES TABLE).
      * @param {string} userId - User ID to check.
      * @param {string} provider - Provider name: 'gemini', 'openai', 'anthropic'.
      * @returns {{ valid: boolean, keyName: string }}
      */
     async validateProviderKey(userId, provider) {
-        const settings = await this.getSettings(userId);
-        if (!settings) {
+        // Fetch from PROFILES table, NOT system_settings
+        const { data: profile, error } = await this.supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+
+        if (error || !profile) {
+            logger.warn({ userId, error }, 'Profile not found for API Key validation');
             return { valid: false, keyName: this.#getKeyName(provider) };
         }
 
         const keyName = this.#getKeyName(provider);
-        const keyValue = settings[keyName];
+        const keyValue = profile?.[keyName];
 
+        // STRICT MODE: No fallback. User MUST have key in PROFILE.
         const valid = !!keyValue && keyValue.length > 10;
 
         if (!valid) {
-            logger.warn({ userId, provider, keyName }, 'Missing API key for provider');
+            logger.warn({ userId, provider, keyName }, 'Missing API key in user PROFILE');
         }
 
         return { valid, keyName };
@@ -90,14 +98,23 @@ class SettingsService {
     }
 
     /**
-     * Get API key for a specific provider.
+     * Get API key for a specific provider (NOW FROM PROFILES).
      */
     async getProviderKey(userId, provider) {
-        const settings = await this.getSettings(userId);
-        if (!settings) return null;
+        // Fetch from PROFILES table, NOT system_settings
+        const { data: profile } = await this.supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+
+        if (!profile) return null;
 
         const keyName = this.#getKeyName(provider);
-        return settings[keyName] || null;
+        const keyValue = profile?.[keyName];
+
+        // STRICT MODE: No global fallback.
+        return keyValue || null;
     }
 
     // ============================================

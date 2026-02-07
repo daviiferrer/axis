@@ -3,10 +3,11 @@ const logger = require('../../../shared/Logger').createModuleLogger('waha-sessio
 const SettingsService = require('../../../core/services/system/SettingsService');
 
 class WahaSessionController {
-    constructor({ wahaClient, supabase, billingService }) {
+    constructor({ wahaClient, supabase, billingService, configService }) {
         this.waha = wahaClient;
         this.supabase = supabase;
         this.billingService = billingService;
+        this.configService = configService;
     }
 
     /**
@@ -191,41 +192,70 @@ class WahaSessionController {
 
             // --- WEBHOOK CONFIGURATION (Dynamic) ---
             try {
-                let webhookUrl = process.env.WAHA_WEBHOOK_URL;
-                // Try to get from DB System Settings
-                const settingsService = new SettingsService({ supabaseClient: this.supabase });
-                // Use user ID if available, or just rely on service finding global
-                const settings = await settingsService.getSettings(req.user?.id);
+                let webhookUrl = null;
 
-                if (settings && settings.waha_webhook_url) {
-                    webhookUrl = settings.waha_webhook_url;
+                // 1. Load from ConfigService
+                if (this.configService) {
+                    // Try user specific first (if supported by ConfigService logic), or fall back to global
+                    webhookUrl = await this.configService.get('waha_webhook_url', req.user?.id);
+                }
+
+                // 2. Fallback / Validation
+                if (!webhookUrl) {
+                    // Attempt env var fallback for backward compatibility during migration
+                    webhookUrl = process.env.WAHA_WEBHOOK_URL;
                 }
 
                 // --- STABILIZATION: Production URL Logic ---
-                // If we are on the known production domain, force it as priority if not set in settings
-                const isProduction = process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_API_URL?.includes('axischat.com.br');
+                const isProduction = process.env.NODE_ENV === 'production' ||
+                    process.env.NEXT_PUBLIC_API_URL?.includes('axischat.com.br');
 
                 if (!webhookUrl && isProduction) {
-                    // Use the public HTTPS endpoint to ensure SSL/Nginx compatibility
                     webhookUrl = 'https://axischat.com.br/api/v1/webhook/waha';
                 }
 
-                // Default fallback for Local Docker Development
+                // Final local fallback
                 if (!webhookUrl) {
                     webhookUrl = 'http://host.docker.internal:8000/api/v1/webhook/waha';
+                }
+
+                if (!webhookUrl) {
+                    logger.warn('⚠️ WAHA_WEBHOOK_URL not configured in system_settings or env!');
+                } else {
+                    logger.info(
+                        {
+                            session: sessionName,
+                            webhookUrl: webhookUrl.substring(0, 50) + '...'
+                        },
+                        '✅ Webhook URL loaded'
+                    );
                 }
 
                 // Inject into payload
                 if (!payload.config) payload.config = {};
                 if (!payload.config.webhooks) {
-                    logger.info({ session: sessionName, url: webhookUrl }, 'Injecting Webhook Configuration');
                     payload.config.webhooks = [{
                         url: webhookUrl,
-                        events: ['message', 'message.ack', 'message.revoked', 'session.status']
+                        events: [
+                            'message',           // Recebe mensagens
+                            'message.ack',       // Confirmação de leitura
+                            'message.revoked',   // Mensagem revogada
+                            'session.status',    // Mudanças de status
+                            'presence.update'    // Status online/offline
+                        ]
                     }];
+
+                    logger.info(
+                        {
+                            session: sessionName,
+                            events: payload.config.webhooks[0].events
+                        },
+                        '📋 Webhook configuration injected'
+                    );
                 }
             } catch (configError) {
-                logger.warn({ error: configError.message }, 'Failed to inject webhook config, using defaults');
+                logger.error({ error: configError.message }, '❌ Webhook configuration failed');
+                // Don't fail the session creation, but log the error. WAHA works without webhooks but won't receive messages.
             }
             // ----------------------------------------
 

@@ -37,14 +37,9 @@ class AgentController {
         try {
             const userId = req.user?.id || req.body.userId;
 
-            // STRICT VALIDATION: Company Name is Mandatory in DNA
+            // STRICT VALIDATION: Company Name Removed (Legacy)
             const dna = req.body.dna_config || {};
-            if (!dna.identity || !dna.identity.company || dna.identity.company.trim() === '') {
-                return res.status(400).json({
-                    error: 'VALIDATION_ERROR',
-                    message: 'O nome da empresa é obrigatório na configuração do Agente (Identidade).'
-                });
-            }
+            // if (!dna.identity || !dna.identity.company || dna.identity.company.trim() === '') { ... }
 
             const agent = await this.agentService.createAgent(req.body, userId);
             res.status(201).json(agent);
@@ -66,16 +61,8 @@ class AgentController {
         try {
             const userId = req.user?.id || req.body.userId;
 
-            // STRICT VALIDATION: Company Name is Mandatory in DNA (only if DNA is being updated)
-            if (req.body.dna_config) {
-                const dna = req.body.dna_config;
-                if (!dna.identity || !dna.identity.company || dna.identity.company.trim() === '') {
-                    return res.status(400).json({
-                        error: 'VALIDATION_ERROR',
-                        message: 'O nome da empresa é obrigatório na configuração do Agente (Identidade).'
-                    });
-                }
-            }
+            // STRICT VALIDATION: Company Name Removed (Legacy)
+            // if (!dna.identity || !dna.identity.company || dna.identity.company.trim() === '') { ... }
 
             const agent = await this.agentService.updateAgent(req.params.id, req.body, userId);
             res.json(agent);

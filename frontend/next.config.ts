@@ -2,8 +2,9 @@ import type { NextConfig } from "next";
 import path from "path";
 import dotenv from "dotenv";
 
-// Load root .env
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+// Load root .env based on NODE_ENV (Build time)
+const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
+dotenv.config({ path: path.resolve(__dirname, `../${envFile}`) });
 
 const nextConfig: NextConfig = {
   output: 'standalone',

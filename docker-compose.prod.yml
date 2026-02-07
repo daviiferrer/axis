@@ -49,13 +49,15 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+        - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
         - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
         - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     container_name: axis-frontend
     restart: always
     expose:
       - "3000"
+    ports:
+      - "3000:3000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
       interval: 30s
@@ -76,6 +78,8 @@ services:
     restart: always
     expose:
       - "8000"
+    ports:
+      - "8000:8000"
     environment:
       - PORT=8000
       - NODE_ENV=production
@@ -83,6 +87,8 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       # ==== Internal Docker Network ====
       - REDIS_URL=redis://redis:6379
       - WAHA_API_URL=http://waha:3000
@@ -110,6 +116,8 @@ services:
     restart: always
     expose:
       - "3000"
+    ports:
+      - "3001:3000"
     environment:
       - WHATSAPP_DEFAULT_ENGINE=NOWEB
       - WAHA_LOG_LEVEL=info
@@ -119,7 +127,8 @@ services:
       - WAHA_DASHBOARD_PASSWORD=${WAHA_DASHBOARD_PASSWORD:-admin123}
       - WHATSAPP_API_KEY=${WHATSAPP_API_KEY:-axis-waha-key}
       # Webhook config
-      - WHATSAPP_HOOK_URL=http://backend:8000/api/v1/webhook/waha
+      # Webhook config - Dynamic with internal fallback
+      - WHATSAPP_HOOK_URL=${WAHA_WEBHOOK_URL:-http://backend:8000/api/v1/webhook/waha}
       - WHATSAPP_HOOK_EVENTS=message,message.any,message.ack,presence.update,session.status
     volumes:
       - waha_sessions:/app/sessions

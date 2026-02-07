@@ -219,7 +219,18 @@ class AgenticNode extends AgentNode {
 
         // Generation span disabled
 
-        const aiResult = await this.geminiClient.generateSimple(targetModel, systemInstruction, "Responda ao lead.");
+        const aiResult = await this.geminiClient.generateSimple(
+            targetModel,
+            systemInstruction,
+            "Responda ao lead.",
+            {
+                companyId: campaign.company_id,
+                campaignId: campaign.id,
+                chatId: chat.id,
+                userId: campaign.user_id, // Pass owner for SaaS logging & Key Retrieval
+                sessionId: campaign.session_name || campaign.waha_session_name
+            }
+        );
 
         let response;
         try {

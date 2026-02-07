@@ -93,7 +93,16 @@ class ChatController {
 
             // MODELO VEM DA TABELA AGENTS
             const model = await this.modelService.getModelByCampaign(campaignId);
-            const hint = await this.geminiClient.generateSimpleText(model, systemPrompt, `Conversa:\n${history}`);
+
+            // Recupere o userId da campanha ou do request
+            const userId = req.user?.id; // Autenticado
+
+            const hint = await this.geminiClient.generateSimple(
+                model,
+                systemPrompt,
+                `Conversa:\n${history}`,
+                { userId } // Passando contexto para recuperar API Key
+            );
 
             res.json({ hint: hint.trim() });
         } catch (error) {

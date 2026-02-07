@@ -18,6 +18,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 import { agentService, Agent, DNAConfig } from "@/services/agentService"
+import { profileService } from "@/services/profileService" // [NEW]
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/layout/tabs"
 import {
     Accordion,
@@ -134,6 +135,11 @@ export default function AgentDNAEditorPage() {
     const [model, setModel] = useState('gemini-2.5-flash')
     const [dna, setDna] = useState<DNAConfig>(DEFAULT_DNA)
 
+    // API Key Management State
+    const [apiKey, setApiKey] = useState('')
+    const [hasKey, setHasKey] = useState(false)
+    const [keyLoading, setKeyLoading] = useState(false)
+
     // Load existing agent
     useEffect(() => {
         if (!isNew && id) {
@@ -159,8 +165,39 @@ export default function AgentDNAEditorPage() {
         }
     }, [id, isNew])
 
+    // Check for existing API Key
+    useEffect(() => {
+        const checkKey = async () => {
+            try {
+                const { hasKey } = await profileService.hasApiKey('gemini');
+                setHasKey(hasKey);
+            } catch (e) {
+                console.error("Failed to check API key", e);
+            }
+        };
+        checkKey();
+    }, []);
+
+    const handleSaveKey = async () => {
+        if (!apiKey || apiKey.length < 10) return toast.error("Chave inválida");
+        setKeyLoading(true);
+        try {
+            await profileService.updateApiKey('gemini', apiKey);
+            toast.success("Chave Gemini salva com sucesso!");
+            setHasKey(true);
+            setApiKey(''); // Clear input for security
+        } catch (error) {
+            toast.error("Erro ao salvar chave");
+        } finally {
+            setKeyLoading(false);
+        }
+    };
+
     const handleSave = async () => {
         if (!name) return toast.error("Nome é obrigatório")
+        if (!hasKey && !apiKey) {
+            return toast.error("Por favor, configure e SALVE sua Chave de API (Gemini) antes de criar o agente.")
+        }
 
         setLoading(true)
         try {
@@ -181,9 +218,14 @@ export default function AgentDNAEditorPage() {
                 await agentService.update(id as string, payload)
                 toast.success("Agente atualizado com sucesso!")
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error)
-            toast.error("Erro ao salvar agente")
+            const msg = error.response?.data?.error || error.message
+            if (msg?.includes('Missing API key')) {
+                toast.error("Erro: Salve sua Chave de API acima primeiro!")
+            } else {
+                toast.error("Erro ao salvar agente")
+            }
         } finally {
             setLoading(false)
         }
@@ -453,17 +495,70 @@ export default function AgentDNAEditorPage() {
                                     </div>
 
                                     {/* COMPANY NAME */}
-                                    <div className="space-y-2">
-                                        <label className="text-base font-bold text-gray-900 block">Nome da Empresa</label>
-                                        <p className="text-sm text-gray-500 mb-2">
-                                            O nome que o agente usará para se identificar.
-                                        </p>
+                                    <div className="space-y-4">
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-base font-bold text-gray-900 block">Nome da Empresa</label>
+                                            <p className="text-sm text-gray-500">
+                                                O nome que o agente usará para se identificar.
+                                            </p>
+                                        </div>
                                         <Input
                                             value={dna.business_context?.company_name || ''}
                                             onChange={e => updateDna('business_context', 'company_name', e.target.value)}
                                             className="h-12 text-base"
                                             placeholder="Ex: Escritório Silva & Associados, Oficina Auto Car, etc."
                                         />
+                                    </div>
+
+                                    {/* GEMINI API KEY MANAGEMENT */}
+                                    <div className="p-5 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl border border-purple-100 space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-white rounded-lg shadow-sm">
+                                                    <Zap className="h-5 w-5 text-purple-600" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-gray-900">Chave de API (Gemini)</h4>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-xs text-gray-500">
+                                                            Configure sua chave pessoal para ativar o agente.
+                                                        </p>
+                                                        {hasKey && (
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                                                ✅ Configurada
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                onClick={handleSaveKey}
+                                                disabled={keyLoading || !apiKey}
+                                                className="bg-purple-600 hover:bg-purple-700 text-white border-0"
+                                            >
+                                                {keyLoading ? <Activity className="h-3 w-3 animate-spin" /> : "Salvar Chave"}
+                                            </Button>
+                                        </div>
+
+                                        <div className="relative">
+                                            <Input
+                                                type="password"
+                                                placeholder={hasKey ? "•••••••••••••••• (Chave salva segura)" : "Cole sua API Key do Google AI Studio aqui..."}
+                                                className="bg-white pr-24"
+                                                value={apiKey}
+                                                onChange={(e) => setApiKey(e.target.value)}
+                                            />
+                                            <div className="absolute top-0 right-0 h-full flex items-center pr-3">
+                                                <Link href="https://aistudio.google.com/app/apikey" target="_blank" className="text-[10px] text-purple-600 font-bold hover:underline bg-purple-50 px-2 py-1 rounded">
+                                                    GERAR CHAVE ↗
+                                                </Link>
+                                            </div>
+                                        </div>
+                                        <p className="text-[10px] text-gray-400">
+                                            Sua chave é criptografada e usada apenas para este agente falar. Nunca compartilhamos seus dados.
+                                        </p>
                                     </div>
 
                                     {/* CUSTOM CONTEXT */}

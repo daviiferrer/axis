@@ -12,6 +12,7 @@ const RagClient = require('./infra/clients/RagClient');
 const CompanyService = require('./core/services/system/CompanyService');
 const ChatService = require('./core/services/chat/ChatService');
 const SettingsService = require('./core/services/system/SettingsService');
+const ConfigService = require('./core/services/system/ConfigService'); // [NEW]
 const BillingService = require('./core/services/billing/BillingService');
 const CampaignService = require('./core/services/campaign/CampaignService');
 const LeadService = require('./core/services/campaign/LeadService');
@@ -29,6 +30,7 @@ const HybridSearchService = require('./core/services/rag/HybridSearchService');
 
 // --- Controllers ---
 const SettingsController = require('./api/controllers/system/SettingsController');
+const UserParamsController = require('./api/controllers/system/UserParamsController');
 const AnalyticsController = require('./api/controllers/analytics/AnalyticsController');
 const DashboardController = require('./api/controllers/analytics/DashboardController');
 const AdminController = require('./api/controllers/system/AdminController');
@@ -90,7 +92,9 @@ function configureContainer() {
             return supabaseClientFactory.createAdminClient();
         }).singleton(),
 
-        wahaClient: asClass(WahaClient).singleton(),
+        wahaClient: asClass(WahaClient).singleton().inject((c) => ({
+            configService: c.configService
+        })),
 
         // Gemini & RAG
         geminiClient: asClass(GeminiClient).singleton(),
@@ -104,6 +108,9 @@ function configureContainer() {
         companyService: asClass(CompanyService).scoped(),
         chatService: asClass(ChatService).scoped(),
         settingsService: asClass(SettingsService).scoped(),
+        configService: asClass(ConfigService).singleton().inject((c) => ({
+            supabaseClient: c.supabaseClient
+        })),
         billingService: asClass(BillingService).scoped(),
         campaignService: asClass(CampaignService).scoped(),
         leadService: asClass(LeadService).scoped(),
@@ -183,7 +190,9 @@ function configureContainer() {
         companyController: asClass(CompanyController),
 
         // WAHA Controllers
-        wahaSessionController: asClass(WahaSessionController),
+        wahaSessionController: asClass(WahaSessionController).inject((c) => ({
+            configService: c.configService
+        })),
         wahaAuthController: asClass(WahaAuthController),
         wahaProfileController: asClass(WahaProfileController),
         wahaChattingController: asClass(WahaChattingController),
