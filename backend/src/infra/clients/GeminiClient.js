@@ -334,7 +334,7 @@ class GeminiClient {
     async _logUsage(metrics, context = {}) {
         if (!this.settingsService?.supabase) return; // Need supabase client access
 
-        const { companyId, campaignId, chatId, userId } = context;
+        const { companyId, campaignId, chatId, userId, sessionId } = context;
         if (!userId && !companyId) return; // Need an owner
 
         try {
@@ -347,7 +347,7 @@ class GeminiClient {
 
             await this.settingsService.supabase.from('ai_usage_logs').insert({
                 user_id: userId || null,
-                session_id: null,
+                session_id: sessionId || null,
                 campaign_id: campaignId || null,
                 chat_id: chatId || null,
                 model: metrics.model,
