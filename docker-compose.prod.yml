@@ -86,11 +86,9 @@ services:
       - PORT=8000
       - NODE_ENV=production
       # ==== Bootstrap Only (from .env) ====
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - SUPABASE_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      # ==== Bootstrap Only (from .env) ====
+      # Variables loaded via env_file configuration
+
       # ==== Internal Docker Network ====
       - REDIS_URL=redis://redis:6379
       - WAHA_API_URL=http://waha:3000
