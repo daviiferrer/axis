@@ -34,3 +34,7 @@ Thumbs.db
 .parcel-cache/
 .next/
 out/
+
+# Production secrets
+.env.production
+logs_dump.txt
