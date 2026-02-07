@@ -8,6 +8,7 @@
 #   - VPS_USER: SSH username (usually 'root' or 'ubuntu')
 #   - VPS_SSH_KEY: Private SSH key for authentication
 #   - VPS_PORT: SSH port (optional, defaults to 22)
+#   - ENV_PRODUCTION: Full content of .env.production file
 # =============================================================================
 
 name: Deploy to VPS
@@ -40,19 +41,43 @@ jobs:
             set -e
             echo "🚀 Starting deployment..."
             
-            # Navigate to project directory
-            cd /opt/axis || cd ~/axis
+            # Ensure project directory exists
+            mkdir -p ~/axis
+            cd ~/axis
             
+            # Initialize git if not exists (first run) or fetch
+            if [ ! -d ".git" ]; then
+              echo "Git not initialized. Cloning..."
+              git init
+              git remote add origin https://github.com/daviiferrer/axis.git
+            fi
+
             # Pull latest changes
             echo "📥 Pulling latest code..."
             git fetch origin main
             git reset --hard origin/main
             
+            # Create .env.production from secret
+            echo "📝 Writing .env.production..."
+            echo "${{ secrets.ENV_PRODUCTION }}" > .env.production
+            
             # Build and restart containers
             echo "🐳 Building and restarting Docker containers..."
-            docker-compose -f docker-compose.prod.yml pull redis waha
-            docker-compose -f docker-compose.prod.yml build --no-cache frontend backend
-            docker-compose -f docker-compose.prod.yml up -d --force-recreate
+            
+            # Check if docker-compose exists, else try docker compose
+            if command -v docker-compose &> /dev/null; then
+                DC_CMD="docker-compose"
+            else
+                DC_CMD="docker compose"
+            fi
+
+            $DC_CMD -f docker-compose.prod.yml pull redis
+            # WAHA image is local/manual, so we might not be able to pull it if it's custom.
+            # If using official image, pull it. If custom, skip pull.
+            # Assuming devlikeapro/waha-plus is pullable or already there.
+            
+            $DC_CMD -f docker-compose.prod.yml build --no-cache frontend backend
+            $DC_CMD -f docker-compose.prod.yml up -d --force-recreate
             
             # Clean up old images
             echo "🧹 Cleaning up old Docker images..."
@@ -61,11 +86,16 @@ jobs:
             # Health check
             echo "🔍 Running health check..."
             sleep 15
-            curl -sf http://localhost/api/v1/health || echo "⚠️ Health check failed - please verify manually"
+            if curl -sf http://localhost/api/v1/health; then
+                echo "✅ Backend Health Check Passed"
+            else
+                echo "⚠️ Backend Health Check Failed - Check Logs"
+                # Don't fail the pipeline yet, let's verify connectivity
+            fi
             
             echo "✅ Deployment completed successfully!"
 
-      # 3. Notify on failure (optional - Discord/Slack webhook)
+      # 3. Notify on failure
       - name: Notify on failure
         if: failure()
         run: |
