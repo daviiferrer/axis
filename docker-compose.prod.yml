@@ -80,6 +80,8 @@ services:
       - "8000"
     ports:
       - "8000:8000"
+    env_file:
+      - .env.production
     environment:
       - PORT=8000
       - NODE_ENV=production
@@ -118,6 +120,8 @@ services:
       - "3000"
     ports:
       - "3001:3000"
+    env_file:
+      - .env.production
     environment:
       - WHATSAPP_DEFAULT_ENGINE=NOWEB
       - WAHA_LOG_LEVEL=info
