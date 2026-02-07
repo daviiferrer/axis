@@ -125,9 +125,9 @@ services:
     environment:
       - WHATSAPP_DEFAULT_ENGINE=NOWEB
       - WAHA_LOG_LEVEL=info
-      # Force Host/Port to ensure accessibility
-      - WAHA_HTTP_HOST=0.0.0.0
-      - WAHA_HTTP_PORT=3000
+      # Force Host/Port to ensure accessibility (Official WAHA env vars)
+      - WHATSAPP_API_PORT=3000
+      - WHATSAPP_API_HOST=0.0.0.0
       # Credentials & API Key defined in .env.production (env_file)
       # Webhook config
       - WHATSAPP_HOOK_URL=${WAHA_WEBHOOK_URL:-http://backend:8000/api/v1/webhook/waha}
