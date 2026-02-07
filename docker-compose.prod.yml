@@ -114,6 +114,7 @@ services:
   # ===========================================
   waha:
     image: devlikeapro/waha-plus:latest
+    pull_policy: never
     container_name: axis-waha
     restart: always
     expose:
