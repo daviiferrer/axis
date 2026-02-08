@@ -122,7 +122,7 @@ services:
     env_file:
       - .env.production
     environment:
-      - WHATSAPP_DEFAULT_ENGINE=NOWEB
+      - WHATSAPP_DEFAULT_ENGINE=GOWS
       - WAHA_LOG_LEVEL=info
       # Force Host/Port to ensure accessibility (Official WAHA env vars from docs)
       - WHATSAPP_API_PORT=3000
