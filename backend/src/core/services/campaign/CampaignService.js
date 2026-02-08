@@ -98,7 +98,8 @@ class CampaignService {
                 user_id: userId,
                 name: campaignData.name,
                 description: campaignData.description,
-                status: 'draft'
+                status: 'draft',
+                env: process.env.NODE_ENV || 'development' // AUTO-TAGGING: Isolate Dev/Prod
             })
             .select()
 

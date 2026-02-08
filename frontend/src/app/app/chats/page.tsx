@@ -138,10 +138,31 @@ function ChatList({
             const key = `/messages/${data.chatId}`;
             mutate(key, (current: WahaMessage[] | undefined) => {
                 const list = current || [];
-                // Deduplicate by ID
-                if (list.some(m => m.id === data.message.id)) {
-                    return list;
+
+                // 1. Check if we have the message already (by ID) - UPDATE IT
+                // This fixes attribution flip (Lucas -> Luis) if backend updates the record
+                const existingIndex = list.findIndex(m => m.id === data.message.id);
+                if (existingIndex !== -1) {
+                    const newList = [...list];
+                    newList[existingIndex] = data.message;
+                    return newList;
                 }
+
+                // 2. Check for Optimistic match (Temp ID, Same Body, Same Sender) - RESOLVE IT
+                // This fixes "Double Bubble" visual bug
+                const optimisticIndex = list.findIndex(m =>
+                    m.id.startsWith('temp-') &&
+                    m.body === data.message.body &&
+                    m.fromMe === data.message.fromMe
+                    // We can check timestamp too but body+fromMe is usually enough for single user
+                );
+
+                if (optimisticIndex !== -1) {
+                    const newList = [...list];
+                    newList[optimisticIndex] = data.message; // Replace temp with real
+                    return newList;
+                }
+
                 return [data.message, ...list];
             }, false);
         };

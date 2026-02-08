@@ -170,11 +170,15 @@ class WorkflowEngine {
         if (!this.isBusinessHours()) return;
 
         try {
-            // 1. Get all active campaigns
+            // 1. Get all active campaigns for CURRENT ENVIRONMENT
+            // This prevents Localhost from stealing Prod jobs and vice-versa.
+            const currentEnv = process.env.NODE_ENV || 'development';
+
             const { data: campaigns } = await this.supabase
                 .from('campaigns')
                 .select('*')
-                .eq('status', 'active');
+                .eq('status', 'active')
+                .eq('env', currentEnv); // STRICT ISOLATION
 
             if (!campaigns || campaigns.length === 0) return;
 

@@ -35,37 +35,49 @@
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);
     --radius-sm: calc(var(--radius) - 4px);
+
+    /* PAD System Colors */
+    --color-pad-pulse: hsl(var(--pad-pulse));
+    --color-pad-spark: hsl(var(--pad-spark));
+    --color-pad-deep: hsl(var(--pad-deep));
+    --color-pad-flow: hsl(var(--pad-flow));
 }
 
 @layer base {
     :root {
-        --background: 0 0% 100%;
-        --foreground: 222.2 84% 4.9%;
+        /* PAD Core Colors */
+        --pad-pulse: 180 80% 50%; /* Cyan - Neutral/Calm */
+        --pad-spark: 25 95% 60%;  /* Orange - High Arousal */
+        --pad-deep: 260 70% 55%;  /* Indigo - Low Pleasure/Focus */
+        --pad-flow: 140 80% 55%;  /* Emerald - High Pleasure/Success */
+        
+        --background: 220 20% 10%; /* Deep Navy - The Void */
+        --foreground: 220 10% 90%; /* Off-white */
 
-        --card: 0 0% 100%;
-        --card-foreground: 222.2 84% 4.9%;
+        --card: 220 15% 16%;
+        --card-foreground: 220 10% 90%;
 
-        --popover: 0 0% 100%;
-        --popover-foreground: 222.2 84% 4.9%;
+        --popover: 220 15% 16%;
+        --popover-foreground: 220 10% 90%;
 
-        --primary: 222.2 47.4% 11.2%;
-        --primary-foreground: 210 40% 98%;
+        --primary: 180 80% 50%; /* Pulse/Cyan as Primary */
+        --primary-foreground: 220 20% 10%;
 
-        --secondary: 210 40% 96.1%;
-        --secondary-foreground: 222.2 47.4% 11.2%;
+        --secondary: 220 10% 25%;
+        --secondary-foreground: 220 10% 90%;
 
-        --muted: 210 40% 96.1%;
-        --muted-foreground: 215.4 16.3% 46.9%;
+        --muted: 220 15% 20%;
+        --muted-foreground: 215 20% 65%;
 
-        --accent: 210 40% 96.1%;
-        --accent-foreground: 222.2 47.4% 11.2%;
+        --accent: 260 70% 55%; /* Deep/Indigo as Accent base */
+        --accent-foreground: 210 40% 98%;
 
         --destructive: 0 84.2% 60.2%;
         --destructive-foreground: 210 40% 98%;
 
-        --border: 214.3 31.8% 91.4%;
-        --input: 214.3 31.8% 91.4%;
-        --ring: 222.2 84% 4.9%;
+        --border: 220 15% 20%;
+        --input: 220 15% 20%;
+        --ring: 180 80% 50%;
 
         --radius: 0.5rem;
     }

@@ -273,10 +273,38 @@ class WahaChattingController {
     async sendText(req, res) {
         try {
             const { session, chatId, text } = req.body;
+            const userId = req.user?.id; // Get authenticated user
+
             // Enforce human latency for natural behavior as requested
             const result = await this.waha.sendTextWithLatency(session, chatId, text);
+
+            // Save to DB immediately to ensure correct attribution (Human vs AI)
+            if (result && result.id) {
+                try {
+                    // Ensure chat exists (linking to user if possible)
+                    const chat = await this.chatService.ensureChat(chatId, session, userId, {
+                        name: chatId.split('@')[0]
+                    });
+
+                    // Save message with is_ai = false (since it's Manual/API send)
+                    await this.chatService.saveMessage({
+                        message_id: result.id._serialized || result.id,
+                        chat_id: chat.id,
+                        body: text,
+                        from_me: true,
+                        is_ai: false, // Explicitly mark as Human/Manual
+                        created_at: new Date().toISOString(),
+                        status: 'sent'
+                    });
+                } catch (saveError) {
+                    console.error('[WahaChattingController] Failed to save manual message:', saveError);
+                    // Non-blocking
+                }
+            }
+
             res.json(result);
         } catch (error) {
+            console.error('[WahaChattingController] sendText error:', error);
             res.status(500).json({ error: error.message });
         }
     }
