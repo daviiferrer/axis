@@ -134,11 +134,17 @@ class JidNormalizationService {
     extractRealNumber(payload) {
         if (!payload) return null;
 
+        // Fix for GOWS/LID: Prioritize SenderAlt if available and valid (Real Phone JID)
+        const senderAlt = payload._data?.Info?.SenderAlt;
+        if (senderAlt && senderAlt.includes('@s.whatsapp.net')) {
+            return this.cleanJid(senderAlt);
+        }
+
         // 1. Try generic WAHA/Baileys properties for canonical JID
         // _data.Info.Chat is often the canonical chat JID even for LIDs
         let candidate = payload._data?.key?.remoteJidAlt ||
             payload._data?.Info?.Chat ||
-            payload._data?.Info?.SenderAlt ||
+            // payload._data?.Info?.SenderAlt || // Move priority up (handled above)
             payload._data?.Info?.RecipientAlt ||
             payload._data?.key?.remoteJid ||
             payload._data?.to;
