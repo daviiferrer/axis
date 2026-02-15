@@ -700,12 +700,13 @@ export function ConversationShowcase() {
                         >
 
                             {/* ─── Sidebar (Show on Mobile if "list", always on Desktop) ─── */}
-                            {/* Sliding Container */}
+                            {/* Sub-container for Slider + Pointer Events None */}
                             <div className={`
                                 flex h-full w-[200%] md:w-full bg-white relative
                                 transition-transform duration-500 ease-in-out
                                 ${mobileView === "chat" ? "-translate-x-1/2" : "translate-x-0"}
                                 md:translate-x-0 md:transform-none
+                                pointer-events-none select-none
                             `}>
                                 {/* ─── Sidebar (Left Half on Mobile) ─── */}
                                 <div className="flex flex-col w-1/2 md:w-[300px] lg:w-[340px] shrink-0 border-r border-slate-100 bg-slate-50/50">
@@ -869,15 +870,7 @@ export function ConversationShowcase() {
                                     {/* Chat Header */}
                                     <div className="h-14 sm:h-16 w-full shrink-0 px-4 sm:px-6 flex items-center justify-between border-b border-slate-100 bg-white/80 backdrop-blur-sm z-50 sticky top-0">
                                         <div className="flex items-center gap-3">
-                                            {/* Back Button (Mobile Only) */}
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="md:hidden -ml-2 text-slate-500"
-                                                onClick={() => setMobileView("list")}
-                                            >
-                                                <ChevronLeft className="size-6" />
-                                            </Button>
+                                            {/* Back Button Removed - Automated Navigation Only */}
 
                                             <Avatar className="size-8 sm:size-9 ring-2 ring-white shadow-sm">
                                                 <AvatarImage src={scenario.avatar} alt={scenario.name} className="object-cover" />
