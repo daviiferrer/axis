@@ -983,7 +983,7 @@ Regras importantes:
                                                     <p className="text-sm text-gray-500">Divide textos longos em vários balões curtos, como no WhatsApp real.</p>
                                                 </div>
                                                 <Select
-                                                    value={dna.chronemics.burstiness}
+                                                    value={dna.chronemics.burstiness as string | undefined}
                                                     onValueChange={(v) => updateDna('chronemics', 'burstiness', v)}
                                                 >
                                                     <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
