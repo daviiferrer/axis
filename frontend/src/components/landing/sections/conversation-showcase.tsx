@@ -464,7 +464,7 @@ export function ConversationShowcase() {
     // Auto-scroll on new messages
     useEffect(() => {
         if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+            messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
         }
     }, [messages, thinkingSteps, isUserTyping]);
 
@@ -688,7 +688,13 @@ export function ConversationShowcase() {
                     <div className="relative pt-10 pb-10 md:py-20 px-2 bg-transparent w-full">
                         <div className="absolute top-[10%] left-1/2 -translate-x-1/2 w-3/4 h-1/3 blur-[5rem] animate-image-glow"></div>
 
-                        <div className="relative w-full rounded-2xl md:rounded-3xl overflow-hidden border border-slate-200/60 bg-white shadow-2xl shadow-slate-200/50 flex flex-col md:flex-row h-[600px] sm:h-[700px]">
+                        <div className="relative w-full rounded-2xl md:rounded-3xl overflow-hidden border border-slate-200/60 bg-white shadow-2xl shadow-slate-200/50 flex flex-col md:flex-row"
+                            style={{
+                                height: "700px",
+                                WebkitMaskImage: "linear-gradient(to bottom, black 40%, transparent 100%)",
+                                maskImage: "linear-gradient(to bottom, black 40%, transparent 100%)"
+                            }}
+                        >
 
                             {/* ─── Sidebar (Show on Mobile if "list", always on Desktop) ─── */}
                             <div className={`
@@ -1096,7 +1102,8 @@ export function ConversationShowcase() {
                                 </div>
                             </div>
 
-
+                            {/* Bottom Fade Overlays - Inside Container for proper masking */}
+                            <div className="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none z-50"></div>
                         </div>
                     </div>
                 </ScrollReveal>
