@@ -69,26 +69,33 @@ export interface BusinessContext {
 
 export interface DNAConfig {
     psychometrics: {
-        openness: Level;
-        conscientiousness: Level;
-        extraversion: Level;
-        agreeableness: Level;
-        neuroticism: Level;
+        openness: number;
+        conscientiousness: number;
+        extraversion: number;
+        agreeableness: number;
+        neuroticism: number;
     };
     linguistics: {
-        reduction_profile: 'CORPORATE' | 'BALANCED' | 'NATIVE';
-        caps_mode: 'STANDARD' | 'SENTENCE_CASE' | 'LOWERCASE_ONLY' | 'CHAOTIC';
-        correction_style: 'ASTERISK_PRE' | 'ASTERISK_POST' | 'BARE_CORRECTION' | 'EXPLANATORY';
-        typo_injection: 'NONE' | 'LOW' | 'MEDIUM';
+        formality: number;
+        emoji_frequency: number;
+        caps_usage: number;
+        intentional_typos: boolean;
+        max_chars?: number;
+        // Keep legacy union types as optional/alternatives if needed, or simply loose type for now to fix build
+        reduction_profile?: string;
+        caps_mode?: string;
+        correction_style?: string;
+        typo_injection?: string;
     };
     chronemics: {
-        latency_profile: 'VERY_FAST' | 'FAST' | 'MODERATE' | 'SLOW';
-        burstiness: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH';
+        base_latency_ms: number;
+        burstiness: number;
+        latency_profile?: string;
     };
     pad_baseline: {
-        pleasure: PleasureLevel;
-        arousal: PADLevel;
-        dominance: DominanceLevel;
+        pleasure: number;
+        arousal: number;
+        dominance: number;
     };
     qualification?: {
         framework: SalesFramework;

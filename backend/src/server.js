@@ -8,7 +8,11 @@ const rootEnvPath = path.resolve(__dirname, '../../', envFile);
 const result = dotenv.config({ path: rootEnvPath });
 
 if (result.error) {
-    console.error(`❌ [Server] Could not load root .env file at: ${rootEnvPath}`);
+    if (process.env.NODE_ENV === 'production' && process.env.PORT) {
+        console.warn(`⚠️ [Server] Root .env not found at ${rootEnvPath}, but environment variables seem to be loaded (Docker/System). Continuing...`);
+    } else {
+        console.warn(`⚠️ [Server] Could not load root .env file at: ${rootEnvPath}. Ensure variables are set!`);
+    }
 } else {
     console.log(`✅ [Server] Loaded root .env from: ${rootEnvPath}`);
 }
@@ -139,6 +143,9 @@ async function bootstrap() {
         wahaMediaController: makeLazyController('wahaMediaController'),
         wahaObservabilityController: makeLazyController('wahaObservabilityController'),
         wahaScreenshotController: makeLazyController('wahaScreenshotController'),
+
+        // Social
+        facebookAdsController: makeLazyController('facebookAdsController'),
 
         // Legacy/Direct injections
         // WorkflowEngine is Singleton, safe to resolve from Root

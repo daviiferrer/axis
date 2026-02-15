@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { FlowBuilderCanvas } from '@/components/campaigns/flow-builder-canvas';
 import { NodePalette } from '@/components/campaigns/node-palette';
+
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { campaignService } from '@/services/campaign';
@@ -42,23 +43,14 @@ export default function CampaignFlowPage() {
 
     return (
         <div className="flex h-full w-full flex-col bg-gray-50 overflow-hidden">
-            {/* Header */}
-            <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-3">
-                    <Button variant="ghost" size="icon" onClick={() => router.back()}>
-                        <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    <div className="flex flex-col">
-                        <h1 className="text-sm font-semibold text-gray-900">Editor de Fluxo</h1>
-                        <p className="text-xs text-muted-foreground">Campanha ID: {campaignId}</p>
-                    </div>
-                </div>
-            </div>
+            {/* Main Editor Area - Full Screen */}
+            <div className="flex-1 relative h-full w-full overflow-hidden">
 
-            {/* Main Editor Area */}
-            <div className="flex-1 flex overflow-hidden">
-                <NodePalette />
-                <div className="flex-1 h-full relative">
+                {/* Floating Header Overlay */}
+                {/* Floating Header removed - moved to NodePalette */}
+
+                <div className="absolute inset-0 z-0 flex">
+                    <NodePalette />
                     <FlowBuilderCanvas campaignId={campaignId} initialFlow={flowData} />
                 </div>
             </div>

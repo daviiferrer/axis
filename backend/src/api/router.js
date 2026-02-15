@@ -42,7 +42,8 @@ function createRouter(controllers) {
     v1Router.use('/billing', require('./routes/v1/billing/billing.routes')(billingController, authMiddleware));
     v1Router.use('/apify', require('./routes/v1/apify/apify.routes')(apifyController, apifyWebhookHandler));
     v1Router.use('/company', authMiddleware, require('./routes/v1/system/company.routes')(controllers.companyController));
-    v1Router.use('/user', authMiddleware, require('./routes/v1/system/user.routes')(controllers.userParamsController)); // [NEW]
+    v1Router.use('/user', authMiddleware, require('./routes/v1/system/user.routes')(controllers.userParamsController));
+    v1Router.use('/facebook', require('./routes/v1/facebook/facebook.routes')(controllers.facebookAdsController));
 
     // WAHA Routes (Domain Driven)
     // Public Observability (Health Check)

@@ -34,14 +34,14 @@ import { SplitNode } from './custom-nodes/split-node';
 import { DelayNode } from './custom-nodes/delay-node';
 import { GotoNode } from './custom-nodes/goto-node';
 import { HandoffNode } from './custom-nodes/handoff-node';
-import { QualificationNode } from './custom-nodes/qualification-node';
+
 import { ClosingNode } from './custom-nodes/closing-node';
 import { BroadcastNode } from './custom-nodes/broadcast-node';
 
 // Custom Edges
 import { AnimatedEdge } from './custom-edges/animated-edge';
 
-import { NodeEditorPanel } from './node-editor-panel';
+import { NodeConfigModal } from './node-config-modal';
 
 // Node Type Registry
 const nodeTypes = {
@@ -54,11 +54,8 @@ const nodeTypes = {
     delay: DelayNode,
     goto: GotoNode,
     handoff: HandoffNode,
-    qualification: QualificationNode,
     closing: ClosingNode,
     broadcast: BroadcastNode,
-    outreach: AgentNode,
-    objection: AgentNode,
     goto_campaign: GotoNode,
 };
 
@@ -196,7 +193,7 @@ function FlowBuilderCanvasInner({ campaignId, initialFlow }: FlowBuilderCanvasPr
         <div className="flex-1 h-full w-full relative bg-gray-50 from-gray-50 to-white" ref={reactFlowWrapper}>
 
             {/* Floating Action Bar (Top Center) */}
-            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-4">
                 <motion.div
                     initial={{ y: -50, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
@@ -225,11 +222,14 @@ function FlowBuilderCanvasInner({ campaignId, initialFlow }: FlowBuilderCanvasPr
                 </motion.div>
             </div>
 
-            {/* Node Editor Panel (Right Overlay) */}
-            <NodeEditorPanel
+            {/* Universal Node Config Modal */}
+            <NodeConfigModal
                 selectedNode={nodes.find((n) => n.id === selectedNodeId) || null}
                 onClose={() => setSelectedNodeId(null)}
                 onUpdateNode={handleUpdateNode}
+                nodes={nodes}
+                edges={edges}
+                onNavigate={(nodeId) => setSelectedNodeId(nodeId)}
             />
 
             <ReactFlow
@@ -273,23 +273,7 @@ function FlowBuilderCanvasInner({ campaignId, initialFlow }: FlowBuilderCanvasPr
                     color="#cbd5e1"
                 />
 
-                {nodes.length === 0 && (
-                    <Panel position={"center" as any}>
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className="bg-white/40 backdrop-blur-sm p-10 rounded-3xl border-2 border-dashed border-gray-300/50 flex flex-col items-center justify-center text-center max-w-sm"
-                        >
-                            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/10 mb-6 text-indigo-500">
-                                <MousePointer2 size={32} />
-                            </div>
-                            <h3 className="text-xl font-bold text-gray-800 mb-2">Comece seu Fluxo</h3>
-                            <p className="text-gray-500 text-sm leading-relaxed">
-                                Arraste elementos da <span className="font-semibold text-indigo-600">Toolbox</span> à esquerda para construir sua automação.
-                            </p>
-                        </motion.div>
-                    </Panel>
-                )}
+                {/* Empty State Removed */}
             </ReactFlow>
         </div>
     );

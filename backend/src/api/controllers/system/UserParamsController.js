@@ -27,8 +27,6 @@ class UserParamsController {
             // Map provider to column name
             const keyMap = {
                 'gemini': 'gemini_api_key',
-                'openai': 'openai_api_key',
-                'anthropic': 'anthropic_api_key',
                 'apify': 'apify_token',
                 'meta': 'meta_capi_token'
             };
@@ -46,7 +44,13 @@ class UserParamsController {
                 .update({ [columnName]: key })
                 .eq('id', userId)
                 .select()
-                .single();
+                .maybeSingle();
+
+            if (!data) {
+                console.warn(`[UserParamsController] No profile found for user ${userId} to update.`);
+                // Optionally create it? For now just return error or success false
+                return res.status(404).json({ error: 'Profile not found' });
+            }
 
             if (error) {
                 console.error('[UserParamsController] Update Error:', error);
@@ -76,8 +80,6 @@ class UserParamsController {
 
             const keyMap = {
                 'gemini': 'gemini_api_key',
-                'openai': 'openai_api_key',
-                'anthropic': 'anthropic_api_key',
                 'apify': 'apify_token',
                 'meta': 'meta_capi_token'
             };

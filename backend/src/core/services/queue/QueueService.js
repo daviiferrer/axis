@@ -28,6 +28,7 @@ class QueueService {
         try {
             // Enhanced IORedis config for resilience
             this.connection = new IORedis(this.redisUrl, {
+                family: 4, // FORCE IPv4 to avoid ::1 issues
                 maxRetriesPerRequest: null,
                 enableReadyCheck: false,
                 retryStrategy: (times) => {

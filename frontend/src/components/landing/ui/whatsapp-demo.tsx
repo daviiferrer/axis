@@ -335,7 +335,7 @@ export function WhatsappDemo() {
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="pointer-events-auto relative z-20 w-full max-w-[300px] h-auto flex flex-col gap-4 font-sans"
+            className="pointer-events-auto relative z-20 w-full max-w-[300px] h-auto flex flex-col gap-4"
         >
 
             {/* Thinking Background Ambient Effect */}

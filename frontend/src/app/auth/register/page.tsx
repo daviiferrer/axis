@@ -42,7 +42,7 @@ export default function RegisterPage() {
     };
 
     return (
-        <div className="min-h-screen flex bg-white text-gray-900 overflow-hidden font-sans selection:bg-blue-100">
+        <div className="min-h-screen flex bg-white text-gray-900 overflow-hidden selection:bg-blue-100">
             {/* Left Side - Register Form (40%) */}
             <div className="w-full lg:w-[40%] h-screen flex flex-col justify-center items-center px-8 md:px-16 bg-white relative">
 

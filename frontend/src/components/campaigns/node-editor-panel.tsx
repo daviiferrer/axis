@@ -1012,7 +1012,6 @@ function getNodeIcon(type: string | undefined) {
         case 'goto_campaign': return <ExternalLink className="w-4 h-4 text-indigo-600" />;
         case 'handoff': return <Users className="w-4 h-4 text-rose-600" />;
         case 'closing': return <Flag className="w-4 h-4 text-red-600" />;
-        case 'qualification': return <Flag className="w-4 h-4 text-green-600" />;
         case 'agent': return <Bot className="w-4 h-4 text-purple-600" />;
         default: return <Settings className="w-4 h-4 text-gray-600" />;
     }
@@ -1030,7 +1029,6 @@ function getNodeColor(type: string | undefined) {
         case 'goto_campaign': return 'text-indigo-600 bg-indigo-600';
         case 'handoff': return 'text-rose-600 bg-rose-600';
         case 'closing': return 'text-red-600 bg-red-600';
-        case 'qualification': return 'text-green-600 bg-green-600';
         case 'agent': return 'text-purple-600 bg-purple-600';
         default: return 'text-gray-600 bg-gray-600';
     }

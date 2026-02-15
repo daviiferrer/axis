@@ -253,7 +253,7 @@ export default function AgentDNAEditorPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50/50 flex flex-col font-sans">
+        <div className="min-h-screen bg-gray-50/50 flex flex-col">
             {/* 1. HEADER MODERNO */}
             <div className="bg-white border-b sticky top-0 z-20 shadow-sm/50 backdrop-blur-xl bg-white/80 supports-[backdrop-filter]:bg-white/60">
                 <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">

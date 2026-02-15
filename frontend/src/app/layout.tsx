@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Space_Grotesk, DM_Sans } from "next/font/google";
 import "./globals.css";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { AuthProvider } from "@/context/AuthContext";
@@ -7,10 +7,15 @@ import { SocketProvider } from "@/context/SocketContext";
 import { GlobalAlerts } from "@/components/GlobalAlerts";
 import { Toaster } from "sonner";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const jetbrainsMono = JetBrains_Mono({
+const spaceGrotesk = Space_Grotesk({
     subsets: ["latin"],
-    variable: "--font-jetbrains-mono",
+    variable: "--font-space-grotesk",
+    weight: ["500", "700"],
+});
+const dmSans = DM_Sans({
+    subsets: ["latin"],
+    variable: "--font-dm-sans",
+    weight: ["300", "400", "500", "700"],
 });
 
 export const metadata: Metadata = {
@@ -25,7 +30,7 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="pt-BR">
-            <body className={`${inter.className} ${jetbrainsMono.variable} bg-white text-gray-900 antialiased`}>
+            <body className={`${spaceGrotesk.variable} ${dmSans.variable} bg-white text-gray-900 antialiased`}>
                 <AuthProvider>
                     <SocketProvider>
                         <ScrollToTop />

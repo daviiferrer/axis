@@ -45,7 +45,7 @@ export default function AppLayout({
             {/* Prefetch all critical data on mount */}
             <DataPrefetcher />
 
-            <AppSidebar />
+            {!isFlowPage && <AppSidebar />}
             <main className="flex-1 flex flex-col h-full overflow-hidden relative">
                 {/* Content area */}
                 <div className={`flex-1 w-full h-full bg-white dark:bg-neutral-900 shadow-sm

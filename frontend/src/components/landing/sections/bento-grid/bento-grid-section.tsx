@@ -18,7 +18,7 @@ export function BentoGridSection() {
                             initial={{ opacity: 0, y: 20 }}
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
-                            className="font-[family-name:var(--font-jetbrains-mono)] text-3xl md:text-5xl font-extrabold tracking-[-0.04em] text-gray-900 mb-6"
+                            className=" text-3xl md:text-5xl font-extrabold tracking-[-0.04em] text-gray-900 mb-6"
                         >
                             Controle total.{" "}
                             <span className="text-blue-600 drop-shadow-[0_0_20px_rgba(37,99,235,0.2)]">
@@ -53,7 +53,7 @@ export function BentoGridSection() {
                                 <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center mb-6 text-blue-600">
                                     <BarChart3 className="w-6 h-6 stroke-[2]" />
                                 </div>
-                                <CardTitle className="font-[family-name:var(--font-jetbrains-mono)] text-2xl font-extrabold text-gray-900 mb-2">Analytics em Tempo Real</CardTitle>
+                                <CardTitle className=" text-2xl font-extrabold text-gray-900 mb-2">Analytics em Tempo Real</CardTitle>
                                 <CardDescription className="text-gray-600 text-lg font-extralight max-w-md">Monitore conversão, tempo de resposta e qualidade dos leads direto no dashboard.</CardDescription>
                             </CardHeader>
 
@@ -85,7 +85,7 @@ export function BentoGridSection() {
                                 <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center mb-4 text-emerald-600">
                                     <Puzzle className="w-5 h-5 stroke-[2]" />
                                 </div>
-                                <CardTitle className="font-[family-name:var(--font-jetbrains-mono)] text-xl font-extrabold text-gray-900">Integrações Nativas</CardTitle>
+                                <CardTitle className=" text-xl font-extrabold text-gray-900">Integrações Nativas</CardTitle>
                                 <CardDescription className="text-gray-600 text-base font-extralight">Conecte com seu CRM favorito em segundos.</CardDescription>
                             </CardHeader>
                             <CardContent className="mt-auto">
@@ -111,7 +111,7 @@ export function BentoGridSection() {
                             <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center mb-6">
                                 <Zap className="w-8 h-8 text-white fill-current" />
                             </div>
-                            <h3 className="font-[family-name:var(--font-jetbrains-mono)] text-2xl font-extrabold mb-2">Setup Relâmpago</h3>
+                            <h3 className=" text-2xl font-extrabold mb-2">Setup Relâmpago</h3>
                             <p className="text-blue-100 text-base font-light mb-6">Do zero ao primeiro agendamento em menos de 5 minutos.</p>
                             <Button className="bg-white text-blue-600 hover:bg-blue-50 border-none rounded-full px-6 font-bold shadow-lg">
                                 Começar Agora <ArrowRight className="w-4 h-4 ml-2" />

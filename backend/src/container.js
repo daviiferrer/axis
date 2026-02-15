@@ -55,6 +55,7 @@ const WahaObservabilityController = require('./api/controllers/waha/WahaObservab
 const WahaScreenshotController = require('./api/controllers/waha/WahaScreenshotController');
 const CompanyController = require('./api/controllers/system/CompanyController');
 const SchedulingController = require('./api/controllers/scheduling/SchedulingController');
+const FacebookAdsController = require('./api/controllers/facebook/FacebookAdsController');
 
 // --- Engines ---
 const WorkflowEngine = require('./core/engines/workflow/WorkflowEngine');
@@ -200,6 +201,7 @@ function configureContainer() {
         wahaMediaController: asClass(WahaMediaController),
         wahaObservabilityController: asClass(WahaObservabilityController),
         wahaScreenshotController: asClass(WahaScreenshotController),
+        facebookAdsController: asClass(FacebookAdsController),
 
         // Factories
         llmFactory: asClass(require('./core/factories/LlmFactory')).scoped(),

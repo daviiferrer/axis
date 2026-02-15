@@ -3,7 +3,7 @@ import Image from "next/image";
 
 export default function TermsPage() {
     return (
-        <div className="min-h-screen bg-[#080A10] text-white font-sans selection:bg-blue-500/30">
+        <div className="min-h-screen bg-[#080A10] text-white selection:bg-blue-500/30">
             {/* Header */}
             <header className="border-b border-gray-800/50 py-6">
                 <div className="max-w-4xl mx-auto px-6 flex items-center justify-between">

@@ -169,8 +169,71 @@ class AgentNode {
             );
         }
 
-        // Return Suspended State to wait for next user reply
-        return { status: NodeExecutionStateEnum.AWAITING_ASYNC, output: response };
+        // 6. Process Output & Determine State
+        // The AI response might contain "ready_to_close": true OR specific "crm_actions"
+        // that signal a transition (e.g., "schedule_meeting", "route_sales").
+
+        // A. Check for Explicit "Ready to Close" Signal
+        if (response.ready_to_close === true) {
+            logger.info({ leadId: lead.id, response }, '✅ AI signaled ready_to_close. Transitioning to Next Node.');
+            return {
+                status: NodeExecutionStateEnum.EXITED,
+                action: 'default', // WorkflowEngine will look for default edge
+                output: response
+            };
+        }
+
+        // B. Check for Semantic Actions (Routing/Flow Control)
+        if (response.crm_actions && Array.isArray(response.crm_actions) && response.crm_actions.length > 0) {
+            const firstAction = response.crm_actions[0];
+            const actionName = typeof firstAction === 'string' ? firstAction : firstAction.action;
+
+            // List of actions that imply "Moving Forward"
+            const transitionActions = [
+                'schedule_meeting',
+                'meeting_scheduled',
+                'close_sale',
+                'route_sales',
+                'route_support',
+                'request_handoff',
+                'handoff_human'
+            ];
+
+            if (transitionActions.includes(actionName)) {
+                logger.info({ leadId: lead.id, action: actionName }, '🔀 AI triggered semantic transition action');
+                return {
+                    status: NodeExecutionStateEnum.EXITED,
+                    action: actionName, // WorkflowEngine can map this to a specific edge label
+                    output: response
+                };
+            }
+        }
+
+        // C. Check Slot Filling (Auto-Complete)
+        // If the node requires specific slots and they are ALL filled, we can auto-exit.
+        if (nodeConfig.data?.criticalSlots && Array.isArray(nodeConfig.data.criticalSlots)) {
+            const filledSlots = response.qualification_slots || {};
+            const allSlotsFilled = nodeConfig.data.criticalSlots.every(slot => {
+                // Check if slot exists and is not null/empty/unknown
+                const val = filledSlots[slot];
+                return val && val !== 'unknown' && val !== 'não informado';
+            });
+
+            if (allSlotsFilled) {
+                logger.info({ leadId: lead.id, slots: Object.keys(filledSlots) }, '🧩 All critical slots filled. Auto-completing node.');
+                return {
+                    status: NodeExecutionStateEnum.EXITED,
+                    action: 'default',
+                    output: { ...response, ready_to_close: true } // Force ready_to_close for clarity
+                };
+            }
+        }
+
+        // D. Default: Stay in Node (Conversation Loop)
+        return {
+            status: NodeExecutionStateEnum.AWAITING_ASYNC,
+            output: response
+        };
     }
 
     /**
@@ -445,7 +508,7 @@ class AgentNode {
         const paragraphs = text.split(/\n\s*\n/);
 
         const finalChunks = [];
-        const MAX_CHUNK_KEY = 150; // Target max length per bubble
+        const MAX_CHUNK_KEY = strategy?.max_chunk || 150; // Target max length per bubble
 
         for (const paragraph of paragraphs) {
             // If paragraph is short enough, keep it valid

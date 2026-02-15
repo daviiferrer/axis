@@ -5,6 +5,7 @@ import { motion, useScroll, useMotionValueEvent } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
+import { AnimatedLogo } from "@/components/brand/animated-logo";
 
 export function DynamicHeader() {
     return (
@@ -17,25 +18,24 @@ export function DynamicHeader() {
         >
             <div className="w-full max-w-[1400px] mx-auto px-4 md:px-12 flex justify-between items-center">
                 <Link href="/" className="relative z-10 block hover:opacity-80 transition-opacity">
-                    <Image
-                        src="/assets/brand/logo.svg"
-                        alt="AXIS Logo"
-                        width={100}
-                        height={32}
-                        className="w-auto h-6"
-                        priority
-                    />
+                    <AnimatedLogo />
                 </Link>
 
-                <nav className="flex items-center gap-4">
+                <nav className="flex items-center gap-6">
+                    <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
+                        <Link href="#features" className="hover:text-blue-600 transition-colors">Funcionalidades</Link>
+                        <Link href="#pricing" className="hover:text-blue-600 transition-colors">Preços</Link>
+                        <Link href="/auth/login" className="hover:text-blue-600 transition-colors">Login</Link>
+                    </div>
+
                     <Link
-                        href="/auth/login"
+                        href="/auth/register"
                         className={cn(
-                            "rounded-full text-sm font-medium transition-all duration-300 border",
-                            "bg-slate-900 text-white border-slate-900 px-4 py-1.5 shadow-md hover:bg-slate-800"
+                            "rounded-full text-sm font-bold transition-all duration-300 border",
+                            "bg-blue-600 text-white border-blue-600 px-5 py-2 shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:scale-105"
                         )}
                     >
-                        Entrar
+                        Criar Meu Agente
                     </Link>
                 </nav>
             </div>

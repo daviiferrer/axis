@@ -439,6 +439,20 @@ class AgenticNode extends AgentNode {
             const slots = response.qualification_slots || {};
             slotsSatisfied = criticalSlots.every(slot => slots[slot] && slots[slot] !== 'unknown');
             logger.info({ leadId: lead.id, satisfied: slotsSatisfied, missing: criticalSlots.filter(s => !slots[s] || slots[s] === 'unknown') }, '🕵️ Critical Slots Check');
+
+            // CRITICAL FIX: If slots are satisfied, EXIT THE NODE
+            if (slotsSatisfied) {
+                logger.info({ leadId: lead.id }, '✅ All critical slots filled. Auto-completing node.');
+                return {
+                    status: NodeExecutionStateEnum.EXITED,
+                    edge: 'default', // Or 'qualified' if available
+                    output: {
+                        ...response,
+                        ready_to_close: true,
+                        conversation_ended: false // Logic node will decide next step
+                    }
+                };
+            }
         }
 
         // FSM-Compliant Return

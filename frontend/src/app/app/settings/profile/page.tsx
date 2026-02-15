@@ -10,7 +10,7 @@ import { Save, Key, Lock, CheckCircle2, AlertTriangle, Zap, Bot, Box } from "luc
 
 export default function ProfileSettingsPage() {
     return (
-        <div className="max-w-4xl mx-auto p-6 space-y-8 font-sans">
+        <div className="max-w-4xl mx-auto p-6 space-y-8">
             <div className="space-y-2">
                 <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Configurações de Perfil</h1>
                 <p className="text-gray-500">Gerencie suas chaves de API e preferências pessoais.</p>

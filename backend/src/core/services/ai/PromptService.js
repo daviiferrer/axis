@@ -62,7 +62,8 @@ class PromptService {
         const humanLayer = this.#buildHumanInteractionLayer();
 
         // === LAYER 5: OVERRIDE (Bottom - Critical Directives) ===
-        const overrideLayer = this.#buildOverrideLayer(nodeDirective, lead);
+        const criticalSlots = nodeConfig?.data?.criticalSlots || [];
+        const overrideLayer = this.#buildOverrideLayer(nodeDirective, lead, criticalSlots);
 
         // Sandwich Pattern: Security → DNA → Context → Persona Refresh → Objectives → Style → Human → Override
         return [
@@ -630,10 +631,21 @@ ${roleBlueprint}
      * Layer 5: Override - Critical directives that MUST be followed.
      * Placed at the end for LLM recency bias.
      */
-    #buildOverrideLayer(nodeDirective, lead) {
+    #buildOverrideLayer(nodeDirective, lead, criticalSlots = []) {
         const nodeVars = lead?.node_variables || {};
         const microGoals = nodeVars.micro_goals?.join(', ') || '';
         const currentCta = nodeVars.current_cta || '';
+
+        // Build dynamic qualification_slots from criticalSlots config
+        const slotEntries = { lead_name: null }; // Always include lead_name
+        for (const slot of criticalSlots) {
+            if (slot !== 'lead_name') slotEntries[slot] = 'unknown';
+        }
+        // Fallback to BANT if no slots configured
+        if (criticalSlots.length === 0) {
+            Object.assign(slotEntries, { budget: 'unknown', authority: 'unknown', need: 'unknown', timeline: 'unknown' });
+        }
+        const slotsJson = JSON.stringify(slotEntries, null, 16).replace(/\n/g, '\n                ');
 
         return `
 <override type="critical" priority="maximum">
@@ -679,13 +691,7 @@ ${roleBlueprint}
             "crm_actions": [],
             "sentiment_score": 0.5,
             "confidence_score": 0.9,
-            "qualification_slots": {
-                "lead_name": null,
-                "budget": "unknown",
-                "authority": "unknown", 
-                "need": "unknown",
-                "timeline": "unknown"
-            }
+            "qualification_slots": ${slotsJson}
         }
     </response_format>
 </override>`;
@@ -743,10 +749,26 @@ ${roleBlueprint}
             ).length;
             objectivesXml += `
     <success_criteria>
-        <target>Lead avança quando ${successCriteria.min_slots_filled} slots estiverem preenchidos</target>
+        <target>Lead avança quando ${successCriteria.min_slots_filled || 'todos'} slots estiverem preenchidos</target>
         <current_progress>${filledCount}/${criticalSlots.length} slots preenchidos</current_progress>
     </success_criteria>`;
         }
+
+        // SUPERVISOR RULE (The "Closer")
+        // This ensures the AI doesn't loop forever if the goal is met.
+        objectivesXml += `
+    <supervisor_override priority="critical">
+        ATENÇÃO: Você está em um fluxo de trabalho com etapas.
+        SE você já preencheu os slots obrigatórios (${criticalSlots.join(', ') || 'N/A'}) 
+        OU se o lead já concordou com o objetivo principal (${goal}),
+        VOCÊ DEVE FINALIZAR ESTA ETAPA IMEDIATAMENTE.
+        
+        Para finalizar:
+        1. Marque "ready_to_close": true
+        2. Se for agendamento, adicione "crm_actions": [{"action": "schedule_meeting"}]
+        3. Se for venda, adicione "crm_actions": [{"action": "close_sale"}]
+        4. NÃO faça mais perguntas desnecessárias. Avance.
+    </supervisor_override>`;
 
         objectivesXml += `
 </node_objective>`;

@@ -39,7 +39,7 @@ export function DifferentialSection() {
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        className="font-[family-name:var(--font-jetbrains-mono)] text-3xl md:text-5xl font-extrabold tracking-[-0.04em] text-gray-900 mb-6"
+                        className=" text-3xl md:text-5xl font-extrabold tracking-[-0.04em] text-gray-900 mb-6"
                     >
                         Raciocínio Humano.{" "}
                         <span className="text-blue-600 drop-shadow-[0_0_20px_rgba(37,99,235,0.2)]">
@@ -80,7 +80,7 @@ export function DifferentialSection() {
                                         )}>
                                             <feature.icon className="w-7 h-7 stroke-[1.5]" />
                                         </div>
-                                        <CardTitle className="font-[family-name:var(--font-jetbrains-mono)] text-xl font-extrabold text-gray-900 tracking-tight group-hover:text-blue-600 transition-colors duration-300">
+                                        <CardTitle className=" text-xl font-extrabold text-gray-900 tracking-tight group-hover:text-blue-600 transition-colors duration-300">
                                             {feature.title}
                                         </CardTitle>
                                     </CardHeader>
