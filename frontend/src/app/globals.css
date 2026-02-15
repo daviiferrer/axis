@@ -36,6 +36,36 @@
     --radius-md: calc(var(--radius) - 2px);
     --radius-sm: calc(var(--radius) - 4px);
 
+    --animate-border-beam: border-beam calc(var(--duration)*1s) infinite linear;
+    --animate-image-glow: image-glow 4s ease-in-out infinite alternate;
+    --animate-ping-large: ping-large 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+
+    @keyframes border-beam {
+        100% {
+            offset-distance: 100%;
+        }
+    }
+
+    @keyframes image-glow {
+        0% {
+            opacity: 0.4;
+            transform: translateX(-50%) scale(1);
+        }
+
+        100% {
+            opacity: 1;
+            transform: translateX(-50%) scale(1.4);
+        }
+    }
+
+    @keyframes ping-large {
+
+        75%,
+        100% {
+            transform: scale(2);
+            opacity: 0;
+        }
+    }
 }
 
 @layer base {
