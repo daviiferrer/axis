@@ -8,12 +8,25 @@ import { useState } from "react";
 import { AnimatedLogo } from "@/components/brand/animated-logo";
 
 export function DynamicHeader() {
+    const { scrollY } = useScroll();
+    const [isScrolled, setIsScrolled] = useState(false);
+
+    useMotionValueEvent(scrollY, "change", (latest) => {
+        const previous = scrollY.getPrevious() ?? 0;
+        if (latest > 10 && !isScrolled) {
+            setIsScrolled(true);
+        } else if (latest <= 10 && isScrolled) {
+            setIsScrolled(false);
+        }
+    });
+
     return (
         <motion.header
             className={cn(
-                "sticky top-0 z-[1000] w-full border-b",
-                "backdrop-blur-xl supports-[backdrop-filter]:bg-white/60",
-                "bg-white/85 border-white/40 shadow-sm py-3"
+                "sticky top-0 z-[1000] w-full transition-all duration-300 ease-in-out",
+                isScrolled
+                    ? "bg-white/80 backdrop-blur-md border-b border-slate-200/50 shadow-sm py-3"
+                    : "bg-transparent border-b border-transparent shadow-none py-5"
             )}
         >
             <div className="w-full max-w-[1400px] mx-auto px-4 md:px-12 flex justify-between items-center">
