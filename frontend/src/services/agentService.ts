@@ -69,33 +69,32 @@ export interface BusinessContext {
 
 export interface DNAConfig {
     psychometrics: {
-        openness: number;
-        conscientiousness: number;
-        extraversion: number;
-        agreeableness: number;
-        neuroticism: number;
+        openness: number | string;
+        conscientiousness: number | string;
+        extraversion: number | string;
+        agreeableness: number | string;
+        neuroticism: number | string;
     };
     linguistics: {
-        formality: number;
-        emoji_frequency: number;
-        caps_usage: number;
-        intentional_typos: boolean;
+        formality?: number | string;
+        emoji_frequency?: number | string;
+        caps_usage?: number | string;
+        intentional_typos?: boolean;
         max_chars?: number;
-        // Keep legacy union types as optional/alternatives if needed, or simply loose type for now to fix build
         reduction_profile?: string;
         caps_mode?: string;
         correction_style?: string;
         typo_injection?: string;
     };
     chronemics: {
-        base_latency_ms: number;
-        burstiness: number;
+        base_latency_ms?: number;
+        burstiness?: number | string;
         latency_profile?: string;
     };
     pad_baseline: {
-        pleasure: number;
-        arousal: number;
-        dominance: number;
+        pleasure: number | string;
+        arousal: number | string;
+        dominance: number | string;
     };
     qualification?: {
         framework: SalesFramework;
