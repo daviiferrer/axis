@@ -697,413 +697,417 @@ export function ConversationShowcase() {
                         >
 
                             {/* ─── Sidebar (Show on Mobile if "list", always on Desktop) ─── */}
+                            {/* Sliding Container */}
                             <div className={`
-                                flex-col w-full md:w-[300px] lg:w-[340px] shrink-0 border-r border-slate-100 bg-slate-50/50
-                                ${mobileView === "list" ? "flex" : "hidden md:flex"}
+                                flex h-full w-[200%] md:w-full bg-white relative
+                                transition-transform duration-500 ease-in-out
+                                ${mobileView === "chat" ? "-translate-x-1/2" : "translate-x-0"}
+                                md:translate-x-0 md:transform-none
                             `}>
-                                {/* Sidebar Header */}
-                                <div className="p-4 pb-3 border-b border-slate-100">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <h3 className="text-lg font-bold text-slate-900 tracking-tight">Conversas</h3>
-                                        <div className="flex items-center gap-1">
-                                            <span className="relative flex h-2 w-2">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-                                            </span>
-                                            <span className="text-[10px] text-green-600 font-medium">6 ativos</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
-                                        {["Todas", "Prospectando", "Qualificado"].map((tab, i) => (
-                                            <button
-                                                key={tab}
-                                                className={`px-3 py-1 rounded-full text-[10px] font-medium transition-all duration-200 whitespace-nowrap ${i === 0
-                                                    ? "bg-blue-600 text-white shadow-sm"
-                                                    : "bg-white text-slate-500 border border-slate-200"
-                                                    }`}
-                                            >
-                                                {tab}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Chat List */}
-                                <div ref={chatListRef} className="flex-1 overflow-y-auto scrollbar-hide p-2 space-y-1 relative">
-                                    <AnimatePresence mode="popLayout">
-                                        {SCENARIOS.map((chat, idx) => {
-                                            const isActive = idx === activeIdx;
-                                            const unread = unreadCounts[idx] || 0;
-                                            return (
-                                                <motion.button
-                                                    key={chat.id}
-                                                    id={`sidebar-item-${idx}`}
-                                                    layout
-                                                    // onClick={() => setActiveIdx(idx)} // Disabled manual interaction
-                                                    className={`
-                                                    w-full p-2.5 rounded-xl flex gap-3 text-left transition-all duration-300 relative overflow-hidden group pointer-events-none
-                                                        ${isActive
-                                                            ? "bg-white border border-blue-100 shadow-sm"
-                                                            : "bg-transparent border border-transparent"
-                                                        }
-                                                    `}
-                                                    ref={(el) => { itemRefs.current[idx] = el; }}
-                                                >
-                                                    {isActive && (
-                                                        <motion.div
-                                                            layoutId="showcaseActiveIndicator"
-                                                            className="absolute left-0 top-3 bottom-3 w-1 bg-blue-500 rounded-r-full"
-                                                        />
-                                                    )}
-                                                    <Avatar className="size-11 shrink-0 border border-slate-100">
-                                                        <AvatarImage src={chat.avatar} alt={chat.name} className="object-cover" />
-                                                        <AvatarFallback className={chat.color}>
-                                                            {chat.initials}
-                                                        </AvatarFallback>
-                                                    </Avatar>
-                                                    <div className="flex-1 min-w-0 flex flex-col justify-center">
-                                                        {/* Row 1: Name + time */}
-                                                        <div className="flex items-center justify-between mb-0.5">
-                                                            <span className={`text-sm font-bold truncate ${isActive ? "text-slate-900" : "text-slate-700"}`}>
-                                                                {chat.name}
-                                                            </span>
-                                                            <span className="text-[10px] text-slate-400 shrink-0 ml-2">
-                                                                {isActive ? "Agora" : `${idx + 2}min`}
-                                                            </span>
-                                                        </div>
-
-                                                        {/* Row 2: Campaign + Session */}
-                                                        <div className="flex items-center gap-1.5 mb-1">
-                                                            <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md truncate max-w-[110px]">
-                                                                {chat.campaignName}
-                                                            </span>
-                                                        </div>
-
-                                                        {/* Row 3: Funnel + Deal + Temp */}
-                                                        <div className="flex items-center gap-1.5 mb-1">
-                                                            <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${chat.funnelStage.includes("Qualificado") || chat.funnelStage.includes("Agendada") || chat.funnelStage.includes("Checkout") || chat.funnelStage.includes("Confirmado") || chat.funnelStage.includes("Conclu")
-                                                                ? "bg-green-50 text-green-600 border border-green-100"
-                                                                : chat.funnelStage.includes("Abandonado")
-                                                                    ? "bg-amber-50 text-amber-600 border border-amber-100"
-                                                                    : "bg-blue-50 text-blue-600 border border-blue-100"
-                                                                }`}>
-                                                                {chat.funnelStage}
-                                                            </span>
-
-
-
-                                                            {unread > 0 && !isActive && (
-                                                                <motion.span
-                                                                    initial={{ scale: 0 }}
-                                                                    animate={{ scale: 1 }}
-                                                                    className="shrink-0 ml-auto w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] flex items-center justify-center font-bold shadow-sm shadow-blue-500/30"
-                                                                >
-                                                                    {unread}
-                                                                </motion.span>
-                                                            )}
-                                                        </div>
-
-                                                        {/* Row 4: Source + msgs + AI cost */}
-                                                        <div className="flex items-center gap-2 text-[9px] text-slate-400">
-                                                            <span className="flex items-center gap-0.5" title={`Fonte: ${chat.source}`}>
-                                                                {(() => {
-                                                                    switch (chat.source) {
-                                                                        case "facebook": return <><Megaphone className="size-2.5 text-blue-500" /><span className="text-blue-500">Meta</span></>;
-                                                                        case "google": return <><Search className="size-2.5 text-red-400" /><span className="text-red-400">Google</span></>;
-                                                                        case "apify": return <><Globe className="size-2.5 text-purple-500" /><span className="text-purple-500">Apify</span></>;
-                                                                        default: return <><MessageSquare className="size-2.5 text-slate-400" /><span>Direto</span></>;
-                                                                    }
-                                                                })()}
-                                                            </span>
-                                                            <span className="text-slate-300">·</span>
-                                                            <span className="flex items-center gap-0.5">
-                                                                <MessageCircle className="size-2.5" />
-                                                                {chat.interactionCount}
-                                                            </span>
-                                                            <span className="text-slate-300">·</span>
-                                                            <span className="flex items-center gap-0.5">
-                                                                <BrainCircuit className="size-2.5" />
-                                                                {chat.aiCost}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </motion.button>
-                                            );
-                                        })}
-                                    </AnimatePresence>
-
-                                    {/* Fake Cursor */}
-                                    <motion.div
-                                        className="absolute left-0 top-0 pointer-events-none z-50 text-slate-900 drop-shadow-xl"
-                                        animate={{
-                                            y: cursorPos.y,
-                                            x: cursorPos.x,
-                                            scale: isClicking ? 0.85 : 1
-                                        }}
-                                        initial={{ x: cursorPos.x, y: cursorPos.y }}
-                                        transition={{
-                                            y: { type: "spring", stiffness: 80, damping: 18, mass: 0.8 },
-                                            x: { type: "spring", stiffness: 80, damping: 18, mass: 0.8 },
-                                            scale: { duration: 0.1 }
-                                        }}
-                                    >
-                                        <MousePointer2 className="size-5 fill-slate-900 text-slate-50 relative z-50" />
-                                        {isClicking && (
-                                            <span className="absolute -top-2 -left-2 size-8 bg-slate-400/20 rounded-full animate-ping" />
-                                        )}
-                                    </motion.div>
-                                </div>
-                            </div>
-
-                            {/* ─── Chat Area (Show on Mobile if "chat", always on Desktop) ─── */}
-                            <div className={`
-                                flex-1 min-w-0 flex-col bg-white relative
-                                ${mobileView === "chat" ? "flex" : "hidden md:flex"}
-                            `}>
-                                {/* Chat Header */}
-                                <div className="h-14 sm:h-16 w-full shrink-0 px-4 sm:px-6 flex items-center justify-between border-b border-slate-100 bg-white/80 backdrop-blur-sm z-50 sticky top-0">
-                                    <div className="flex items-center gap-3">
-                                        {/* Back Button (Mobile Only) */}
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="md:hidden -ml-2 text-slate-500"
-                                            onClick={() => setMobileView("list")}
-                                        >
-                                            <ChevronLeft className="size-6" />
-                                        </Button>
-
-                                        <Avatar className="size-8 sm:size-9 ring-2 ring-white shadow-sm">
-                                            <AvatarImage src={scenario.avatar} alt={scenario.name} className="object-cover" />
-                                            <AvatarFallback className={scenario.color}>
-                                                {scenario.initials}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <div className="flex flex-col min-w-0">
-                                            <AnimatePresence mode="wait">
-                                                <motion.h3
-                                                    key={scenario.name}
-                                                    initial={{ opacity: 0, y: 4 }}
-                                                    animate={{ opacity: 1, y: 0 }}
-                                                    exit={{ opacity: 0, y: -4 }}
-                                                    className="font-semibold text-sm text-slate-900 leading-tight truncate"
-                                                >
-                                                    {scenario.name}
-                                                </motion.h3>
-                                            </AnimatePresence>
-                                            <div className="flex items-center gap-1.5">
-                                                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                                                <span className="text-[10px] sm:text-xs text-green-600 font-medium">Online</span>
-                                                <span className="text-[10px] text-slate-300 mx-0.5">•</span>
-                                                <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 font-medium">
-                                                    <Sparkles className="size-2.5 text-violet-500" />
-                                                    IA Ativa
+                                {/* ─── Sidebar (Left Half on Mobile) ─── */}
+                                <div className="flex flex-col w-1/2 md:w-[300px] lg:w-[340px] shrink-0 border-r border-slate-100 bg-slate-50/50">
+                                    {/* Sidebar Header */}
+                                    <div className="p-4 pb-3 border-b border-slate-100">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h3 className="text-lg font-bold text-slate-900 tracking-tight">Conversas</h3>
+                                            <div className="flex items-center gap-1">
+                                                <span className="relative flex h-2 w-2">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
                                                 </span>
+                                                <span className="text-[10px] text-green-600 font-medium">6 ativos</span>
                                             </div>
                                         </div>
+                                        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+                                            {["Todas", "Prospectando", "Qualificado"].map((tab, i) => (
+                                                <button
+                                                    key={tab}
+                                                    className={`px-3 py-1 rounded-full text-[10px] font-medium transition-all duration-200 whitespace-nowrap ${i === 0
+                                                        ? "bg-blue-600 text-white shadow-sm"
+                                                        : "bg-white text-slate-500 border border-slate-200"
+                                                        }`}
+                                                >
+                                                    {tab}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-900 hidden sm:flex">
-                                        <MoreVertical className="size-5" />
-                                    </Button>
-                                </div>
 
-                                {/* Messages */}
-                                <div
-                                    ref={scrollRef}
-                                    className="flex-1 overflow-y-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-36 flex flex-col gap-3 sm:gap-4 scrollbar-hide"
-                                    style={{
-                                        maskImage: "linear-gradient(to bottom, transparent 0%, black 5%, black 100%)",
-                                        WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 5%, black 100%)",
-                                    }}
-                                >
-                                    <AnimatePresence initial={false}>
-                                        {messages.map((msg) => (
-                                            msg.isEvent ? (
-                                                /* ── Event Pill (centered) ── */
-                                                <motion.div
-                                                    key={msg.id}
-                                                    initial={{ opacity: 0, scale: 0.9 }}
-                                                    animate={{ opacity: 1, scale: 1 }}
-                                                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                                                    className="w-full flex justify-center"
-                                                >
-                                                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-medium ${msg.eventColor || "bg-slate-50 border-slate-200 text-slate-600"}`}>
-                                                        {msg.eventIcon && <span className="shrink-0 [&>svg]:size-3">{msg.eventIcon}</span>}
-                                                        {msg.body}
-                                                    </div>
-                                                </motion.div>
-                                            ) : (
-                                                /* ── Normal Chat Bubble ── */
-                                                <motion.div
-                                                    key={msg.id}
-                                                    initial={{ opacity: 0, y: 16, scale: 0.96 }}
-                                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                                    transition={{ type: "spring" as const, stiffness: 300, damping: 25 }}
-                                                    className={`w-full flex items-end gap-2 ${msg.fromMe ? "justify-end" : "justify-start"}`}
-                                                >
-                                                    {!msg.fromMe && (
-                                                        <Avatar className="size-6 shrink-0 mb-1">
-                                                            <AvatarImage src={scenario.avatar} alt={scenario.name} className="object-cover" />
-                                                            <AvatarFallback className={`${scenario.color} text-[8px] font-bold`}>
-                                                                {scenario.initials}
+                                    {/* Chat List */}
+                                    <div ref={chatListRef} className="flex-1 overflow-y-auto scrollbar-hide p-2 space-y-1 relative">
+                                        <AnimatePresence mode="popLayout">
+                                            {SCENARIOS.map((chat, idx) => {
+                                                const isActive = idx === activeIdx;
+                                                const unread = unreadCounts[idx] || 0;
+                                                return (
+                                                    <motion.button
+                                                        key={chat.id}
+                                                        id={`sidebar-item-${idx}`}
+                                                        layout
+                                                        // onClick={() => setActiveIdx(idx)} // Disabled manual interaction
+                                                        className={`
+                                                    w-full p-2.5 rounded-xl flex gap-3 text-left transition-all duration-300 relative overflow-hidden group pointer-events-none
+                                                        ${isActive
+                                                                ? "bg-white border border-blue-100 shadow-sm"
+                                                                : "bg-transparent border border-transparent"
+                                                            }
+                                                    `}
+                                                        ref={(el) => { itemRefs.current[idx] = el; }}
+                                                    >
+                                                        {isActive && (
+                                                            <motion.div
+                                                                layoutId="showcaseActiveIndicator"
+                                                                className="absolute left-0 top-3 bottom-3 w-1 bg-blue-500 rounded-r-full"
+                                                            />
+                                                        )}
+                                                        <Avatar className="size-11 shrink-0 border border-slate-100">
+                                                            <AvatarImage src={chat.avatar} alt={chat.name} className="object-cover" />
+                                                            <AvatarFallback className={chat.color}>
+                                                                {chat.initials}
                                                             </AvatarFallback>
                                                         </Avatar>
-                                                    )}
-                                                    <div className={`flex flex-col ${msg.fromMe ? "items-end" : "items-start"} max-w-[85%] sm:max-w-[70%]`}>
-                                                        {msg.fromMe && (
-                                                            <span className="text-[10px] text-slate-400 mb-1 px-1 flex items-center gap-1">
-                                                                <Sparkles className="size-2.5 text-violet-500" />
-                                                                ÁXIS IA
-                                                            </span>
-                                                        )}
-                                                        <div
-                                                            className={`p-3 rounded-2xl text-left ${msg.fromMe
-                                                                ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-tr-sm shadow-lg shadow-blue-600/10"
-                                                                : "bg-slate-100 rounded-tl-sm text-slate-800"
-                                                                }`}
-                                                        >
-                                                            {msg.image && (
-                                                                <img src={msg.image} alt="" className="rounded-lg mb-1.5 max-w-full max-h-40 object-cover" />
-                                                            )}
-                                                            {msg.body && (
-                                                                <p className="text-[13px] sm:text-sm font-normal leading-relaxed whitespace-pre-wrap break-words">
-                                                                    {msg.body}
-                                                                </p>
-                                                            )}
-                                                            <div className="flex items-center justify-between gap-2 mt-1">
-                                                                {/* Sentiment Badge for User Messages */}
-                                                                {!msg.fromMe && (msg as any).sentiment && (
-                                                                    <span className="text-[10px] bg-white/50 px-1.5 py-0.5 rounded-full flex items-center gap-1 text-slate-500 font-medium" title="Análise de Sentimento">
-                                                                        {(() => {
-                                                                            switch ((msg as any).sentiment) {
-                                                                                case "positive": return "😊 Positivo";
-                                                                                case "negative": return "😠 Negativo";
-                                                                                case "urgency": return "🚨 Urgente";
-                                                                                case "curiosity": return "🤔 Curioso";
-                                                                                case "neutral": return "😐 Neutro";
-                                                                                default: return "";
-                                                                            }
-                                                                        })()}
-                                                                    </span>
+                                                        <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                                            {/* Row 1: Name + time */}
+                                                            <div className="flex items-center justify-between mb-0.5">
+                                                                <span className={`text-sm font-bold truncate ${isActive ? "text-slate-900" : "text-slate-700"}`}>
+                                                                    {chat.name}
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-400 shrink-0 ml-2">
+                                                                    {isActive ? "Agora" : `${idx + 2}min`}
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Row 2: Campaign + Session */}
+                                                            <div className="flex items-center gap-1.5 mb-1">
+                                                                <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md truncate max-w-[110px]">
+                                                                    {chat.campaignName}
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Row 3: Funnel + Deal + Temp */}
+                                                            <div className="flex items-center gap-1.5 mb-1">
+                                                                <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${chat.funnelStage.includes("Qualificado") || chat.funnelStage.includes("Agendada") || chat.funnelStage.includes("Checkout") || chat.funnelStage.includes("Confirmado") || chat.funnelStage.includes("Conclu")
+                                                                    ? "bg-green-50 text-green-600 border border-green-100"
+                                                                    : chat.funnelStage.includes("Abandonado")
+                                                                        ? "bg-amber-50 text-amber-600 border border-amber-100"
+                                                                        : "bg-blue-50 text-blue-600 border border-blue-100"
+                                                                    }`}>
+                                                                    {chat.funnelStage}
+                                                                </span>
+
+
+
+                                                                {unread > 0 && !isActive && (
+                                                                    <motion.span
+                                                                        initial={{ scale: 0 }}
+                                                                        animate={{ scale: 1 }}
+                                                                        className="shrink-0 ml-auto w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] flex items-center justify-center font-bold shadow-sm shadow-blue-500/30"
+                                                                    >
+                                                                        {unread}
+                                                                    </motion.span>
                                                                 )}
-                                                                <div className="flex items-center gap-1 opacity-60 ml-auto">
-                                                                    <span className={`text-[10px] ${msg.fromMe ? "text-blue-200" : "text-slate-400"}`}>
-                                                                        {new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                                                    </span>
-                                                                    {msg.fromMe && (
-                                                                        <CheckCheck className="size-3 text-blue-200" />
+                                                            </div>
+
+                                                            {/* Row 4: Source + msgs + AI cost */}
+                                                            <div className="flex items-center gap-2 text-[9px] text-slate-400">
+                                                                <span className="flex items-center gap-0.5" title={`Fonte: ${chat.source}`}>
+                                                                    {(() => {
+                                                                        switch (chat.source) {
+                                                                            case "facebook": return <><Megaphone className="size-2.5 text-blue-500" /><span className="text-blue-500">Meta</span></>;
+                                                                            case "google": return <><Search className="size-2.5 text-red-400" /><span className="text-red-400">Google</span></>;
+                                                                            case "apify": return <><Globe className="size-2.5 text-purple-500" /><span className="text-purple-500">Apify</span></>;
+                                                                            default: return <><MessageSquare className="size-2.5 text-slate-400" /><span>Direto</span></>;
+                                                                        }
+                                                                    })()}
+                                                                </span>
+                                                                <span className="text-slate-300">·</span>
+                                                                <span className="flex items-center gap-0.5">
+                                                                    <MessageCircle className="size-2.5" />
+                                                                    {chat.interactionCount}
+                                                                </span>
+                                                                <span className="text-slate-300">·</span>
+                                                                <span className="flex items-center gap-0.5">
+                                                                    <BrainCircuit className="size-2.5" />
+                                                                    {chat.aiCost}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </motion.button>
+                                                );
+                                            })}
+                                        </AnimatePresence>
+
+                                        {/* Fake Cursor */}
+                                        <motion.div
+                                            className="absolute left-0 top-0 pointer-events-none z-50 text-slate-900 drop-shadow-xl"
+                                            animate={{
+                                                y: cursorPos.y,
+                                                x: cursorPos.x,
+                                                scale: isClicking ? 0.85 : 1
+                                            }}
+                                            initial={{ x: cursorPos.x, y: cursorPos.y }}
+                                            transition={{
+                                                y: { type: "spring", stiffness: 80, damping: 18, mass: 0.8 },
+                                                x: { type: "spring", stiffness: 80, damping: 18, mass: 0.8 },
+                                                scale: { duration: 0.1 }
+                                            }}
+                                        >
+                                            <MousePointer2 className="size-5 fill-slate-900 text-slate-50 relative z-50" />
+                                            {isClicking && (
+                                                <span className="absolute -top-2 -left-2 size-8 bg-slate-400/20 rounded-full animate-ping" />
+                                            )}
+                                        </motion.div>
+                                    </div>
+                                </div>
+
+                                {/* ─── Chat Area (Show on Mobile if "chat", always on Desktop) ─── */}
+                                {/* ─── Chat Area (Right Half on Mobile) ─── */}
+                                <div className="flex flex-col w-1/2 md:flex-1 min-w-0 bg-white relative">
+                                    {/* Chat Header */}
+                                    <div className="h-14 sm:h-16 w-full shrink-0 px-4 sm:px-6 flex items-center justify-between border-b border-slate-100 bg-white/80 backdrop-blur-sm z-50 sticky top-0">
+                                        <div className="flex items-center gap-3">
+                                            {/* Back Button (Mobile Only) */}
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="md:hidden -ml-2 text-slate-500"
+                                                onClick={() => setMobileView("list")}
+                                            >
+                                                <ChevronLeft className="size-6" />
+                                            </Button>
+
+                                            <Avatar className="size-8 sm:size-9 ring-2 ring-white shadow-sm">
+                                                <AvatarImage src={scenario.avatar} alt={scenario.name} className="object-cover" />
+                                                <AvatarFallback className={scenario.color}>
+                                                    {scenario.initials}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex flex-col min-w-0">
+                                                <AnimatePresence mode="wait">
+                                                    <motion.h3
+                                                        key={scenario.name}
+                                                        initial={{ opacity: 0, y: 4 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        exit={{ opacity: 0, y: -4 }}
+                                                        className="font-semibold text-sm text-slate-900 leading-tight truncate"
+                                                    >
+                                                        {scenario.name}
+                                                    </motion.h3>
+                                                </AnimatePresence>
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                                                    <span className="text-[10px] sm:text-xs text-green-600 font-medium">Online</span>
+                                                    <span className="text-[10px] text-slate-300 mx-0.5">•</span>
+                                                    <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 font-medium">
+                                                        <Sparkles className="size-2.5 text-violet-500" />
+                                                        IA Ativa
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-900 hidden sm:flex">
+                                            <MoreVertical className="size-5" />
+                                        </Button>
+                                    </div>
+
+                                    {/* Messages */}
+                                    <div
+                                        ref={scrollRef}
+                                        className="flex-1 overflow-y-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-36 flex flex-col gap-3 sm:gap-4 scrollbar-hide"
+                                        style={{
+                                            maskImage: "linear-gradient(to bottom, transparent 0%, black 5%, black 100%)",
+                                            WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 5%, black 100%)",
+                                        }}
+                                    >
+                                        <AnimatePresence initial={false}>
+                                            {messages.map((msg) => (
+                                                msg.isEvent ? (
+                                                    /* ── Event Pill (centered) ── */
+                                                    <motion.div
+                                                        key={msg.id}
+                                                        initial={{ opacity: 0, scale: 0.9 }}
+                                                        animate={{ opacity: 1, scale: 1 }}
+                                                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                                        className="w-full flex justify-center"
+                                                    >
+                                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-medium ${msg.eventColor || "bg-slate-50 border-slate-200 text-slate-600"}`}>
+                                                            {msg.eventIcon && <span className="shrink-0 [&>svg]:size-3">{msg.eventIcon}</span>}
+                                                            {msg.body}
+                                                        </div>
+                                                    </motion.div>
+                                                ) : (
+                                                    /* ── Normal Chat Bubble ── */
+                                                    <motion.div
+                                                        key={msg.id}
+                                                        initial={{ opacity: 0, y: 16, scale: 0.96 }}
+                                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                        transition={{ type: "spring" as const, stiffness: 300, damping: 25 }}
+                                                        className={`w-full flex items-end gap-2 ${msg.fromMe ? "justify-end" : "justify-start"}`}
+                                                    >
+                                                        {!msg.fromMe && (
+                                                            <Avatar className="size-6 shrink-0 mb-1">
+                                                                <AvatarImage src={scenario.avatar} alt={scenario.name} className="object-cover" />
+                                                                <AvatarFallback className={`${scenario.color} text-[8px] font-bold`}>
+                                                                    {scenario.initials}
+                                                                </AvatarFallback>
+                                                            </Avatar>
+                                                        )}
+                                                        <div className={`flex flex-col ${msg.fromMe ? "items-end" : "items-start"} max-w-[85%] sm:max-w-[70%]`}>
+                                                            {msg.fromMe && (
+                                                                <span className="text-[10px] text-slate-400 mb-1 px-1 flex items-center gap-1">
+                                                                    <Sparkles className="size-2.5 text-violet-500" />
+                                                                    ÁXIS IA
+                                                                </span>
+                                                            )}
+                                                            <div
+                                                                className={`p-3 rounded-2xl text-left ${msg.fromMe
+                                                                    ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-tr-sm shadow-lg shadow-blue-600/10"
+                                                                    : "bg-slate-100 rounded-tl-sm text-slate-800"
+                                                                    }`}
+                                                            >
+                                                                {msg.image && (
+                                                                    <img src={msg.image} alt="" className="rounded-lg mb-1.5 max-w-full max-h-40 object-cover" />
+                                                                )}
+                                                                {msg.body && (
+                                                                    <p className="text-[13px] sm:text-sm font-normal leading-relaxed whitespace-pre-wrap break-words">
+                                                                        {msg.body}
+                                                                    </p>
+                                                                )}
+                                                                <div className="flex items-center justify-between gap-2 mt-1">
+                                                                    {/* Sentiment Badge for User Messages */}
+                                                                    {!msg.fromMe && (msg as any).sentiment && (
+                                                                        <span className="text-[10px] bg-white/50 px-1.5 py-0.5 rounded-full flex items-center gap-1 text-slate-500 font-medium" title="Análise de Sentimento">
+                                                                            {(() => {
+                                                                                switch ((msg as any).sentiment) {
+                                                                                    case "positive": return "😊 Positivo";
+                                                                                    case "negative": return "😠 Negativo";
+                                                                                    case "urgency": return "🚨 Urgente";
+                                                                                    case "curiosity": return "🤔 Curioso";
+                                                                                    case "neutral": return "😐 Neutro";
+                                                                                    default: return "";
+                                                                                }
+                                                                            })()}
+                                                                        </span>
                                                                     )}
+                                                                    <div className="flex items-center gap-1 opacity-60 ml-auto">
+                                                                        <span className={`text-[10px] ${msg.fromMe ? "text-blue-200" : "text-slate-400"}`}>
+                                                                            {new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                                                        </span>
+                                                                        {msg.fromMe && (
+                                                                            <CheckCheck className="size-3 text-blue-200" />
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                        {msg.fromMe && (
+                                                            <Avatar className="size-6 shrink-0 mb-1">
+                                                                <AvatarFallback className="bg-blue-600 text-white text-[8px] font-bold">ÁX</AvatarFallback>
+                                                            </Avatar>
+                                                        )}
+                                                    </motion.div>
+                                                )
+                                            ))}
+                                        </AnimatePresence>
+
+                                        {/* Thinking Animation */}
+                                        <AnimatePresence>
+                                            {thinkingSteps.length > 0 && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: 12 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: -8 }}
+                                                    className="w-full flex items-end gap-2 justify-end"
+                                                >
+                                                    <div className="space-y-1">
+                                                        {thinkingSteps.map((step, idx) => (
+                                                            <motion.div
+                                                                key={`think-${idx}`}
+                                                                initial={{ opacity: 0, x: 10 }}
+                                                                animate={{
+                                                                    opacity: idx <= currentThinkStep ? 1 : 0.4,
+                                                                    x: 0,
+                                                                    scale: 1
+                                                                }}
+                                                                transition={{ duration: 0.3 }}
+                                                                className={`flex items-center gap-2 text-[11px] sm:text-xs font-medium ${idx <= currentThinkStep
+                                                                    ? "text-violet-600"
+                                                                    : "text-slate-300"
+                                                                    }`}
+                                                            >
+                                                                <span className={idx <= currentThinkStep ? "text-violet-500" : "opacity-50"}>
+                                                                    {step.icon}
+                                                                </span>
+                                                                {step.text}
+                                                            </motion.div>
+                                                        ))}
                                                     </div>
-                                                    {msg.fromMe && (
-                                                        <Avatar className="size-6 shrink-0 mb-1">
-                                                            <AvatarFallback className="bg-blue-600 text-white text-[8px] font-bold">ÁX</AvatarFallback>
-                                                        </Avatar>
-                                                    )}
+                                                    <Avatar className="size-6 shrink-0 mb-1 opacity-80">
+                                                        <AvatarFallback className="bg-violet-100 text-violet-600 text-[8px] font-bold">🧠</AvatarFallback>
+                                                    </Avatar>
                                                 </motion.div>
-                                            )
-                                        ))}
-                                    </AnimatePresence>
+                                            )}
+                                        </AnimatePresence>
 
-                                    {/* Thinking Animation */}
-                                    <AnimatePresence>
-                                        {thinkingSteps.length > 0 && (
-                                            <motion.div
-                                                initial={{ opacity: 0, y: 12 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -8 }}
-                                                className="w-full flex items-end gap-2 justify-end"
-                                            >
-                                                <div className="space-y-1">
-                                                    {thinkingSteps.map((step, idx) => (
-                                                        <motion.div
-                                                            key={`think-${idx}`}
-                                                            initial={{ opacity: 0, x: 10 }}
-                                                            animate={{
-                                                                opacity: idx <= currentThinkStep ? 1 : 0.4,
-                                                                x: 0,
-                                                                scale: 1
-                                                            }}
-                                                            transition={{ duration: 0.3 }}
-                                                            className={`flex items-center gap-2 text-[11px] sm:text-xs font-medium ${idx <= currentThinkStep
-                                                                ? "text-violet-600"
-                                                                : "text-slate-300"
-                                                                }`}
-                                                        >
-                                                            <span className={idx <= currentThinkStep ? "text-violet-500" : "opacity-50"}>
-                                                                {step.icon}
-                                                            </span>
-                                                            {step.text}
-                                                        </motion.div>
-                                                    ))}
-                                                </div>
-                                                <Avatar className="size-6 shrink-0 mb-1 opacity-80">
-                                                    <AvatarFallback className="bg-violet-100 text-violet-600 text-[8px] font-bold">🧠</AvatarFallback>
-                                                </Avatar>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-
-                                    {/* User Typing Indicator (Left Side, Minimalist) */}
-                                    <AnimatePresence>
-                                        {isUserTyping && (
-                                            <motion.div
-                                                initial={{ opacity: 0, x: -10 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                exit={{ opacity: 0, x: -10 }}
-                                                className="w-full flex items-center justify-start gap-2 pl-1"
-                                            >
-                                                <Avatar className="size-6 shrink-0 opacity-60">
-                                                    <AvatarImage src={scenario.avatar} className="object-cover grayscale" />
-                                                    <AvatarFallback className="bg-slate-100 text-[8px] text-slate-400">
-                                                        {scenario.initials}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                <div className="flex items-center gap-1">
-                                                    <motion.span
-                                                        animate={{ y: [0, -3, 0] }}
-                                                        transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut", delay: 0 }}
-                                                        className="w-1.5 h-1.5 bg-slate-300 rounded-full"
-                                                    />
-                                                    <motion.span
-                                                        animate={{ y: [0, -3, 0] }}
-                                                        transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut", delay: 0.1 }}
-                                                        className="w-1.5 h-1.5 bg-slate-300 rounded-full"
-                                                    />
-                                                    <motion.span
-                                                        animate={{ y: [0, -3, 0] }}
-                                                        transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
-                                                        className="w-1.5 h-1.5 bg-slate-300 rounded-full"
-                                                    />
-                                                </div>
-                                            </motion.div>
-                                        )}
-                                        <div ref={messagesEndRef} />
-                                    </AnimatePresence>
+                                        {/* User Typing Indicator (Left Side, Minimalist) */}
+                                        <AnimatePresence>
+                                            {isUserTyping && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, x: -10 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    exit={{ opacity: 0, x: -10 }}
+                                                    className="w-full flex items-center justify-start gap-2 pl-1"
+                                                >
+                                                    <Avatar className="size-6 shrink-0 opacity-60">
+                                                        <AvatarImage src={scenario.avatar} className="object-cover grayscale" />
+                                                        <AvatarFallback className="bg-slate-100 text-[8px] text-slate-400">
+                                                            {scenario.initials}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="flex items-center gap-1">
+                                                        <motion.span
+                                                            animate={{ y: [0, -3, 0] }}
+                                                            transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut", delay: 0 }}
+                                                            className="w-1.5 h-1.5 bg-slate-300 rounded-full"
+                                                        />
+                                                        <motion.span
+                                                            animate={{ y: [0, -3, 0] }}
+                                                            transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut", delay: 0.1 }}
+                                                            className="w-1.5 h-1.5 bg-slate-300 rounded-full"
+                                                        />
+                                                        <motion.span
+                                                            animate={{ y: [0, -3, 0] }}
+                                                            transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
+                                                            className="w-1.5 h-1.5 bg-slate-300 rounded-full"
+                                                        />
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                            <div ref={messagesEndRef} />
+                                        </AnimatePresence>
 
 
-                                </div>
+                                    </div>
 
-                                {/* Input Area (Visual) */}
-                                <div className="absolute bottom-0 w-full p-3 sm:p-4 bg-gradient-to-t from-white via-white/95 to-transparent z-20 pointer-events-none">
-                                    <div className="max-w-3xl mx-auto relative flex items-center gap-2">
-                                        <div className="flex-1 bg-white border border-slate-200 rounded-full h-11 sm:h-12 px-2 flex items-center gap-1 shadow-lg shadow-black/5 backdrop-blur-sm">
-                                            <Button variant="ghost" className="p-2 hover:bg-slate-100 rounded-full shrink-0 text-slate-400" type="button">
-                                                <Paperclip className="size-4 sm:size-5" />
-                                            </Button>
-                                            <span className="flex-1 text-xs sm:text-sm text-slate-400 px-2">Digite sua mensagem...</span>
-                                            <Button variant="ghost" className="p-2 rounded-full shrink-0 text-slate-400 hover:bg-slate-100" type="button">
-                                                <Mic className="size-4 sm:size-5" />
-                                            </Button>
+                                    {/* Input Area (Visual) */}
+                                    <div className="absolute bottom-0 w-full p-3 sm:p-4 bg-gradient-to-t from-white via-white/95 to-transparent z-20 pointer-events-none">
+                                        <div className="max-w-3xl mx-auto relative flex items-center gap-2">
+                                            <div className="flex-1 bg-white border border-slate-200 rounded-full h-11 sm:h-12 px-2 flex items-center gap-1 shadow-lg shadow-black/5 backdrop-blur-sm">
+                                                <Button variant="ghost" className="p-2 hover:bg-slate-100 rounded-full shrink-0 text-slate-400" type="button">
+                                                    <Paperclip className="size-4 sm:size-5" />
+                                                </Button>
+                                                <span className="flex-1 text-xs sm:text-sm text-slate-400 px-2">Digite sua mensagem...</span>
+                                                <Button variant="ghost" className="p-2 rounded-full shrink-0 text-slate-400 hover:bg-slate-100" type="button">
+                                                    <Mic className="size-4 sm:size-5" />
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* Bottom Fade Overlays - Inside Container for proper masking */}
-                            <div className="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none z-50"></div>
+                                {/* Bottom Fade Overlays - Inside Container for proper masking */}
+                                <div className="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none z-50"></div>
+                            </div>
                         </div>
                     </div>
                 </ScrollReveal>
