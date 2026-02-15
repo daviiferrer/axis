@@ -1,15 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { HeroAppMock } from "../hero/hero-app-mock";
 import { FogBackground } from "@/components/ui/fog";
 
 export function Hero() {
     return (
-        <section className="relative w-full min-h-screen pt-16 pb-20 overflow-hidden bg-white flex flex-col items-center">
+        <section className="relative w-full min-h-[85vh] pt-16 pb-20 overflow-hidden bg-white flex flex-col items-center justify-center">
             {/* Fog Effect - Living atmosphere behind H1 */}
             <FogBackground
                 color="#3b82f6"
@@ -60,7 +59,7 @@ export function Hero() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.3 }}
-                    className="flex flex-col sm:flex-row gap-4 justify-center items-center w-full mb-16"
+                    className="flex flex-col sm:flex-row gap-4 justify-center items-center w-full"
                 >
                     <Button
                         asChild
@@ -81,18 +80,6 @@ export function Hero() {
                     >
                         <Link href="#demo">Ver Demonstração</Link>
                     </Button>
-                </motion.div>
-
-                {/* The App Mock Visual */}
-                <motion.div
-                    initial={{ opacity: 0, y: 40 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, delay: 0.4 }}
-                    className="w-full relative"
-                >
-                    <div style={{ maskImage: 'linear-gradient(to bottom, black 40%, transparent 85%)', WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent 85%)' }}>
-                        <HeroAppMock />
-                    </div>
                 </motion.div>
 
             </div>
