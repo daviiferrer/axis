@@ -861,7 +861,7 @@ export function ConversationShowcase() {
                                 ${mobileView === "chat" ? "flex" : "hidden md:flex"}
                             `}>
                                 {/* Chat Header */}
-                                <div className="h-14 sm:h-16 w-full shrink-0 px-4 sm:px-6 flex items-center justify-between border-b border-slate-100 bg-white/80 backdrop-blur-sm z-10">
+                                <div className="h-14 sm:h-16 w-full shrink-0 px-4 sm:px-6 flex items-center justify-between border-b border-slate-100 bg-white/80 backdrop-blur-sm z-50 sticky top-0">
                                     <div className="flex items-center gap-3">
                                         {/* Back Button (Mobile Only) */}
                                         <Button
