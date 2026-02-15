@@ -870,7 +870,14 @@ export function ConversationShowcase() {
                                     {/* Chat Header */}
                                     <div className="h-14 sm:h-16 w-full shrink-0 px-4 sm:px-6 flex items-center justify-between border-b border-slate-100 bg-white/80 backdrop-blur-sm z-50 sticky top-0">
                                         <div className="flex items-center gap-3">
-                                            {/* Back Button Removed - Automated Navigation Only */}
+                                            {/* Back Button (Visual Only - Non-interactive) */}
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="md:hidden -ml-2 text-slate-500 pointer-events-none"
+                                            >
+                                                <ChevronLeft className="size-6" />
+                                            </Button>
 
                                             <Avatar className="size-8 sm:size-9 ring-2 ring-white shadow-sm">
                                                 <AvatarImage src={scenario.avatar} alt={scenario.name} className="object-cover" />
