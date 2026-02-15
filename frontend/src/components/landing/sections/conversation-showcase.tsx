@@ -463,8 +463,11 @@ export function ConversationShowcase() {
 
     // Auto-scroll on new messages
     useEffect(() => {
-        if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+        if (scrollRef.current) {
+            scrollRef.current.scrollTo({
+                top: scrollRef.current.scrollHeight,
+                behavior: "smooth"
+            });
         }
     }, [messages, thinkingSteps, isUserTyping]);
 
