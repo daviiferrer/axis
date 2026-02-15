@@ -5,7 +5,7 @@ import {
     Play, Check, CheckCheck, Send, MoreVertical, Phone, Video, Image as ImageIcon, Sparkles, Mic, Paperclip, Smile,
     BrainCircuit, X, MessageCircle, Laptop, Scale, GraduationCap, MapPin, Home, Calendar, FileText, Clock,
     ShoppingBag, Tag, Truck, AlertTriangle, User, Target, Webhook, Key, Search, UserCheck, Stethoscope, Code, MousePointer2,
-    Globe, Smartphone, Megaphone, Thermometer, MessageSquare, Bot, UserCog
+    Globe, Smartphone, Megaphone, Thermometer, MessageSquare, Bot, UserCog, ChevronLeft
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -437,6 +437,9 @@ export function ConversationShowcase() {
     const [isClicking, setIsClicking] = useState(false);
     const [cursorPos, setCursorPos] = useState({ x: 150, y: 40 });
 
+    // Mobile View State: 'list' (Sidebar) or 'chat' (Showcase)
+    const [mobileView, setMobileView] = useState<"list" | "chat">("chat");
+
     // Recalculate cursor position when cursorIdx changes
     useEffect(() => {
         const item = itemRefs.current[cursorIdx];
@@ -449,6 +452,7 @@ export function ConversationShowcase() {
     }, [cursorIdx]);
 
     const scrollRef = useRef<HTMLDivElement>(null);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
     const sectionRef = useRef<HTMLDivElement>(null);
     const chatListRef = useRef<HTMLDivElement>(null);
     const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -459,8 +463,8 @@ export function ConversationShowcase() {
 
     // Auto-scroll on new messages
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+        if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
         }
     }, [messages, thinkingSteps, isUserTyping]);
 
@@ -620,16 +624,20 @@ export function ConversationShowcase() {
         // Auto-advance to next scenario with cursor animation
         const nextIdx = (activeIdx + 1) % SCENARIOS.length;
 
-        // 1. Move cursor to next item
+        // 1. Go back to list view (Mobile)
+        schedule(() => setMobileView("list"), elapsed + 1000);
+
+        // 2. Move cursor to next item
         schedule(() => setCursorIdx(nextIdx), elapsed + 2000); // Wait a bit after chat finishes
 
-        // 2. Click animation (down)
+        // 3. Click animation (down)
         schedule(() => setIsClicking(true), elapsed + 2800); // 800ms travel time
 
-        // 3. Change chat (on click release/finish) & Reset click
+        // 4. Change chat (on click release/finish) & Reset click
         schedule(() => {
             setIsClicking(false);
             setActiveIdx(nextIdx);
+            setMobileView("chat"); // Enter chat view
         }, elapsed + 3000); // 200ms click hold
 
         return () => {
@@ -672,32 +680,7 @@ export function ConversationShowcase() {
                 </ScrollReveal>
             </div>
 
-            {/* ─── Niche Tabs (Mobile: horizontal scroll, Desktop: inside sidebar) ─── */}
-            <div className="md:hidden max-w-6xl mx-auto px-4 mb-4 relative z-10">
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory">
-                    {SCENARIOS.map((s, idx) => (
-                        <button
-                            key={s.id}
-                            onClick={() => setActiveIdx(idx)}
-                            className={`
-                                snap-start flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-300 shrink-0
-                                ${idx === activeIdx
-                                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
-                                    : "bg-white text-slate-500 border border-slate-200 hover:border-slate-300"
-                                }
-                            `}
-                        >
-                            {s.icon}
-                            {s.label}
-                            {unreadCounts[idx] && idx !== activeIdx ? (
-                                <span className="ml-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center font-bold animate-pulse">
-                                    {unreadCounts[idx]}
-                                </span>
-                            ) : null}
-                        </button>
-                    ))}
-                </div>
-            </div>
+
 
             {/* ─── Chat Container ─── */}
             <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
@@ -705,16 +688,13 @@ export function ConversationShowcase() {
                     <div className="relative pt-10 pb-10 md:py-20 px-2 bg-transparent w-full">
                         <div className="absolute top-[10%] left-1/2 -translate-x-1/2 w-3/4 h-1/3 blur-[5rem] animate-image-glow"></div>
 
-                        <div className="relative w-full rounded-2xl md:rounded-3xl overflow-hidden border border-slate-200/60 bg-white shadow-2xl shadow-slate-200/50 flex flex-col md:flex-row"
-                            style={{
-                                height: "700px",
-                                WebkitMaskImage: "linear-gradient(to bottom, black 40%, transparent 100%)",
-                                maskImage: "linear-gradient(to bottom, black 40%, transparent 100%)"
-                            }}
-                        >
+                        <div className="relative w-full rounded-2xl md:rounded-3xl overflow-hidden border border-slate-200/60 bg-white shadow-2xl shadow-slate-200/50 flex flex-col md:flex-row h-[600px] sm:h-[700px]">
 
-                            {/* ─── Sidebar (Desktop only) ─── */}
-                            <div className="hidden md:flex flex-col w-[300px] lg:w-[340px] shrink-0 border-r border-slate-100 bg-slate-50/50">
+                            {/* ─── Sidebar (Show on Mobile if "list", always on Desktop) ─── */}
+                            <div className={`
+                                flex-col w-full md:w-[300px] lg:w-[340px] shrink-0 border-r border-slate-100 bg-slate-50/50
+                                ${mobileView === "list" ? "flex" : "hidden md:flex"}
+                            `}>
                                 {/* Sidebar Header */}
                                 <div className="p-4 pb-3 border-b border-slate-100">
                                     <div className="flex items-center justify-between mb-3">
@@ -743,7 +723,7 @@ export function ConversationShowcase() {
                                 </div>
 
                                 {/* Chat List */}
-                                <div ref={chatListRef} className="flex-1 overflow-hidden p-2 space-y-1 relative">
+                                <div ref={chatListRef} className="flex-1 overflow-y-auto scrollbar-hide p-2 space-y-1 relative">
                                     <AnimatePresence mode="popLayout">
                                         {SCENARIOS.map((chat, idx) => {
                                             const isActive = idx === activeIdx;
@@ -869,11 +849,24 @@ export function ConversationShowcase() {
                                 </div>
                             </div>
 
-                            {/* ─── Chat Area ─── */}
-                            <div className="flex-1 min-w-0 flex flex-col bg-white relative">
+                            {/* ─── Chat Area (Show on Mobile if "chat", always on Desktop) ─── */}
+                            <div className={`
+                                flex-1 min-w-0 flex-col bg-white relative
+                                ${mobileView === "chat" ? "flex" : "hidden md:flex"}
+                            `}>
                                 {/* Chat Header */}
                                 <div className="h-14 sm:h-16 w-full shrink-0 px-4 sm:px-6 flex items-center justify-between border-b border-slate-100 bg-white/80 backdrop-blur-sm z-10">
                                     <div className="flex items-center gap-3">
+                                        {/* Back Button (Mobile Only) */}
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="md:hidden -ml-2 text-slate-500"
+                                            onClick={() => setMobileView("list")}
+                                        >
+                                            <ChevronLeft className="size-6" />
+                                        </Button>
+
                                         <Avatar className="size-8 sm:size-9 ring-2 ring-white shadow-sm">
                                             <AvatarImage src={scenario.avatar} alt={scenario.name} className="object-cover" />
                                             <AvatarFallback className={scenario.color}>
@@ -911,10 +904,10 @@ export function ConversationShowcase() {
                                 {/* Messages */}
                                 <div
                                     ref={scrollRef}
-                                    className="flex-1 overflow-y-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-20 flex flex-col gap-3 sm:gap-4 scrollbar-hide"
+                                    className="flex-1 overflow-y-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-36 flex flex-col gap-3 sm:gap-4 scrollbar-hide"
                                     style={{
-                                        maskImage: "linear-gradient(to bottom, transparent 0%, black 3%, black 90%, transparent 100%)",
-                                        WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 3%, black 90%, transparent 100%)",
+                                        maskImage: "linear-gradient(to bottom, transparent 0%, black 5%, black 100%)",
+                                        WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 5%, black 100%)",
                                     }}
                                 >
                                     <AnimatePresence initial={false}>
@@ -1081,6 +1074,7 @@ export function ConversationShowcase() {
                                                 </div>
                                             </motion.div>
                                         )}
+                                        <div ref={messagesEndRef} />
                                     </AnimatePresence>
 
 
@@ -1102,8 +1096,7 @@ export function ConversationShowcase() {
                                 </div>
                             </div>
 
-                            {/* Bottom Fade Overlays - Inside Container for proper masking */}
-                            <div className="absolute bottom-0 inset-x-0 h-32 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none z-50"></div>
+
                         </div>
                     </div>
                 </ScrollReveal>
