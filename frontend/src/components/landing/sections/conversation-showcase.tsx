@@ -32,6 +32,7 @@ interface ScenarioStep {
     thinkingSteps?: string[];
     delay?: number;
     duration?: number;
+    sentiment?: "positive" | "neutral" | "negative" | "urgency" | "curiosity";
 }
 
 interface ChatScenario {
@@ -68,15 +69,25 @@ const SCENARIOS: ChatScenario[] = [
         steps: [
             { type: "thinking", thinkingSteps: ["⚡ Analisando intenção do lead...", "🏠 Imóvel: Apt Jardins 120m²", "✅ Verificando disponibilidade no CRM"], duration: 2500 },
             { type: "typing", duration: 900 },
-            { type: "ai", text: "Olá Ana! 😊 Sim, está disponível! É um apartamento de 120m² com 3 suítes e varanda gourmet. Você busca para moradia ou investimento?" },
-            { type: "user", text: "Moradia mesmo. Preciso de 3 quartos pelo menos", delay: 2200 },
+            { type: "ai", text: "Olá Ana! 😊" },
+            { type: "typing", duration: 500 },
+            { type: "ai", text: "Sim, está disponível! É um apartamento de 120m² com 3 suítes e varanda gourmet." },
+            { type: "typing", duration: 600 },
+            { type: "ai", text: "Você busca para moradia ou investimento?" },
+            { type: "user", text: "Moradia mesmo. Preciso de 3 quartos pelo menos", delay: 2200, sentiment: "neutral" },
             { type: "thinking", thinkingSteps: ["🎯 Lead qualificado: moradia, 3 quartos", "📋 Match: Unidade 804 (3 suítes)", "📅 Verificando agenda de visitas..."], duration: 2000 },
             { type: "typing", duration: 800 },
-            { type: "ai", text: "Perfeito! A unidade 804 tem exatamente 3 suítes com closet. Posso agendar uma visita para amanhã às 14h?" },
-            { type: "user", text: "Pode ser! Mas qual o valor?", delay: 1800 },
+            { type: "ai", text: "Perfeito! A unidade 804 tem exatamente 3 suítes com closet." },
+            { type: "typing", duration: 600 },
+            { type: "ai", text: "Posso agendar uma visita para amanhã às 14h?" },
+            { type: "user", text: "Pode ser! Mas qual o valor?", delay: 1800, sentiment: "curiosity" },
             { type: "thinking", thinkingSteps: ["💰 Consultando tabela de preços...", "📊 Condição especial: Lançamento (-8%)"], duration: 1500 },
             { type: "typing", duration: 700 },
-            { type: "ai", text: "A tabela está em R$ 1.2M, mas como é lançamento temos condição especial de -8%. Vou enviar a apresentação completa! 📎 Visita confirmada pra amanhã 14h! ✅" },
+            { type: "ai", text: "A tabela está em R$ 1.2M, mas como é lançamento temos condição especial de -8%." },
+            { type: "typing", duration: 800 },
+            { type: "ai", text: "Vou enviar a apresentação completa! 📎" },
+            { type: "typing", duration: 500 },
+            { type: "ai", text: "Visita confirmada pra amanhã 14h! ✅" },
         ],
     },
     {
@@ -94,11 +105,17 @@ const SCENARIOS: ChatScenario[] = [
         steps: [
             { type: "thinking", thinkingSteps: ["🏥 Classificando: Cardiologia", "⚠️ Urgência detectada", "📅 Verificando agenda Dr. Marcos..."], duration: 2200 },
             { type: "typing", duration: 1000 },
-            { type: "ai", text: "Olá Dr. Roberto! Entendo a urgência. O Dr. Marcos tem uma vaga amanhã às 8h (encaixe). Posso confirmar?" },
-            { type: "user", text: "Perfeito, confirma. Preciso levar algum exame?", delay: 1800 },
+            { type: "ai", text: "Olá Dr. Roberto! Entendo a urgência." },
+            { type: "typing", duration: 600 },
+            { type: "ai", text: "O Dr. Marcos tem uma vaga amanhã às 8h (encaixe). Posso confirmar?" },
+            { type: "user", text: "Perfeito, confirma. Preciso levar algum exame?", delay: 1800, sentiment: "positive" },
             { type: "thinking", thinkingSteps: ["📋 Consultando protocolo pré-consulta...", "🔬 Exames recomendados: ECG + Hemograma"], duration: 1800 },
             { type: "typing", duration: 800 },
-            { type: "ai", text: "Confirmado! ✅ Se puder, traga ECG e hemograma recentes. Caso não tenha, fazemos na hora. Enviei localização e preparo por aqui 📍" },
+            { type: "ai", text: "Confirmado! ✅" },
+            { type: "typing", duration: 500 },
+            { type: "ai", text: "Se puder, traga ECG e hemograma recentes. Caso não tenha, fazemos na hora." },
+            { type: "typing", duration: 700 },
+            { type: "ai", text: "Enviei localização e preparo por aqui 📍" },
             { type: "user", text: "Obrigado! E o convênio Unimed cobre?", delay: 2000 },
             { type: "typing", duration: 600 },
             { type: "ai", text: "Sim! Aceitamos Unimed, Bradesco Saúde e SulAmérica. Só trazer a carteirinha atualizada. Até amanhã! 🩺" },
@@ -119,15 +136,23 @@ const SCENARIOS: ChatScenario[] = [
         steps: [
             { type: "thinking", thinkingSteps: ["📸 Origem: Instagram Ads", "👗 Produto: Vestido Vermelho SKU-2847", "📦 Consultando estoque em tempo real..."], duration: 1800 },
             { type: "typing", duration: 700 },
-            { type: "ai", text: "Oi Carla! 😍 Achei! Tenho o último M em estoque. Quer que eu separe pra você?" },
-            { type: "user", text: "Simm! Posso passar aí hoje às 17h?", delay: 1500 },
-            { type: "thinking", thinkingSteps: ["✅ Reserva confirmada", "💳 Gerando link PIX com desconto..."], duration: 1200 },
+            { type: "ai", text: "Oi Carla! Tem sim! 😎" },
+            { type: "typing", duration: 500 },
+            { type: "ai", text: "A Sapatilha Comfort (Preta/37) está com 20% OFF hoje. De R$ 129 por R$ 103,20." },
             { type: "typing", duration: 600 },
-            { type: "ai", text: "Separado! 🎉 Gerado link de pagamento via PIX com 5% de desconto. Esperamos você às 17h! 💜" },
-            { type: "user", text: "Que maravilha! Vocês têm bolsa que combina?", delay: 2000 },
+            { type: "ai", text: "Quer reservar?" },
+            { type: "user", text: "Nossa, quero sim! Vocês entregam hoje ainda?", delay: 1800, sentiment: "positive" },
+            { type: "thinking", thinkingSteps: ["🚚 Calculando frete: Centro", "🕒 Previsão: Hoje até 18h", "💳 Gerando link de pagamento..."], duration: 1600 },
+            { type: "typing", duration: 600 },
+            { type: "ai", text: "Separado! 🎉" },
+            { type: "typing", duration: 500 },
+            { type: "ai", text: "Gerado link de pagamento via PIX com 5% de desconto. Esperamos você às 17h! 💜" },
+            { type: "user", text: "Que maravilha! Vocês têm bolsa que combina?", delay: 2000, sentiment: "positive" },
             { type: "thinking", thinkingSteps: ["🛍️ Cross-sell: Acessórios compatíveis", "🎯 Recomendação: Bolsa Clutch Vermelha"], duration: 1500 },
             { type: "typing", duration: 700 },
-            { type: "ai", text: "Temos a bolsa clutch vermelha que é a cara desse vestido! R$89,90. Quer que eu adicione no pedido com frete grátis? 🔥" },
+            { type: "ai", text: "Temos a bolsa clutch vermelha que é a cara desse vestido! R$89,90." },
+            { type: "typing", duration: 600 },
+            { type: "ai", text: "Quer que eu adicione no pedido com frete grátis? 🔥" },
         ],
     },
     {
@@ -145,14 +170,20 @@ const SCENARIOS: ChatScenario[] = [
         steps: [
             { type: "thinking", thinkingSteps: ["⚖️ Classificando: Direito Trabalhista", "⚠️ Urgência detectada", "📅 Verificando agenda especialistas..."], duration: 2200 },
             { type: "typing", duration: 1200 },
-            { type: "ai", text: "Bom dia Fernanda! Para agilizar, pode me contar brevemente o que aconteceu? Assim já direciono para o especialista certo." },
-            { type: "user", text: "Fui demitida sem justa causa e não recebi as verbas rescisórias", delay: 2500 },
+            { type: "ai", text: "Bom dia Fernanda! 👋" },
+            { type: "typing", duration: 800 },
+            { type: "ai", text: "Para agilizar, pode me contar brevemente o que aconteceu? Assim já direciono para o especialista certo." },
+            { type: "user", text: "Fui demitida sem justa causa e não recebi as verbas rescisórias", delay: 2500, sentiment: "negative" },
             { type: "thinking", thinkingSteps: ["📋 Caso: Rescisão + Verbas", "👨‍⚖️ Especialista: Dra. Patrícia (Trabalhista)", "📅 Horário disponível: Quinta 15h"], duration: 2000 },
             { type: "typing", duration: 900 },
-            { type: "ai", text: "Entendo a situação, Fernanda. A Dra. Patrícia, especialista em Trabalhista, tem horário quinta às 15h. Primeira consulta é cortesia. Confirmo?" },
-            { type: "user", text: "Confirma! Preciso levar algum documento?", delay: 1800 },
+            { type: "ai", text: "Entendo a situação, Fernanda." },
+            { type: "typing", duration: 600 },
+            { type: "ai", text: "A Dra. Patrícia, especialista em Trabalhista, tem horário quinta às 15h. Primeira consulta é cortesia. Confirmo?" },
+            { type: "user", text: "Confirma! Preciso levar algum documento?", delay: 1800, sentiment: "neutral" },
             { type: "typing", duration: 700 },
-            { type: "ai", text: "Ótimo! ✅ Traga: CTPS, últimos 3 holerites, e o termo de rescisão (se recebeu). Enviei a localização do escritório 📍" },
+            { type: "ai", text: "Ótimo! ✅" },
+            { type: "typing", duration: 500 },
+            { type: "ai", text: "Traga: CTPS, últimos 3 holerites, e o termo de rescisão (se recebeu). Enviei a localização do escritório 📍" },
         ],
     },
     {
@@ -170,14 +201,20 @@ const SCENARIOS: ChatScenario[] = [
         steps: [
             { type: "thinking", thinkingSteps: ["🎓 Lead: Curso de Programação", "💡 Perfil: Iniciante (sem menção a XP)", "📊 Preparando oferta personalizada..."], duration: 1800 },
             { type: "typing", duration: 900 },
-            { type: "ai", text: "Oi Lucas! 🚀 Nosso curso de programação tem 3 trilhas. Você tem alguma experiência prévia ou está começando do zero?" },
-            { type: "user", text: "Começando do zero! Quero mudar de carreira", delay: 2000 },
+            { type: "ai", text: "Oi Lucas! 🚀" },
+            { type: "typing", duration: 600 },
+            { type: "ai", text: "Nosso curso de programação tem 3 trilhas. Você tem alguma experiência prévia ou está começando do zero?" },
+            { type: "user", text: "Começando do zero! Quero mudar de carreira", delay: 2000, sentiment: "curiosity" },
             { type: "thinking", thinkingSteps: ["🎯 Trilha recomendada: Full-Stack Jr", "💰 Plano: 12x R$297 (bolsa 40%)", "📹 Preparando aula experimental..."], duration: 1500 },
             { type: "typing", duration: 800 },
-            { type: "ai", text: "Perfeito! Recomendo a trilha Full-Stack Jr (6 meses). Está com bolsa de 40%: de R$497 por R$297/mês. Quer assistir uma aula grátis?" },
-            { type: "user", text: "Quero sim! E tem certificado?", delay: 1800 },
+            { type: "ai", text: "Perfeito! Recomendo a trilha Full-Stack Jr (6 meses)." },
             { type: "typing", duration: 600 },
-            { type: "ai", text: "Tem certificado reconhecido pelo MEC! 🎓 Enviei o link da aula experimental no seu e-mail. Começa em 5 min! 🔥" },
+            { type: "ai", text: "Está com bolsa de 40%: de R$497 por R$297/mês. Quer assistir uma aula grátis?" },
+            { type: "user", text: "Quero sim! E tem certificado?", delay: 1800, sentiment: "positive" },
+            { type: "typing", duration: 600 },
+            { type: "ai", text: "Tem certificado reconhecido pelo MEC! 🎓" },
+            { type: "typing", duration: 500 },
+            { type: "ai", text: "Enviei o link da aula experimental no seu e-mail. Começa em 5 min! 🔥" },
         ],
     },
     {
@@ -195,14 +232,20 @@ const SCENARIOS: ChatScenario[] = [
         steps: [
             { type: "thinking", thinkingSteps: ["💻 Perfil: Técnico / Desenvolvedor", "🔗 Interesse: API + Integração", "📖 Preparando documentação..."], duration: 2000 },
             { type: "typing", duration: 1000 },
-            { type: "ai", text: "Oi Pedro! Sim, temos API REST completa com webhooks. Qual stack vocês usam? Assim envio o SDK certo." },
-            { type: "user", text: "Node.js com TypeScript. Preciso de webhook pra cada msg recebida", delay: 2200 },
+            { type: "ai", text: "Oi Pedro! Sim, temos API REST completa com webhooks." },
+            { type: "typing", duration: 700 },
+            { type: "ai", text: "Qual stack vocês usam? Assim envio o SDK certo." },
+            { type: "user", text: "Node.js com TypeScript. Preciso de webhook pra cada msg recebida", delay: 2200, sentiment: "neutral" },
             { type: "thinking", thinkingSteps: ["📦 SDK: @axis/node-sdk v3.2", "🔗 Webhooks: message.received event", "📋 Gerando API Key de teste..."], duration: 1800 },
             { type: "typing", duration: 700 },
-            { type: "ai", text: "Perfeito! Enviei o link do SDK Node.js + TypeScript. O webhook `message.received` dispara em tempo real. Criei uma API Key de teste pra você 🔑" },
-            { type: "user", text: "Top! E pra enviar msgs pro cliente via API?", delay: 1800 },
+            { type: "ai", text: "Perfeito! Enviei o link do SDK Node.js + TypeScript." },
             { type: "typing", duration: 600 },
-            { type: "ai", text: "POST /api/v1/messages com body { to, text }. Rate limit: 80 msg/s. Documentação completa: docs.axis.ai 📖 Quer uma call de onboarding técnico?" },
+            { type: "ai", text: "O webhook `message.received` dispara em tempo real. Criei uma API Key de teste pra você 🔑" },
+            { type: "user", text: "Top! E pra enviar msgs pro cliente via API?", delay: 1800, sentiment: "curiosity" },
+            { type: "typing", duration: 600 },
+            { type: "ai", text: "POST /api/v1/messages com body { to, text }. Rate limit: 80 msg/s." },
+            { type: "typing", duration: 700 },
+            { type: "ai", text: "Documentação completa: docs.axis.ai 📖 Quer uma call de onboarding técnico?" },
         ],
     },
 ];
@@ -635,13 +678,30 @@ export function ConversationShowcase() {
                                                     <p className="text-[13px] sm:text-sm font-normal leading-relaxed whitespace-pre-wrap break-words">
                                                         {msg.body}
                                                     </p>
-                                                    <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
-                                                        <span className={`text-[10px] ${msg.fromMe ? "text-blue-200" : "text-slate-400"}`}>
-                                                            {new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                                        </span>
-                                                        {msg.fromMe && (
-                                                            <CheckCheck className="size-3 text-blue-200" />
+                                                    <div className="flex items-center justify-between gap-2 mt-1">
+                                                        {/* Sentiment Badge for User Messages */}
+                                                        {!msg.fromMe && (msg as any).sentiment && (
+                                                            <span className="text-[10px] bg-white/50 px-1.5 py-0.5 rounded-full flex items-center gap-1 text-slate-500 font-medium" title="Análise de Sentimento">
+                                                                {(() => {
+                                                                    switch ((msg as any).sentiment) {
+                                                                        case "positive": return "😊 Positivo";
+                                                                        case "negative": return "😠 Negativo";
+                                                                        case "urgency": return "🚨 Urgente";
+                                                                        case "curiosity": return "🤔 Curioso";
+                                                                        case "neutral": return "😐 Neutro";
+                                                                        default: return "";
+                                                                    }
+                                                                })()}
+                                                            </span>
                                                         )}
+                                                        <div className="flex items-center gap-1 opacity-60 ml-auto">
+                                                            <span className={`text-[10px] ${msg.fromMe ? "text-blue-200" : "text-slate-400"}`}>
+                                                                {new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                                            </span>
+                                                            {msg.fromMe && (
+                                                                <CheckCheck className="size-3 text-blue-200" />
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
