@@ -97,7 +97,7 @@ export function NodePalette() {
             initial={false}
             animate={{
                 width: isCollapsed ? 72 : 280,
-                transition: { type: "spring", stiffness: 300, damping: 30 }
+                transition: { type: "spring" as const, stiffness: 300, damping: 30 }
             }}
             className="h-full z-40 flex flex-col bg-white/80 backdrop-blur-xl border-r border-gray-200/60 shadow-2xl shadow-gray-200/20 relative"
         >
@@ -169,7 +169,7 @@ export function NodePalette() {
                                             key={item.type}
                                             layoutId={item.type}
                                             draggable
-                                            onDragStart={(e) => onDragStart(e, item.type, item.label)}
+                                            onDragStart={(e: any) => onDragStart(e, item.type, item.label)}
                                             whileHover={{ scale: 1.02, y: -1, boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}
                                             whileTap={{ scale: 0.98, cursor: "grabbing" }}
                                             className={`

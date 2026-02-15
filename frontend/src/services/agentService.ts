@@ -104,6 +104,11 @@ export interface DNAConfig {
         prohibited_topics: string[];
         handoff_on_frustration: boolean;
     };
+    guardrails?: {
+        forbidden_topics: string[];
+        handoff_enabled: boolean;
+        max_turns_before_handoff: number;
+    };
     identity?: {
         role: IdentityRole;
     };
