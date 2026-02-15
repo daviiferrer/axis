@@ -38,17 +38,16 @@ export function DynamicHeader() {
                     <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
                         <Link href="#features" className="hover:text-blue-600 transition-colors">Funcionalidades</Link>
                         <Link href="#pricing" className="hover:text-blue-600 transition-colors">Preços</Link>
-                        <Link href="/auth/login" className="hover:text-blue-600 transition-colors">Login</Link>
                     </div>
 
                     <Link
-                        href="/auth/register"
+                        href="/auth/login"
                         className={cn(
                             "rounded-full text-sm font-bold transition-all duration-300 border",
                             "bg-blue-600 text-white border-blue-600 px-5 py-2 shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:scale-105"
                         )}
                     >
-                        Criar Meu Agente
+                        Login
                     </Link>
                 </nav>
             </div>
