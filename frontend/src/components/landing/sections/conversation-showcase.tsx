@@ -916,7 +916,7 @@ export function ConversationShowcase() {
                                     {/* Messages */}
                                     <div
                                         ref={scrollRef}
-                                        className="flex-1 overflow-y-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-36 flex flex-col gap-3 sm:gap-4 scrollbar-hide"
+                                        className="flex-1 overflow-y-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-36 flex flex-col gap-3 sm:gap-4 scrollbar-hide pointer-events-none"
                                         style={{
                                             maskImage: "linear-gradient(to bottom, transparent 0%, black 5%, black 100%)",
                                             WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 5%, black 100%)",
