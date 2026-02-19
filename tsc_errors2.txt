@@ -1,0 +1,3 @@
+﻿.next/types/validator.ts(80,39): error TS2307: Cannot find module '../../src/app/app/agents/[id]/page.js' or its corresponding type declarations.
+.next/types/validator.ts(89,39): error TS2307: Cannot find module '../../src/app/app/agents/page.js' or its corresponding type declarations.
+.next/types/validator.ts(170,39): error TS2307: Cannot find module '../../src/app/app/settings/profile/page.js' or its corresponding type declarations.

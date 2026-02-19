@@ -1,3 +1,5 @@
+const logger = require('../../shared/Logger').createModuleLogger('scrape-worker');
+
 module.exports = (scraperOrchestrator) => async (job) => {
     const { url, leadId, campaignId, userId } = job.data;
 

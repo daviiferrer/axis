@@ -299,9 +299,11 @@ class FacebookAdsController {
                 phone: cleanPhone,
                 status: 'new',
                 source: 'facebook_ads',
-                ad_source_id: leadgen_id,
-                ad_headline: mappedData.platform || 'fb', // or form name
-                ad_body: `Form: ${form_id}`,
+                ad_attribution: {
+                    source_id: leadgen_id,
+                    headline: mappedData.platform || 'fb',
+                    body: `Form: ${form_id}`
+                },
                 custom_fields: { ...mappedData, form_id, page_id: pageId },
                 created_at: new Date(created_time * 1000).toISOString()
             });

@@ -1,6 +1,7 @@
 /**
  * LeadService - Core Service for Lead Management
  */
+const logger = require('../../../shared/Logger').createModuleLogger('lead-service');
 class LeadService {
     constructor({ supabaseClient }) {
         this.supabase = supabaseClient;
@@ -81,24 +82,38 @@ class LeadService {
     }
 
     /**
-     * Calculates and updates the lead's score based on qualification slots.
+     * Calculates and updates the lead's score based on DYNAMIC qualification slots.
+     * Score = (filledSlots / totalConfiguredSlots) * 90 + sentiment bonus (up to ±10).
+     * Works with any user-defined criticalSlots (e.g., "nome", "email", "empresa").
+     *
+     * @param {string} leadId
+     * @param {Object} filledSlots - The current merged qualification slots { nome: "João", email: "j@x.com" }
+     * @param {string[]} configuredSlots - The criticalSlots from nodeConfig.data (e.g., ["nome", "email", "empresa"])
+     * @param {number} sentimentScore - AI sentiment (0-1)
      */
-    async updateLeadScore(leadId, customFields, sentimentScore = 0.5) {
-        let score = 0;
+    async updateLeadScore(leadId, filledSlots = {}, configuredSlots = [], sentimentScore = 0.5) {
+        if (!configuredSlots || configuredSlots.length === 0) return null; // No slots configured, skip
 
-        if (customFields.budget && customFields.budget !== 'unknown') score += 20;
-        if (customFields.authority && customFields.authority !== 'unknown') score += 30;
-        if (customFields.need && customFields.need !== 'unknown') score += 25;
-        if (customFields.timeline && customFields.timeline !== 'unknown') score += 15;
+        // Count how many configured slots are filled (non-null, non-'unknown')
+        const filled = configuredSlots.filter(slot => {
+            const val = filledSlots[slot];
+            return val && val !== 'unknown' && val !== null;
+        });
 
-        // Sentiment bonus
+        // Base score: percentage of slots filled (0-90 range)
+        let score = Math.round((filled.length / configuredSlots.length) * 90);
+
+        // Sentiment bonus/penalty (±10)
         if (sentimentScore > 0.8) score += 10;
-        if (sentimentScore < 0.3) score -= 20;
+        else if (sentimentScore < 0.3) score = Math.max(0, score - 10);
+
+        // Clamp 0-100
+        score = Math.max(0, Math.min(100, score));
 
         const { data, error } = await this.supabase
             .from('leads')
             .update({
-                score: score,
+                score,
                 updated_at: new Date().toISOString()
             })
             .eq('id', leadId)
@@ -106,7 +121,9 @@ class LeadService {
             .single();
 
         if (error) {
-            console.error(`[LeadService] Failed to update score for lead ${leadId}:`, error);
+            logger.error({ leadId, score, filled: filled.length, total: configuredSlots.length, err: error }, 'Failed to update lead score');
+        } else {
+            logger.debug({ leadId, score, filled: filled.length, total: configuredSlots.length }, '📊 Lead score updated');
         }
         return data;
     }
@@ -136,6 +153,111 @@ class LeadService {
 
         if (error) throw error;
         return { count: data.length };
+    }
+
+    /**
+     * Get real-time stats of where leads are in the flow.
+     * Returns { nodeId: count }
+     */
+    async getFlowStats(campaignId, scopedClient = null) {
+        const client = scopedClient || this.supabase;
+
+        // 1. Active Leads Stats (Leads currently in a node, no error)
+        const { data: activeData, error: activeError } = await client
+            .from('leads')
+            .select('current_node_id')
+            .eq('campaign_id', campaignId)
+            .in('status', ['new', 'contacted', 'negotiating', 'pending', 'prospecting'])
+            .not('current_node_id', 'is', null)
+            // Filter out errors (node_state->error is NOT true)
+            .or('node_state.is.null,node_state->>error.neq.true');
+
+        if (activeError) {
+            logger.error({ err: activeError }, 'getFlowStats (Active) Error');
+            return { active: {}, error: {} };
+        }
+
+        // 2. Error Leads Stats (Leads stuck in error state)
+        const { data: errorData, error: errStats } = await client
+            .from('leads')
+            .select('current_node_id')
+            .eq('campaign_id', campaignId)
+            // We care about errors regardless of status, but typically they are active
+            .not('current_node_id', 'is', null)
+            .eq('node_state->>error', 'true');
+
+        if (errStats) {
+            logger.error({ err: errStats }, 'getFlowStats (Error) Error');
+        }
+
+        // Helper to aggregate counts
+        const aggregate = (list) => {
+            const stats = {};
+            (list || []).forEach(lead => {
+                if (lead.current_node_id) {
+                    stats[lead.current_node_id] = (stats[lead.current_node_id] || 0) + 1;
+                }
+            });
+            return stats;
+        };
+
+        return {
+            active: aggregate(activeData),
+            error: aggregate(errorData)
+        };
+    }
+
+    /**
+ * Updates lead status based on AI Intent.
+ * Maps intents to Kanban columns with hierarchy protection.
+ * Progression: new → contacted → negotiating → qualified → converted | lost
+ */
+    async updateLeadStatusFromIntent(leadId, intent) {
+        if (!intent) return;
+
+        // Status hierarchy (higher number = further in pipeline, never go backwards)
+        const STATUS_HIERARCHY = {
+            'new': 0,
+            'contacted': 1,
+            'negotiating': 2,
+            'qualified': 3,
+            'converted': 4,
+            'lost': 99, // Special: always allowed (explicit rejection)
+        };
+
+        let newStatus = null;
+        const normalizedIntent = intent.toUpperCase();
+
+        // MAPPING: Intent → Status
+        // Tier 1: Strong interest → negotiating
+        if (['PRICING_QUERY', 'INTERESTED', 'VERY_INTERESTED', 'WANTS_DEMO', 'WANTS_CALLBACK'].includes(normalizedIntent)) {
+            newStatus = 'negotiating';
+        }
+        // Tier 2: Ready to buy → qualified
+        else if (['READY_TO_BUY'].includes(normalizedIntent)) {
+            newStatus = 'qualified';
+        }
+        // Tier 3: Negative → lost
+        else if (['NOT_INTERESTED', 'SPAM_DETECTION', 'COMPLAINT'].includes(normalizedIntent)) {
+            newStatus = 'lost';
+        }
+        // Tier 4: Any other intent (neutral/greeting/question) → contacted
+        else if (['GREETING', 'QUESTION', 'GENERAL_INQUIRY', 'UNKNOWN', 'CONFIRMATION_NO', 'CONFIRMATION_YES', 'OBJECTION'].includes(normalizedIntent)) {
+            newStatus = 'contacted';
+        }
+
+        if (!newStatus) return;
+
+        const currentLead = await this.getLead(leadId);
+        if (!currentLead) return;
+
+        const currentRank = STATUS_HIERARCHY[currentLead.status] ?? 0;
+        const newRank = STATUS_HIERARCHY[newStatus] ?? 0;
+
+        // Only allow forward progression (or lost which is always allowed)
+        if (newStatus === 'lost' || newRank > currentRank) {
+            await this.updateLeadStatus(leadId, newStatus);
+        }
     }
 }
 

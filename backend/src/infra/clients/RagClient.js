@@ -2,6 +2,8 @@
  * RagClient - Infrastructure Client for Vector Search and RAG
  * Translates similarity search requests to database RPC calls.
  */
+const logger = require('../../shared/Logger').createModuleLogger('rag-client');
+
 class RagClient {
     constructor(supabaseClient) {
         this.supabase = supabaseClient;
@@ -21,7 +23,7 @@ class RagClient {
         });
 
         if (error) {
-            console.error("[RagClient] Vector Search Error:", error);
+            logger.error({ err: error }, 'Vector Search Error');
             throw error;
         }
 
@@ -39,7 +41,7 @@ class RagClient {
         }).select();
 
         if (error) {
-            console.error("[RagClient] Insert Document Error:", error);
+            logger.error({ err: error }, 'Insert Document Error');
             throw error;
         }
         return data;

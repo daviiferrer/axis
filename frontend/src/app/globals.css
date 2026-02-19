@@ -242,13 +242,13 @@
     box-shadow: 0 0 0 2px #6366f1;
 }
 
-/* Handle Hover States */
+/* Handle — no hover effects */
 .react-flow__handle {
-    transition: transform 0.2s ease, background-color 0.2s ease;
+    transition: none;
 }
 
 .react-flow__handle:hover {
-    transform: scale(1.25);
+    transform: none;
 }
 
 /* MiniMap Styling */

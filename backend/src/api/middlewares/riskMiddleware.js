@@ -6,6 +6,8 @@
  * 
  * Assumes authMiddleware has already run.
  */
+const logger = require('../../shared/Logger').createModuleLogger('risk-middleware');
+
 const riskMiddleware = async (req, res, next) => {
     try {
         const user = req.user;
@@ -15,7 +17,7 @@ const riskMiddleware = async (req, res, next) => {
 
         // 1. Identify Company
         // BYPASS: Risk Check disabled due to 'companies' table removal.
-        console.warn('[RiskMiddlware] Bypassing Risk Check (Global Override)');
+        logger.warn('Bypassing Risk Check (Global Override)');
         return next();
 
         /*
@@ -29,7 +31,7 @@ const riskMiddleware = async (req, res, next) => {
             if (user.profile?.role === 'admin') return next();
 
             // return res.status(403).json({ error: 'Risk Check Failed: No Company Context' });
-            console.warn('[RiskMiddlware] Bypassing Risk Check (No Company ID)');
+            logger.warn('Bypassing Risk Check (No Company ID)');
             return next();
         }
         */
@@ -45,7 +47,7 @@ const riskMiddleware = async (req, res, next) => {
             .single();
 
         if (error || !org) {
-            console.warn(`[Risk] Could not fetch company ${companyId}: ${error?.message}`);
+            logger.warn({ companyId, err: error?.message }, 'Could not fetch company for risk check');
             // Fail safe: if we can't check, we block high-risk actions? 
             // Or pending verification.
             return res.status(403).json({ error: 'Risk Verification Unavailable' });
@@ -63,7 +65,7 @@ const riskMiddleware = async (req, res, next) => {
         }
 
         if (!ALLOWED_STATUSES.includes(riskStatus)) {
-            console.warn(`🚫 [Risk] BLOCKED company ${companyId}: Status ${riskStatus}`);
+            logger.warn({ companyId, riskStatus }, 'BLOCKED: Risk verification required');
             return res.status(403).json({
                 error: 'Risk verification required.',
                 code: 'RISK_VERIFICATION_REQUIRED',
@@ -75,7 +77,7 @@ const riskMiddleware = async (req, res, next) => {
         next();
 
     } catch (err) {
-        console.error('[RiskMiddleware] System Error:', err);
+        logger.error({ err }, 'System Error');
         res.status(500).json({ error: 'Internal Risk Error' });
     }
 };

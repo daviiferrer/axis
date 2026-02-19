@@ -1,6 +1,8 @@
 /**
  * SchedulingController - API endpoints for appointments
  */
+const logger = require('../../../shared/Logger').createModuleLogger('scheduling');
+
 class SchedulingController {
     constructor({ schedulingService }) {
         this.schedulingService = schedulingService;
@@ -21,7 +23,7 @@ class SchedulingController {
             const slots = await this.schedulingService.getAvailableSlots(userId, days);
             return res.json(slots);
         } catch (error) {
-            console.error('Error fetching slots:', error);
+            logger.error({ err: error }, 'Error fetching slots');
             return res.status(500).json({ error: 'Failed to fetch available slots' });
         }
     }
@@ -63,7 +65,7 @@ class SchedulingController {
 
             return res.status(201).json(result.appointment);
         } catch (error) {
-            console.error('Error creating booking:', error);
+            logger.error({ err: error }, 'Error creating booking');
             return res.status(500).json({ error: 'Failed to create booking' });
         }
     }
@@ -82,7 +84,7 @@ class SchedulingController {
             const appointments = await this.schedulingService.getUpcoming(userId, limit);
             return res.json(appointments);
         } catch (error) {
-            console.error('Error fetching upcoming:', error);
+            logger.error({ err: error }, 'Error fetching upcoming');
             return res.status(500).json({ error: 'Failed to fetch appointments' });
         }
     }
@@ -100,7 +102,7 @@ class SchedulingController {
             const metrics = await this.schedulingService.getMetrics(userId);
             return res.json(metrics);
         } catch (error) {
-            console.error('Error fetching metrics:', error);
+            logger.error({ err: error }, 'Error fetching metrics');
             return res.status(500).json({ error: 'Failed to fetch metrics' });
         }
     }
@@ -114,7 +116,7 @@ class SchedulingController {
             const appointment = await this.schedulingService.confirmAppointment(id);
             return res.json(appointment);
         } catch (error) {
-            console.error('Error confirming:', error);
+            logger.error({ err: error }, 'Error confirming');
             return res.status(500).json({ error: 'Failed to confirm appointment' });
         }
     }
@@ -129,7 +131,7 @@ class SchedulingController {
             const appointment = await this.schedulingService.cancelAppointment(id, reason);
             return res.json(appointment);
         } catch (error) {
-            console.error('Error cancelling:', error);
+            logger.error({ err: error }, 'Error cancelling');
             return res.status(500).json({ error: 'Failed to cancel appointment' });
         }
     }
@@ -143,7 +145,7 @@ class SchedulingController {
             const appointment = await this.schedulingService.completeAppointment(id);
             return res.json(appointment);
         } catch (error) {
-            console.error('Error completing:', error);
+            logger.error({ err: error }, 'Error completing');
             return res.status(500).json({ error: 'Failed to complete appointment' });
         }
     }
@@ -157,7 +159,7 @@ class SchedulingController {
             const appointment = await this.schedulingService.markNoShow(id);
             return res.json(appointment);
         } catch (error) {
-            console.error('Error marking no-show:', error);
+            logger.error({ err: error }, 'Error marking no-show');
             return res.status(500).json({ error: 'Failed to mark no-show' });
         }
     }

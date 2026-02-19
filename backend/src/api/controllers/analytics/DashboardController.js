@@ -2,6 +2,8 @@
  * DashboardController.js
  * Controller for the Executive Dashboard
  */
+const logger = require('../../../shared/Logger').createModuleLogger('dashboard');
+
 class DashboardController {
     constructor({ dashboardService }) {
         this.dashboardService = dashboardService;
@@ -13,7 +15,7 @@ class DashboardController {
             const data = await this.dashboardService.getOverview(userId);
             return res.json(data);
         } catch (error) {
-            console.error('[DashboardController] getOverview error:', error);
+            logger.error({ err: error }, 'getOverview error');
             return res.status(500).json({ error: 'Failed to fetch overview' });
         }
     }
@@ -25,7 +27,7 @@ class DashboardController {
             const data = await this.dashboardService.getTemporalPatterns(userId, days);
             return res.json(data);
         } catch (error) {
-            console.error('[DashboardController] getTemporalPatterns error:', error);
+            logger.error({ err: error }, 'getTemporalPatterns error');
             return res.status(500).json({ error: 'Failed to fetch temporal data' });
         }
     }
@@ -37,7 +39,7 @@ class DashboardController {
             const data = await this.dashboardService.getRecentActivity(userId, limit);
             return res.json(data);
         } catch (error) {
-            console.error('[DashboardController] getRecentActivity error:', error);
+            logger.error({ err: error }, 'getRecentActivity error');
             return res.status(500).json({ error: 'Failed to fetch activity' });
         }
     }
@@ -48,7 +50,7 @@ class DashboardController {
             const data = await this.dashboardService.getCampaignMetrics(userId);
             return res.json(data);
         } catch (error) {
-            console.error('[DashboardController] getCampaignMetrics error:', error);
+            logger.error({ err: error }, 'getCampaignMetrics error');
             return res.status(500).json({ error: 'Failed to fetch campaign metrics' });
         }
     }
@@ -59,7 +61,7 @@ class DashboardController {
             const data = await this.dashboardService.getLeadsBySource(userId);
             return res.json(data);
         } catch (error) {
-            console.error('[DashboardController] getLeadsBySource error:', error);
+            logger.error({ err: error }, 'getLeadsBySource error');
             return res.status(500).json({ error: 'Failed to fetch leads source' });
         }
     }

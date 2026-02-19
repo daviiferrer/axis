@@ -1,6 +1,8 @@
 /**
  * SettingsController - Handles system settings API requests.
  */
+const logger = require('../../../shared/Logger').createModuleLogger('settings');
+
 class SettingsController {
     constructor({ settingsService, wahaClient }) {
         this.settingsService = settingsService;
@@ -9,7 +11,7 @@ class SettingsController {
 
     async getSettings(req, res) {
         try {
-            console.log('[SettingsController] GET / hit for user:', req.user?.id);
+            logger.debug({ userId: req.user?.id }, 'GET / hit');
             const userId = req.user?.id;
 
             if (!userId) {
@@ -19,7 +21,7 @@ class SettingsController {
             const settings = await this.settingsService.getSettings(userId);
             res.json(settings || {});
         } catch (error) {
-            console.error('[SettingsController] Get Error:', error);
+            logger.error({ err: error }, 'Get Error');
             res.status(500).json({ error: 'Failed to fetch settings' });
         }
     }
@@ -33,7 +35,7 @@ class SettingsController {
                 return res.status(401).json({ error: 'User ID is required (Auth missing)' });
             }
 
-            console.log(`[SettingsController] Updating settings for user ${userId}...`);
+            logger.info({ userId }, 'Updating settings');
 
             // 1. Update via Service
             const updatedData = await this.settingsService.updateSettings(userId, settings);
@@ -50,7 +52,7 @@ class SettingsController {
             });
 
         } catch (error) {
-            console.error('[SettingsController] API Error:', error);
+            logger.error({ err: error }, 'API Error');
             res.status(500).json({ error: 'Failed to save settings' });
         }
     }

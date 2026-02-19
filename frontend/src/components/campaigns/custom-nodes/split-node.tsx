@@ -1,9 +1,9 @@
 'use client'
 
 import React, { memo } from 'react';
-import { NodeProps } from '@xyflow/react';
-import { Split, Percent } from 'lucide-react';
-import { BaseNode, NODE_PRESETS } from './base-node';
+import { NodeProps, Position } from '@xyflow/react';
+import { Split } from 'lucide-react';
+import { BaseNode, NODE_PRESETS, ConnectorPort } from './base-node';
 
 interface SplitNodeData {
     label?: string;
@@ -12,7 +12,7 @@ interface SplitNodeData {
 }
 
 // ============================================================================
-// SPLIT NODE: A/B Test branching (Premium Version)
+// SPLIT NODE: A/B Test branching with aligned output ports
 // ============================================================================
 
 export const SplitNode = memo(({ data: rawData, isConnectable, selected }: NodeProps) => {
@@ -27,8 +27,7 @@ export const SplitNode = memo(({ data: rawData, isConnectable, selected }: NodeP
             title={data.label || 'Teste A/B'}
             subtitle="Divisão"
             showInputHandle={true}
-            showOutputHandle={true}
-            outputHandleCount={2}
+            showOutputHandle={false}
             selected={selected}
             isConnectable={isConnectable}
             data={data}
@@ -50,15 +49,29 @@ export const SplitNode = memo(({ data: rawData, isConnectable, selected }: NodeP
                     </div>
                 </div>
 
-                {/* Labels */}
-                <div className="flex justify-between text-xs">
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                        <span className="font-bold text-blue-600">{percentA}%</span>
+                {/* Labels with inline ports */}
+                <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-100 relative">
+                        <div className="w-2 h-2 rounded-full bg-blue-500" />
+                        <span className="text-xs font-bold text-blue-600">Variante A — {percentA}%</span>
+                        <ConnectorPort
+                            type="source"
+                            position={Position.Right}
+                            id="output-0"
+                            isConnectable={isConnectable}
+                            color="bg-blue-500"
+                        />
                     </div>
-                    <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-pink-600">{percentB}%</span>
-                        <div className="w-2.5 h-2.5 rounded-full bg-pink-500" />
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pink-50 border border-pink-100 relative">
+                        <div className="w-2 h-2 rounded-full bg-pink-500" />
+                        <span className="text-xs font-bold text-pink-600">Variante B — {percentB}%</span>
+                        <ConnectorPort
+                            type="source"
+                            position={Position.Right}
+                            id="output-1"
+                            isConnectable={isConnectable}
+                            color="bg-pink-500"
+                        />
                     </div>
                 </div>
             </div>

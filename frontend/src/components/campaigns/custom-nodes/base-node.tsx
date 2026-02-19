@@ -34,33 +34,69 @@ export interface BaseNodeProps {
     data?: any;
 }
 
-// Handle Component with premium styling
-function NodeHandle({
+// ============================================================================
+// CONNECTOR PORT: Custom handle component — replaces default React Flow circles
+// The Handle is invisible (for connection logic only).
+// The visual is a sleek pill/bar flush with the node edge.
+// ============================================================================
+
+export function ConnectorPort({
     type,
     position,
     isConnectable,
-    accentColor = 'bg-gray-400',
-    id
+    color = 'bg-gray-400',
+    id,
+    label,
 }: {
     type: 'source' | 'target';
     position: Position;
     isConnectable?: boolean;
-    accentColor?: string;
+    color?: string;
     id?: string;
+    label?: string;
 }) {
+    const isLeft = position === Position.Left;
+
     return (
-        <Handle
-            type={type}
-            position={position}
-            id={id}
-            isConnectable={isConnectable}
+        <div
             className={cn(
-                "!w-4 !h-4 !border-[3px] !border-white !shadow-md",
-                "transition-all duration-200 ease-out",
-                "hover:!scale-125 hover:!shadow-lg",
-                accentColor
+                "absolute flex items-center gap-1",
+                isLeft ? "left-0 -translate-x-1/2" : "right-0 translate-x-1/2",
+                "top-1/2 -translate-y-1/2"
             )}
-        />
+            style={{ zIndex: 10 }}
+        >
+            {/* The invisible handle — React Flow needs this for connections */}
+            <Handle
+                type={type}
+                position={position}
+                id={id}
+                isConnectable={isConnectable}
+                className="!w-4 !h-6 !rounded-none !bg-transparent !border-0 !shadow-none !opacity-0"
+                style={{ position: 'relative', transform: 'none', top: 'auto', left: 'auto', right: 'auto' }}
+            />
+            {/* The visible port — a small pill shape flush with the node */}
+            <div
+                className={cn(
+                    "w-1.5 h-5 rounded-full",
+                    color,
+                    "pointer-events-none",
+                    "absolute",
+                    isLeft ? "-right-0.5" : "-left-0.5",
+                    "top-1/2 -translate-y-1/2"
+                )}
+            />
+            {/* Optional label */}
+            {label && (
+                <span className={cn(
+                    "text-[9px] font-semibold text-gray-400 whitespace-nowrap pointer-events-none",
+                    "absolute top-1/2 -translate-y-1/2",
+                    isLeft ? "left-5" : "right-5"
+                )}>
+                    {label}
+                </span>
+            )}
+        </div>
     );
 }
 
@@ -87,28 +123,45 @@ export const BaseNode = memo(({
             className={cn(
                 // Base Structure
                 "relative group min-w-[280px] max-w-[320px]",
-                "bg-white rounded-2xl overflow-hidden",
+                "bg-white rounded-2xl",
                 "transition-all duration-300 ease-out",
 
                 // Shadow & Border
                 selected
                     ? "shadow-2xl shadow-indigo-500/20 ring-2 ring-indigo-500"
-                    : "shadow-lg shadow-gray-200/60 border border-gray-100 hover:shadow-xl hover:border-gray-200",
-
-                // Subtle glow effect on hover (Turbo Flow inspired)
-                "before:absolute before:inset-0 before:rounded-2xl before:opacity-0 before:transition-opacity before:duration-300",
-                "group-hover:before:opacity-100",
-                "before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent before:pointer-events-none"
+                    : "shadow-lg shadow-gray-200/60 border border-gray-100"
             )}
         >
-            {/* Input Handle */}
+            {/* Input Port */}
             {showInputHandle && (
-                <NodeHandle
+                <ConnectorPort
                     type="target"
                     position={Position.Left}
                     isConnectable={isConnectable}
-                    accentColor={accentColor}
+                    color={accentColor}
                 />
+            )}
+
+            {/* ERROR BADGE (Left) */}
+            {((data?.errorLeads as number) || 0) > 0 && (
+                <div className="absolute -top-3 left-4 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-600 text-white shadow-sm border-[1.5px] border-white z-50 animate-in fade-in zoom-in duration-300">
+                    <span className="relative flex h-1.5 w-1.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span>
+                    </span>
+                    <span className="text-[10px] font-bold">{data.errorLeads as number}</span>
+                </div>
+            )}
+
+            {/* ACTIVE LEADS BADGE (Right) */}
+            {((data?.activeLeads as number) || 0) > 0 && (
+                <div className="absolute -top-3 right-4 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-600 text-white shadow-sm border-[1.5px] border-white z-50 animate-in fade-in zoom-in duration-300">
+                    <span className="relative flex h-1.5 w-1.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span>
+                    </span>
+                    <span className="text-[10px] font-bold">{data.activeLeads as number}</span>
+                </div>
             )}
 
             {/* Header with Gradient */}
@@ -119,14 +172,13 @@ export const BaseNode = memo(({
                 gradientTo
             )}>
                 <div className="flex items-center gap-3">
-                    {/* Icon Container */}
+                    {/* Icon - no box */}
                     <div className={cn(
-                        "w-10 h-10 rounded-xl flex items-center justify-center",
-                        "bg-white shadow-sm border border-gray-100",
+                        "w-10 h-10 flex items-center justify-center",
                         "transition-transform duration-200 group-hover:scale-105",
                         iconColor
                     )}>
-                        <Icon size={20} strokeWidth={2} />
+                        <Icon size={22} strokeWidth={2} />
                     </div>
 
                     {/* Title Block */}
@@ -150,35 +202,14 @@ export const BaseNode = memo(({
                 </div>
             )}
 
-            {/* Output Handle(s) */}
-            {showOutputHandle && (
-                <>
-                    {outputHandleCount === 1 ? (
-                        <NodeHandle
-                            type="source"
-                            position={Position.Right}
-                            isConnectable={isConnectable}
-                            accentColor={accentColor}
-                        />
-                    ) : (
-                        // Multiple outputs (e.g., Split node, Logic node)
-                        Array.from({ length: outputHandleCount }).map((_, i) => (
-                            <Handle
-                                key={`output-${i}`}
-                                type="source"
-                                position={Position.Right}
-                                id={`output-${i}`}
-                                isConnectable={isConnectable}
-                                style={{ top: `${30 + (i * 25)}%` }}
-                                className={cn(
-                                    "!w-4 !h-4 !border-[3px] !border-white !shadow-md",
-                                    "transition-all duration-200 ease-out hover:!scale-125",
-                                    accentColor
-                                )}
-                            />
-                        ))
-                    )}
-                </>
+            {/* Output Port(s) */}
+            {showOutputHandle && outputHandleCount === 1 && (
+                <ConnectorPort
+                    type="source"
+                    position={Position.Right}
+                    isConnectable={isConnectable}
+                    color={accentColor}
+                />
             )}
 
             {/* Selection Indicator */}

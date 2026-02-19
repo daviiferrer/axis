@@ -21,23 +21,9 @@ class SchedulingService {
         try {
             // 1. Get user's availability rules (or company's if re-added)
             // For now, assume generic or user-specific if table supported "user_id"
-            // Since availability_slots likely has company_id, we might default or need a schema check.
-            // Assuming "user_id" or global now. 
-            // FIXME: If availability_slots still requires company_id, this will fail. 
-            // Proceeding assuming availability_slots usage is minimal or we default.
-
-            // Temporary: Return defaults if no config found or if table requires company_id
-            // const { data: rules } = ... 
-            // Returning defaults immediately to avoid 500 if table is broken/missing context
+            // FIXME: Table 'availability_slots' is missing in DB. Using default mock slots.
+            // Future implementation needed if custom slots are required.
             return this._generateDefaultSlots(days);
-
-            /*
-            const { data: rules, error: rulesError } = await this.supabase
-                .from('availability_slots')
-                .select('*')
-                .eq('user_id', userId) // Changed from company_id
-                .eq('is_active', true);
-            */
 
             if (rulesError) throw rulesError;
 

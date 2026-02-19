@@ -15,7 +15,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Settings, MessageSquare, Smartphone, Megaphone, Bot, CreditCard, Webhook, Shield, Calendar, ChevronsUpDown } from "lucide-react";
+import { LogOut, Settings, MessageSquare, Smartphone, Megaphone, Bot, CreditCard, Webhook, Shield, Calendar, ChevronsUpDown, Kanban as KanbanIcon, Users } from "lucide-react";
 
 export function AppSidebar() {
     const { user, signOut } = useAuth();
@@ -101,10 +101,10 @@ export function AppSidebar() {
             ),
         },
         {
-            label: "Agentes",
-            href: "/app/agents",
+            label: "Gestão (CRM)",
+            href: "/app/leads", // Corrected path
             icon: ({ isActive }: { isActive: boolean }) => (
-                <Bot
+                <Users
                     className={cn(
                         "h-5 w-5 shrink-0",
                         isActive ? "text-blue-600 fill-blue-600" : "text-neutral-700 dark:text-neutral-200"
@@ -113,6 +113,7 @@ export function AppSidebar() {
                 />
             ),
         },
+
         {
             label: "Faturamento",
             href: "/app/billing",
@@ -232,14 +233,7 @@ export function AppSidebar() {
                                         <div className="text-xs font-semibold text-neutral-500 mb-2 px-2 uppercase tracking-wider">
                                             Minha Conta
                                         </div>
-                                        <Link
-                                            href="/app/settings/profile"
-                                            className="flex items-center gap-2 p-2 rounded-md cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm text-neutral-700 dark:text-neutral-200"
-                                            onClick={() => setIsProfileListOpen(false)}
-                                        >
-                                            <Settings className="h-4 w-4" />
-                                            <span>Configurações</span>
-                                        </Link>
+
                                         <div
                                             onClick={() => {
                                                 handleLogout();

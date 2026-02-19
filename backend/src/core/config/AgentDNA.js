@@ -2,6 +2,7 @@
  * AgentDNA - Canonical ENUMs and Translation Layer.
  * Defines the Discrete Operating System of the Agent.
  */
+const logger = require('../../shared/Logger').createModuleLogger('agent-dna');
 
 // --- 1. Psychometrics (Big Five) ---
 const Big5 = {
@@ -182,17 +183,17 @@ function resolveDNA(dnaConfig) {
         try {
             config = JSON.parse(config);
         } catch (e) {
-            console.error('[resolveDNA] ❌ Failed to parse dna_config:', e.message);
+            logger.error({ err: e.message }, 'Failed to parse dna_config');
             config = {};
         }
     }
 
     // DEBUG: Log burstiness resolution
-    console.log('[resolveDNA] 🎯 Physics config:', {
+    logger.debug({
         hasPhysics: !!config.physics,
         burstinessEnabled: config.physics?.burstiness?.enabled,
         chronemicsBurstiness: config.chronemics?.burstiness
-    });
+    }, 'Physics config');
 
     // 1. Resolve Physics (Chronemics)
     const latencyEnum = config.chronemics?.latency_profile || 'MODERATE';
@@ -204,12 +205,12 @@ function resolveDNA(dnaConfig) {
     if (config.physics?.burstiness?.enabled !== undefined) {
         // Direct physics config from DB (preferred)
         burstinessConfig = config.physics.burstiness;
-        console.log('[resolveDNA] Using direct physics.burstiness:', burstinessConfig);
+        logger.debug({ burstinessConfig }, 'Using direct physics.burstiness');
     } else if (config.chronemics?.burstiness) {
         // Canonical enum path
         const burstEnum = config.chronemics.burstiness;
         burstinessConfig = _BURSTINESS_MAP[burstEnum] || _BURSTINESS_MAP['MEDIUM'];
-        console.log('[resolveDNA] Resolved from chronemics:', { burstEnum, burstinessConfig });
+        logger.debug({ burstEnum, burstinessConfig }, 'Resolved from chronemics');
     }
 
     const physics = {
@@ -217,7 +218,7 @@ function resolveDNA(dnaConfig) {
         burstiness: burstinessConfig
     };
 
-    console.log('[resolveDNA] ✅ Final physics:', physics);
+    logger.debug({ physics }, 'Final physics');
 
     // 2. Resolve Linguistics (Typos, etc.)
     const typoEnum = config.linguistics?.typo_injection || 'NONE';
@@ -242,6 +243,7 @@ function resolveDNA(dnaConfig) {
         physics,      // Usage: AgentNode.sendResponseWithPhysics
         linguistics,  // Usage: AgentNode text processing (future)
         padVector,    // Usage: AgenticNode PAD initialization
+        voice_config: config.voice_config, // Usage: VoiceService checks
         raw: config   // Usage: Prompt building (passing profile to LLM)
     };
 }

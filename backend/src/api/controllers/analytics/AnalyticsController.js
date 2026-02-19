@@ -1,6 +1,8 @@
 /**
  * AnalyticsController.js
  */
+const logger = require('../../../shared/Logger').createModuleLogger('analytics');
+
 class AnalyticsController {
     constructor({ analyticsService }) {
         this.analyticsService = analyticsService;
@@ -19,7 +21,7 @@ class AnalyticsController {
                 recent_activity: activity
             });
         } catch (error) {
-            console.error('Error fetching dashboard stats:', error);
+            logger.error({ err: error }, 'Error fetching dashboard stats');
             return res.status(500).json({ error: 'Failed to fetch dashboard stats' });
         }
     }

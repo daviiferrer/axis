@@ -1,9 +1,8 @@
+const logger = require('../../../shared/Logger').createModuleLogger('waha-chatting');
+
 class WahaChattingController {
     constructor({ wahaClient, supabase }) {
-        console.log('🔧 [WahaChattingController] Initializing...', {
-            hasWaha: !!wahaClient,
-            hasSupabase: !!supabase
-        });
+        logger.info({ hasWaha: !!wahaClient, hasSupabase: !!supabase }, 'Initializing');
         this.waha = wahaClient;
         this.supabase = supabase;
     }
@@ -13,121 +12,166 @@ class WahaChattingController {
         try {
             const { session } = req.query;
 
-            // Build query - fetch ALL chats across all sessions if no session specified
+            const userId = req.user?.id;
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             // Helper to map DB status to Frontend Status
             const mapStatus = (chat) => {
                 const leadStatus = chat.leads?.status?.toLowerCase() || 'new';
-
                 if (['prospecting', 'new', 'contacted', 'pending'].includes(leadStatus)) return 'PROSPECTING';
                 if (['negotiating', 'qualified'].includes(leadStatus)) return 'QUALIFIED';
                 if (['lost', 'won', 'finished', 'completed', 'handoff_requested'].includes(leadStatus)) return 'FINISHED';
-
-                return 'PROSPECTING'; // Default fallback
+                return 'PROSPECTING';
             };
 
-            const formatChats = (chatList) => {
-                return chatList.map(chat => {
-                    const mappedStatus = mapStatus(chat);
-                    return {
-                        id: chat.chat_id,
-                        name: chat.name || chat.phone,
-                        image: chat.profile_pic_url,
-                        unreadCount: 0,
-                        lastMessage: {
-                            body: chat.messages?.[0]?.body || '',
-                            timestamp: chat.last_message_at ? new Date(chat.last_message_at).getTime() / 1000 : Date.now() / 1000
-                        },
-                        status: mappedStatus,
-                        tags: chat.tags || []
-                    };
-                });
-            };
+            // Fetch allowlist of sessions owned by user
+            const { data: userSessions } = await this.supabase
+                .from('sessions')
+                .select('session_name')
+                .eq('user_id', userId);
 
-            let formattedChats = [];
+            const allowedSessions = new Set(userSessions?.map(s => s.session_name) || []);
+            if (allowedSessions.size === 0) {
+                return res.json([]);
+            }
 
+            // --- MAIN QUERY: chats + joins (campaigns for name, messages for last body, leads for status) ---
+            let query = this.supabase
+                .from('chats')
+                .select('*, messages(body, created_at), leads(status), campaigns(name)')
+                .not('chat_id', 'like', '147%')
+                .order('last_message_at', { ascending: false, nullsFirst: false });
+
+            if (session && session.trim() !== '') {
+                query = query.eq('session_name', session);
+            }
+
+            const { data, error } = await query;
+            if (error) {
+                logger.error({ err: error }, 'Chat query with joins failed');
+                throw error;
+            }
+
+            // Security filter in memory
+            const safeData = (data || []).filter(c => allowedSessions.has(c.session_name));
+
+            if (safeData.length === 0) {
+                return res.json([]);
+            }
+
+            // --- ENRICHMENT: Unread counts + AI tokens via batch queries ---
+            const chatIds = safeData.map(c => c.id);
+
+            // 1. Unread counts: messages where created_at > last_read_at AND from_me = false
+            let unreadMap = {};
             try {
-                // 1. Try Full Query with Joins
-                let query = this.supabase
-                    .from('chats')
-                    .select('*, messages(body, created_at), leads(status)')
-                    .not('chat_id', 'like', '147%')
-                    .order('last_message_at', { ascending: false, nullsFirst: false });
-
-                if (session && session.trim() !== '') {
-                    query = query.eq('session_name', session);
+                const { data: unreadRows } = await this.supabase.rpc('get_unread_counts', {
+                    p_chat_ids: chatIds
+                });
+                if (unreadRows) {
+                    unreadRows.forEach(r => { unreadMap[r.chat_id] = r.unread_count; });
                 }
-
-                const result = await query;
-                const { data, error } = result;
-
-                // SECURITY CHECK: Verify that the chats belong to sessions owned by this user
-                // The query above filters by session if provided, but we must ensure the USER owns that session.
-                // If no session provided, we must limit to ALL sessions owned by user.
-
-                const userId = req.user?.id;
-                if (!userId) throw new Error('Unauthorized');
-
-                // Fetch Allowlist of sessions owned by user
-                const { data: userSessions } = await this.supabase
-                    .from('sessions')
-                    .select('session_name')
-                    .eq('user_id', userId);
-
-                const allowedSessions = new Set(userSessions?.map(s => s.session_name) || []);
-
-                // If user has no sessions, return empty
-                if (allowedSessions.size === 0) {
-                    formattedChats = [];
-                } else {
-                    // Filter data in memory
-                    const safeData = (data || []).filter(c => allowedSessions.has(c.session_name));
-                    formattedChats = formatChats(safeData);
+            } catch (unreadError) {
+                logger.warn({ err: unreadError.message }, 'Unread count RPC failed, falling back to 0');
+                // Fallback: count in-memory using last_read_at from chat data
+                for (const chat of safeData) {
+                    const lastRead = chat.last_read_at ? new Date(chat.last_read_at) : new Date(0);
+                    const unread = (chat.messages || []).filter(m =>
+                        !m.from_me && new Date(m.created_at) > lastRead
+                    ).length;
+                    unreadMap[chat.id] = unread;
                 }
+            }
 
-            } catch (fullQueryError) {
-                console.warn('[WahaChattingController] Full chat query failed (likely schema issue), falling back to simple query:', fullQueryError.message);
+            // 2. AI token totals per chat from ai_usage_logs
+            let tokenMap = {};
+            try {
+                const { data: tokenRows } = await this.supabase
+                    .from('ai_usage_logs')
+                    .select('chat_id, tokens_input, tokens_output')
+                    .in('chat_id', chatIds);
 
-                // 2. Fallback: Simple Query (No Joins)
-                let fallbackQuery = this.supabase
-                    .from('chats')
-                    .select('*')
-                    .not('chat_id', 'like', '147%')
-                    .order('last_message_at', { ascending: false, nullsFirst: false });
-
-                if (session && session.trim() !== '') {
-                    fallbackQuery = fallbackQuery.eq('session_name', session);
+                if (tokenRows) {
+                    tokenRows.forEach(r => {
+                        if (!tokenMap[r.chat_id]) tokenMap[r.chat_id] = 0;
+                        tokenMap[r.chat_id] += (r.tokens_input || 0) + (r.tokens_output || 0);
+                    });
                 }
+            } catch (tokenError) {
+                logger.warn({ err: tokenError.message }, 'AI token query failed, falling back to 0');
+            }
 
-                const { data: fallbackData, error: fallbackError } = await fallbackQuery;
-                if (fallbackError) {
-                    console.error('[WahaChattingController] Fallback query failed:', fallbackError);
-                    throw fallbackError;
-                }
-
-                // Map fallback data (missing leads/messages)
-                formattedChats = (fallbackData || []).map(chat => ({
+            // --- FORMAT ---
+            const formattedChats = safeData.map(chat => {
+                const mappedStatus = mapStatus(chat);
+                return {
                     id: chat.chat_id,
                     name: chat.name || chat.phone,
                     image: chat.profile_pic_url,
-                    unreadCount: 0,
+                    unreadCount: unreadMap[chat.id] || 0,
+                    sessionName: chat.session_name || null,
+                    campaignName: chat.campaigns?.name || null,
+                    aiTokens: tokenMap[chat.id] || 0,
                     lastMessage: {
-                        body: '...', // Placeholder
+                        body: chat.messages?.[0]?.body || '',
                         timestamp: chat.last_message_at ? new Date(chat.last_message_at).getTime() / 1000 : Date.now() / 1000
                     },
-                    status: 'PROSPECTING', // Default
+                    status: mappedStatus,
                     tags: chat.tags || []
-                }));
-            }
+                };
+            });
 
-            console.log(`[WahaChattingController] Returning ${formattedChats.length} chats`);
+            logger.debug({ count: formattedChats.length }, 'Returning enriched chats');
             res.json(formattedChats);
 
         } catch (error) {
-            console.error('[WahaChattingController] getChats critical error:', error);
-            // Don't return 500 meant for blocking errors. Return empty list if it's a "chats" table missing issue masked as something else
-            if (error.code === '42P01') { // relation does not exist
+            logger.error({ err: error }, 'getChats critical error');
+            if (error.code === '42P01') {
                 return res.json([]);
             }
+            res.status(500).json({ error: error.message });
+        }
+    }
+
+    /**
+     * Marks a chat as read by updating last_read_at to now.
+     * POST /chatting/chats/:session/:chatId/read
+     */
+    async markAsRead(req, res) {
+        try {
+            const { session, chatId } = req.params;
+            const userId = req.user?.id;
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            // Verify user owns this session
+            const { data: sessionData } = await this.supabase
+                .from('sessions')
+                .select('session_name')
+                .eq('session_name', session)
+                .eq('user_id', userId)
+                .single();
+
+            if (!sessionData) {
+                return res.status(403).json({ error: 'Session not owned by user' });
+            }
+
+            const { data, error } = await this.supabase
+                .from('chats')
+                .update({ last_read_at: new Date().toISOString() })
+                .eq('chat_id', chatId)
+                .eq('session_name', session)
+                .select('id, last_read_at')
+                .single();
+
+            if (error) {
+                logger.error({ err: error, chatId, session }, 'markAsRead failed');
+                return res.status(500).json({ error: error.message });
+            }
+
+            logger.info({ chatId, session, lastReadAt: data?.last_read_at }, '✅ Chat marked as read');
+            res.json({ success: true, lastReadAt: data?.last_read_at });
+        } catch (error) {
+            logger.error({ err: error }, 'markAsRead critical error');
             res.status(500).json({ error: error.message });
         }
     }
@@ -152,7 +196,7 @@ class WahaChattingController {
                 return res.json({ success: true, message: 'Chat already deleted' });
             }
 
-            console.log(`[WahaChattingController] Deleting chat ${chatId} (Internal ID: ${chat.id})...`);
+            logger.info({ chatId, internalId: chat.id }, 'Deleting chat');
 
             // 2. Cascade Delete: Messages associated with this chat
             const { error: msgError } = await this.supabase
@@ -161,23 +205,22 @@ class WahaChattingController {
                 .eq('chat_id', chat.id);
 
             if (msgError) {
-                console.error('[WahaChattingController] Error deleting messages:', msgError);
+                logger.error({ err: msgError }, 'Error deleting messages');
             } else {
-                console.log('[WahaChattingController] Messages deleted.');
+                logger.info('Messages deleted');
             }
 
-            // 3. Cascade Delete: Emotional State (Context "emoção e tals")
-            // Linked to Lead ID. Verify if we should wipe it. User request implies context reset.
+            // 3. Reset Emotional State on the lead (JSONB column)
             if (chat.lead_id) {
                 const { error: emoError } = await this.supabase
-                    .from('emotional_state')
-                    .delete()
-                    .eq('lead_id', chat.lead_id);
+                    .from('leads')
+                    .update({ emotional_state: { pleasure: 0.5, arousal: 0.5, dominance: 0.5 } })
+                    .eq('id', chat.lead_id);
 
                 if (emoError) {
-                    console.error('[WahaChattingController] Error deleting emotional state:', emoError);
+                    logger.error({ err: emoError }, 'Error resetting emotional state');
                 } else {
-                    console.log('[WahaChattingController] Emotional state reset.');
+                    logger.info('Emotional state reset');
                 }
             }
 
@@ -194,7 +237,7 @@ class WahaChattingController {
 
             res.json({ success: true, chatId });
         } catch (error) {
-            console.error('[WahaChattingController] deleteChat error:', error);
+            logger.error({ err: error }, 'deleteChat error');
             res.status(500).json({ error: error.message });
         }
     }
@@ -210,7 +253,7 @@ class WahaChattingController {
             }
             res.json(result);
         } catch (error) {
-            console.error('[WahaChattingController] getProfilePicture error:', error);
+            logger.error({ err: error }, 'getProfilePicture error');
             // If it's a 404 from axios, pass it through
             if (error.response?.status === 404) {
                 return res.status(404).json({ error: 'Profile picture not found' });
@@ -297,14 +340,14 @@ class WahaChattingController {
                         status: 'sent'
                     });
                 } catch (saveError) {
-                    console.error('[WahaChattingController] Failed to save manual message:', saveError);
+                    logger.error({ err: saveError }, 'Failed to save manual message');
                     // Non-blocking
                 }
             }
 
             res.json(result);
         } catch (error) {
-            console.error('[WahaChattingController] sendText error:', error);
+            logger.error({ err: error }, 'sendText error');
             res.status(500).json({ error: error.message });
         }
     }
@@ -332,7 +375,36 @@ class WahaChattingController {
     async sendVoice(req, res) {
         try {
             const { session, chatId, file } = req.body;
-            const result = await this.waha.sendVoice(session, chatId, file);
+
+            // Auto-convert to Opus for mobile compatibility
+            let fileToSend = file;
+            try {
+                // Normalize payload for convertVoice (expects { url, data })
+                const conversionPayload = {};
+                if (file && typeof file === 'object') {
+                    if (file.url) conversionPayload.url = file.url;
+                    if (file.data) conversionPayload.data = file.data;
+                } else if (typeof file === 'string' && file.startsWith('http')) {
+                    conversionPayload.url = file;
+                } // If string but not http, assume it's weird, skip.
+
+                if (conversionPayload.url || conversionPayload.data) {
+                    logger.debug('🔄 API: Auto-converting voice to Opus...');
+                    const convertedBase64 = await this.waha.convertVoice(session, conversionPayload);
+                    if (convertedBase64) {
+                        fileToSend = {
+                            mimetype: 'audio/ogg; codecs=opus',
+                            data: convertedBase64,
+                            filename: 'voice.ogg'
+                        };
+                        logger.info('✅ API: Voice converted to Opus');
+                    }
+                }
+            } catch (convErr) {
+                logger.warn({ err: convErr.message }, '⚠️ API: Voice conversion failed, sending original');
+            }
+
+            const result = await this.waha.sendVoice(session, chatId, fileToSend);
             res.json(result);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -492,7 +564,7 @@ class WahaChattingController {
     async getLeadSentiment(req, res) {
         try {
             const { session, chatId } = req.params;
-            console.log(`[WahaChattingController] getLeadSentiment called for session: ${session}, chatId: ${chatId}`);
+            logger.debug({ session, chatId }, 'getLeadSentiment called');
 
             // 1. Resolve internal Chat UUID -> Lead UUID
             // Fix: Explicitly search for a chat record that HAS a lead assigned.
@@ -506,33 +578,33 @@ class WahaChattingController {
                 .maybeSingle();
 
             if (chatError || !chat || !chat.lead_id) {
-                console.log('[WahaChattingController] Chat not found or no lead_id linked:', { chatError, chat });
+                logger.debug({ chatError, chat }, 'Chat not found or no lead_id linked');
                 // If no lead associated or chat not found, return neutral default
                 return res.json({ sentimentIndex: 2, pleasure: 0.5, status: 'no_lead_linked' });
             }
 
             const leadId = chat.lead_id;
-            console.log(`[WahaChattingController] Found Lead ID: ${leadId}`);
+            logger.debug({ leadId }, 'Found Lead ID');
 
-            // 2. Fetch Emotional State
-            const { data: emotionalState, error: emoError } = await this.supabase
-                .from('emotional_state')
-                .select('pleasure, arousal, dominance')
-                .eq('lead_id', leadId)
-                .limit(1)
+            // 2. Fetch Emotional State from lead JSONB column
+            const { data: lead, error: emoError } = await this.supabase
+                .from('leads')
+                .select('emotional_state')
+                .eq('id', leadId)
                 .maybeSingle();
 
             if (emoError) {
-                console.log('[WahaChattingController] Error fetching emotional state:', emoError);
+                logger.warn({ err: emoError }, 'Error fetching emotional state');
                 return res.json({ sentimentIndex: 2, pleasure: 0.5, error: emoError.message });
             }
 
-            if (!emotionalState) {
-                console.log('[WahaChattingController] No emotional state entry found for lead:', leadId);
+            if (!lead?.emotional_state) {
+                logger.debug({ leadId }, 'No emotional state found for lead');
                 return res.json({ sentimentIndex: 2, pleasure: 0.5, status: 'no_data', leadId });
             }
 
-            console.log('[WahaChattingController] Found emotional state:', emotionalState);
+            const emotionalState = lead.emotional_state;
+            logger.debug({ emotionalState }, 'Found emotional state');
 
             // 3. Map Pleasure (0-1) to 0-4 Scale
             const p = emotionalState.pleasure !== undefined ? emotionalState.pleasure : 0.5;
@@ -544,7 +616,7 @@ class WahaChattingController {
             else if (p <= 0.8) index = 3;  // 0.6 - 0.8
             else index = 4;                // 0.8 - 1.0
 
-            console.log(`[WahaChattingController] Calculated sentiment: P=${p} -> Index=${index}`);
+            logger.debug({ pleasure: p, index }, 'Calculated sentiment');
 
             res.json({
                 sentimentIndex: index,
@@ -555,7 +627,7 @@ class WahaChattingController {
             });
 
         } catch (error) {
-            console.error('[WahaChattingController] getLeadSentiment error:', error);
+            logger.error({ err: error }, 'getLeadSentiment error');
             res.status(500).json({ error: error.message });
         }
     }
@@ -563,14 +635,12 @@ class WahaChattingController {
     async subscribePresence(req, res) {
         try {
             const { session, chatId } = req.body;
-            console.log(`[WahaChattingController] Subscribing to presence for ${chatId} on ${session}`);
+            logger.info({ chatId, session }, 'Subscribing to presence');
             const result = await this.waha.subscribePresence(session, chatId);
             res.json(result);
         } catch (error) {
             const errorDetails = error.response?.data || error.message;
-            console.error(`[WahaChattingController] Failed to subscribe presence: ${error.message}`,
-                error.response?.data ? JSON.stringify(error.response.data) : ''
-            );
+            logger.error({ err: error.message, details: error.response?.data }, 'Failed to subscribe presence');
             res.status(500).json({ error: error.message, details: errorDetails });
         }
     }

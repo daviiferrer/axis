@@ -12,7 +12,8 @@ import {
     Megaphone,
     Search,
     X,
-    Plus
+    Plus,
+    RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -51,6 +52,7 @@ export function NodePickerOverlay({ isOpen, onClose, onAddNode, position }: Node
             items: [
                 { type: 'action', label: 'Enviar Mensagem', icon: MessageSquare, color: 'text-blue-500', bg: 'bg-blue-500/10', desc: 'WhatsApp, E-mail' },
                 { type: 'broadcast', label: 'Disparo em Massa', icon: Megaphone, color: 'text-indigo-500', bg: 'bg-indigo-500/10', desc: 'Campanhas Ativas' },
+                { type: 'followup', label: 'Follow-Up', icon: RefreshCw, color: 'text-teal-500', bg: 'bg-teal-500/10', desc: 'Reengajamento automático' },
                 { type: 'handoff', label: 'Transbordo Humano', icon: Users, color: 'text-rose-500', bg: 'bg-rose-500/10', desc: 'Atendimento Manual' }
             ]
         },
@@ -65,7 +67,7 @@ export function NodePickerOverlay({ isOpen, onClose, onAddNode, position }: Node
             id: 'logic',
             title: "Lógica",
             items: [
-                { type: 'logic', label: 'Roteador', icon: GitBranch, color: 'text-slate-600', bg: 'bg-slate-600/10', desc: 'Condicionais IF/ELSE' },
+                { type: 'logic', label: 'Condição IF/ELSE', icon: GitBranch, color: 'text-slate-600', bg: 'bg-slate-600/10', desc: 'Divergir por dados do lead' },
                 { type: 'split', label: 'Teste A/B', icon: Split, color: 'text-orange-600', bg: 'bg-orange-600/10', desc: 'Divisão de Tráfego' },
                 { type: 'delay', label: 'Aguardar', icon: Clock, color: 'text-gray-600', bg: 'bg-gray-600/10', desc: 'Timer / Delay' },
                 { type: 'goto', label: 'Ir Para', icon: ArrowRight, color: 'text-cyan-600', bg: 'bg-cyan-600/10', desc: 'Salto no Fluxo' },

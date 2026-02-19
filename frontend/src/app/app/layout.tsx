@@ -48,10 +48,10 @@ export default function AppLayout({
             {!isFlowPage && <AppSidebar />}
             <main className="flex-1 flex flex-col h-full overflow-hidden relative">
                 {/* Content area */}
-                <div className={`flex-1 w-full h-full bg-white dark:bg-neutral-900 shadow-sm
+                <div className={`flex-1 w-full h-full transition-all duration-300 ease-in-out
                     ${isFlowPage
-                        ? 'p-0 m-0 overflow-hidden'
-                        : 'overflow-y-auto p-2 md:p-4 rounded-tl-2xl border border-neutral-200 dark:border-neutral-700 m-2 md:ml-0 md:mt-2 md:mb-2 md:mr-2'
+                        ? 'p-0 m-0 overflow-hidden bg-transparent shadow-none' // Transparent to allow page.tsx to handle the "Inset" box
+                        : 'bg-white dark:bg-neutral-900 shadow-sm overflow-y-auto p-2 md:p-4 rounded-tl-2xl border border-neutral-200 dark:border-neutral-700 m-2 md:ml-0 md:mt-2 md:mb-2 md:mr-2'
                     }
                 `}>
                     {children}

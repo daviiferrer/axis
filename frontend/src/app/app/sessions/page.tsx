@@ -8,6 +8,7 @@ import { parsePhoneNumber } from 'libphonenumber-js'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAuth } from '@/context/AuthContext'
+import { useSocket } from '@/context/SocketContext'
 import { wahaService, subscribeToSessions, WahaSession } from '@/services/waha'
 import useSWR, { useSWRConfig } from 'swr'
 import {
@@ -100,6 +101,7 @@ function QRCodeDisplay({ session, isVisible }: { session: string, isVisible: boo
 
 export default function SessionsPage() {
     const { user } = useAuth()
+    const { socket } = useSocket()
     const [isSimulatorOpen, setIsSimulatorOpen] = useState(false)
 
     // ... existing hooks ...
@@ -119,13 +121,36 @@ export default function SessionsPage() {
         }
     )
 
-    // Subscribe to real-time session updates
+    // Subscribe to real-time session updates (Supabase Realtime)
     useEffect(() => {
         const unsubscribe = subscribeToSessions((updatedSessions) => {
             mutate(updatedSessions, false); // Update cache without revalidation
         });
         return unsubscribe;
     }, [mutate]);
+
+    // Socket.IO listener for instant session.status updates (faster than Supabase Realtime)
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleSessionStatus = (data: { session: string; status: string }) => {
+            console.log('[Sessions] Socket.IO session.status:', data);
+            mutate((current: WahaSession[] | undefined) => {
+                if (!current) return current;
+                return current.map(s =>
+                    s.name === data.session ? { ...s, status: data.status } : s
+                );
+            }, false);
+
+            // Auto-select for QR when status changes to SCAN_QR_CODE
+            if (data.status === 'SCAN_QR_CODE') {
+                setSelectedSessionForQR(data.session);
+            }
+        };
+
+        socket.on('session.status', handleSessionStatus);
+        return () => { socket.off('session.status', handleSessionStatus); };
+    }, [socket, mutate]);
 
     const handleAction = async (action: 'start' | 'stop' | 'restart' | 'logout' | 'delete', sessionName: string) => {
         try {
@@ -167,10 +192,28 @@ export default function SessionsPage() {
     const handleCreateSession = async () => {
         setIsCreating(true)
         try {
-            await wahaService.createSession({ name: newSessionName || undefined })
+            const result = await wahaService.createSession({ name: newSessionName || undefined })
             await mutate()
             setIsDialogOpen(false)
             setNewSessionName("")
+
+            // Auto-start the session immediately after creation
+            const sessionName = result?.name || newSessionName;
+            if (sessionName) {
+                try {
+                    mutate((current: WahaSession[] | undefined) => {
+                        if (!current) return current;
+                        return current.map(s =>
+                            s.name === sessionName ? { ...s, status: 'STARTING' } : s
+                        );
+                    }, false);
+                    await wahaService.startSession(sessionName);
+                    setSelectedSessionForQR(sessionName);
+                    await mutate();
+                } catch (startErr) {
+                    console.warn('Auto-start failed, user can start manually:', startErr);
+                }
+            }
         } catch (error) {
             console.error('Failed to create session', error)
         } finally {

@@ -5,10 +5,11 @@ const logger = require('../../../shared/Logger').createModuleLogger('agent-contr
 const LlmFactory = require('../../../core/factories/LlmFactory');
 
 class AgentController {
-    constructor({ agentService, llmFactory, agentGraphEngine }) {
+    constructor({ agentService, llmFactory, agentGraphEngine, voiceService }) {
         this.agentService = agentService;
         this.llmFactory = llmFactory;
         this.agentGraphEngine = agentGraphEngine;
+        this.voiceService = voiceService;
     }
 
     async listAvailable(req, res) {
@@ -16,7 +17,7 @@ class AgentController {
             const agents = await this.agentService.listAgents();
             res.json(agents);
         } catch (error) {
-            console.error('[AgentController] listAvailable Error:', error);
+            logger.error({ err: error }, 'listAvailable Error');
             res.status(500).json({ error: 'Failed to list agents', details: error.message });
         }
     }
@@ -29,7 +30,8 @@ class AgentController {
             }
             res.json(agent);
         } catch (error) {
-            res.status(500).json({ error: 'Failed to get agent' });
+            logger.error({ id: req.params.id, err: error.message }, '❌ Failed to get agent');
+            res.status(500).json({ error: 'Failed to get agent', details: error.message });
         }
     }
 
@@ -145,6 +147,94 @@ class AgentController {
         } catch (error) {
             logger.error({ error: error.message }, 'Graph Agent Error');
             res.status(500).json({ error: 'Graph Execution Failed', details: error.message });
+        }
+    }
+
+    /**
+     * Voice Enrollment (Cloning) via TTS Provider.
+     */
+    async enrollVoice(req, res) {
+        try {
+            const { audioBase64, voiceName, description, provider, agentId } = req.body;
+            if (!audioBase64) return res.status(400).json({ error: 'audioBase64 is required' });
+            if (!this.voiceService) return res.status(503).json({ error: 'Voice Service unavailable' });
+
+            const userId = req.user?.id;
+            const result = await this.voiceService.enrollVoice(audioBase64, voiceName, description, provider, userId, agentId);
+            res.json(result);
+        } catch (error) {
+            logger.error({ error: error.message }, 'Voice Enrollment Failed');
+            res.status(500).json({ error: 'Voice Enrollment Failed', details: error.message });
+        }
+    }
+
+    /**
+     * List cloned voices for the current user.
+     */
+    async listVoices(req, res) {
+        try {
+            if (!this.voiceService) return res.status(503).json({ error: 'Voice Service unavailable' });
+
+            const userId = req.user?.id;
+            if (!userId) {
+                return res.status(401).json({ error: 'User ID not found in session' });
+            }
+
+            const agentId = req.query.agentId;
+            logger.info({ userId, agentId }, '🔍 Listing voices...');
+
+            const voices = await this.voiceService.listVoices(userId, agentId);
+            res.json(voices);
+        } catch (error) {
+            logger.error({ error: error.message }, '❌ List Voices Failed');
+            res.status(500).json({ error: 'Failed to list voices', details: error.message });
+        }
+    }
+
+    /**
+     * Delete a cloned voice.
+     */
+    async deleteVoice(req, res) {
+        try {
+            if (!this.voiceService) return res.status(503).json({ error: 'Voice Service unavailable' });
+            const userId = req.user?.id;
+            const success = await this.voiceService.deleteVoice(req.params.voiceId, userId);
+            res.json({ success });
+        } catch (error) {
+            logger.error({ error: error.message }, 'Delete Voice Failed');
+            res.status(500).json({ error: 'Failed to delete voice', details: error.message });
+        }
+    }
+
+    /**
+     * Generate a voice preview.
+     */
+    async previewVoice(req, res) {
+        try {
+            if (!this.voiceService) return res.status(503).json({ error: 'Voice Service unavailable' });
+            let { voiceId, text, provider } = req.body;
+
+            // DEBUG: Log exactly what we received to find "Cherry" source
+            logger.info({
+                body: req.body,
+                receivedVoiceId: voiceId,
+                userId: req.user?.id
+            }, '🔍 PREVIEW REQUEST DEBUG');
+
+            if (!voiceId) return res.status(400).json({ error: 'voiceId is required' });
+
+            const userId = req.user?.id;
+
+            // FALLBACK REMOVED: User requested strict behavior.
+
+            const previewText = text || 'Olá! Esta é uma prévia da minha voz clonada. Como você está?';
+            const audioBase64 = await this.voiceService.previewVoice(voiceId, previewText, provider);
+            if (!audioBase64) return res.status(500).json({ error: 'Preview generation failed' });
+
+            res.json({ audio_base64: audioBase64 });
+        } catch (error) {
+            logger.error({ error: error.message }, 'Voice Preview Failed');
+            res.status(500).json({ error: 'Voice Preview Failed', details: error.message });
         }
     }
 

@@ -11,6 +11,7 @@ const SplitNode = require('./nodes/SplitNode');
 const GotoNode = require('./nodes/GotoNode');
 const StartNode = require('./nodes/StartNode');
 const GotoCampaignNode = require('./nodes/GotoCampaignNode');
+const FollowUpNode = require('./nodes/FollowUpNode');
 
 /**
  * NodeFactory - Creates node executors based on type.
@@ -33,7 +34,8 @@ class NodeFactory {
             'objection': new ObjectionNode(dependencies),
             'split': new SplitNode(dependencies),
             'goto': new GotoNode(dependencies),
-            'goto_campaign': new GotoCampaignNode(dependencies), // New Node
+            'goto_campaign': new GotoCampaignNode(dependencies),
+            'followup': new FollowUpNode(dependencies),
             'agent': new AgenticNode(dependencies),
             'start': startExecutor,
             'trigger': startExecutor,

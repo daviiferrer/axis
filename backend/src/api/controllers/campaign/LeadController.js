@@ -1,4 +1,5 @@
 const { getRequestClient } = require('../../../shared/SupabaseHelper');
+const logger = require('../../../shared/Logger').createModuleLogger('lead-controller');
 
 /**
  * LeadController - Handles lead-specific API requests.
@@ -43,7 +44,7 @@ class LeadController {
             const result = await this.leadService.importLeads(targetCampaignId, leadsToImport, userId, scopedClient);
             res.json({ success: true, imported: result.count });
         } catch (error) {
-            console.error('[LeadController] Import Error:', error);
+            logger.error({ err: error }, 'Import Error');
             res.status(500).json({ error: 'Failed to import leads' });
         }
     }
@@ -88,10 +89,48 @@ class LeadController {
 
             res.json({ success: true, message: 'AI Triggered' });
         } catch (error) {
-            console.error('[LeadController] Trigger AI Error:', error);
+            logger.error({ err: error }, 'Trigger AI Error');
             res.status(500).json({ error: 'Failed to trigger AI' });
         }
     }
+
+    async bulkTriggerAi(req, res) {
+        try {
+            const { leadIds, force } = req.body;
+
+            if (!Array.isArray(leadIds) || leadIds.length === 0) {
+                return res.status(400).json({ error: 'leadIds array is required' });
+            }
+
+            const scopedClient = getRequestClient(req, this.supabase);
+            let triggeredCount = 0;
+            let errors = [];
+
+            // Parallel executions or sequential? Parallel is faster but heavier.
+            // Using sequential to avoid overwhelming Supabase if many leads.
+            for (const id of leadIds) {
+                try {
+                    const lead = await this.leadService.getLead(id, scopedClient);
+                    if (lead) {
+                        await this.workflowEngine.processLead(lead, { forceTrigger: true, ignoreManualStop: force === true });
+                        triggeredCount++;
+                    }
+                } catch (err) {
+                    errors.push({ id, error: err.message });
+                }
+            }
+
+            res.json({
+                success: true,
+                message: `AI Triggered for ${triggeredCount} leads`,
+                errors: errors.length > 0 ? errors : undefined
+            });
+        } catch (error) {
+            logger.error({ err: error }, 'Bulk Trigger AI Error');
+            res.status(500).json({ error: 'Failed to bulk trigger AI' });
+        }
+    }
+
 
     async getPresence(req, res) {
         // ... Logic for presence check

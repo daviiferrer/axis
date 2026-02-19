@@ -167,7 +167,6 @@ class WorkflowEngine {
      * Optimized to batch load leads (eliminates N+1 query).
      */
     async pulse() {
-        if (!this.isBusinessHours()) return;
 
         try {
             // 1. Get all active campaigns for CURRENT ENVIRONMENT
@@ -222,11 +221,29 @@ class WorkflowEngine {
                 return acc;
             }, {});
 
-            // 4. Process campaigns with their pre-loaded leads
+            // 4. Process campaigns with their pre-loaded leads (per-campaign business hours)
             for (const campaign of campaigns) {
+                // Per-campaign business hours check
+                if (!this.isBusinessHours(campaign)) {
+                    logger.debug({ campaignId: campaign.id, campaignName: campaign.name }, '⏸️ Outside business hours for campaign, skipping');
+                    continue;
+                }
+
                 const leads = leadsByCampaign[campaign.id] || [];
-                for (const lead of leads) {
-                    await this.processLead(lead, campaign);
+
+                // Read delay/batch from the Broadcast node's config (per-node rate limiting)
+                const graph = this._loadGraph(campaign);
+                const broadcastNode = graph?.nodes?.find(n => n.type === 'broadcast');
+                const delayMs = (broadcastNode?.data?.delayBetweenLeads ?? 30) * 1000;
+                const batchSize = broadcastNode?.data?.batchSize ?? 20;
+                const batch = leads.slice(0, batchSize);
+
+                for (let i = 0; i < batch.length; i++) {
+                    await this.processLead(batch[i], campaign);
+                    // Delay between leads to avoid WhatsApp rate limits
+                    if (i < batch.length - 1 && delayMs > 0) {
+                        await new Promise(resolve => setTimeout(resolve, delayMs));
+                    }
                 }
             }
         } catch (e) {
@@ -238,7 +255,7 @@ class WorkflowEngine {
      * Triggers AI processing for a lead by phone number.
      * Called by WebhookController when a message arrives.
      */
-    async triggerAiForLead(phone, messageBody = null, referral = null, sessionName = null) {
+    async triggerAiForLead(phone, messageBody = null, referral = null, sessionName = null, imageData = null) {
         // Standardize phone (remove non-digits)
         let cleanPhone = phone.replace(/\D/g, '');
 
@@ -280,26 +297,54 @@ class WorkflowEngine {
 
                 // Inject Ad Context if present (Ad Click Update)
                 if (referral) {
-                    updatePayload.ad_source_id = referral.source_id;
-                    updatePayload.ad_headline = referral.headline;
-                    updatePayload.ad_body = referral.body;
-                    updatePayload.ad_media_type = referral.media_type;
-                    updatePayload.ad_source_url = referral.source_url;
+                    updatePayload.ad_attribution = {
+                        source_id: referral.source_id,
+                        headline: referral.headline,
+                        body: referral.body,
+                        media_type: referral.media_type,
+                        source_url: referral.source_url
+                    };
 
                     // Also update source attribution if it was generic before
                     updatePayload.source = 'ad_click';
-                    logger.info({ referral }, '💾 Updating Ad Context (Professional Columns) for Existing Lead');
+                    logger.info({ referral }, '💾 Updating Ad Context (JSONB) for Existing Lead');
+                }
+
+                // Store image data reference on lead for AI Vision 
+                if (imageData) {
+                    updatePayload.last_media_data = {
+                        type: 'image',
+                        mimeType: imageData.mimeType,
+                        receivedAt: new Date().toISOString()
+                    };
                 }
 
                 await this.supabase.from('leads').update(updatePayload).eq('phone', cleanPhone);
             }
 
-            // 2. Find lead by phone
-            let { data: leads, error: findError } = await this.supabase
+            // 1. Resolve Target Campaign ID from Session (Multi-Tenancy Fix)
+            // This ensures we look up the lead for the *correct* campaign context.
+            let targetCampaign = null;
+            if (sessionName && sessionName !== 'default') {
+                targetCampaign = await this.campaignService.getCampaignBySession(sessionName);
+                if (targetCampaign) {
+                    logger.info({ sessionName, campaignId: targetCampaign.id }, '🎯 Resolved Target Campaign from Session');
+                }
+            }
+
+            // 2. Find lead by phone AND campaign (Scoping)
+            let query = this.supabase
                 .from('leads')
                 .select('*, campaigns(*)')
-                .eq('phone', cleanPhone)
-                .limit(1);
+                .eq('phone', cleanPhone);
+
+            // STRICT SCOPING: If we know the target campaign, ONLY find lead for that campaign.
+            // This prevents "Lead A" (Campaign A) from being loaded when user talks to "Session B".
+            if (targetCampaign) {
+                query = query.eq('campaign_id', targetCampaign.id);
+            }
+
+            let { data: leads, error: findError } = await query.limit(1);
 
             if (findError) {
                 logger.error({ error: findError.message, phone: cleanPhone }, '❌ Lead Lookup Failed (DB Error)');
@@ -307,51 +352,24 @@ class WorkflowEngine {
 
             let lead = leads?.[0];
 
-            // RE-LINK FIX: If lead exists but has NO campaign, try to link it now (Self-Healing)
-            if (lead && !lead.campaign_id) {
-                logger.info({ leadId: lead.id, phone: cleanPhone }, '🩹 Orphaned Lead detected (No Campaign). Attempting to re-link via Session.');
-
-                // Re-use logic to find campaign by session
-                // Re-use logic to find campaign by session
-                if (sessionName && sessionName !== 'default') {
-                    const sessionCampaign = await this.campaignService.getCampaignBySession(sessionName);
-
-                    if (sessionCampaign) {
-                        // Update the lead with the found campaign
-                        await this.supabase
-                            .from('leads')
-                            .update({ campaign_id: sessionCampaign.id })
-                            .eq('id', lead.id);
-
-                        // Refetch lead with new campaign relation
-                        const { data: refreshedLead } = await this.supabase
-                            .from('leads')
-                            .select('*, campaigns(*)')
-                            .eq('id', lead.id)
-                            .single();
-
-                        if (refreshedLead) {
-                            lead = refreshedLead;
-                            logger.info({ leadId: lead.id, campaignName: sessionCampaign.name }, '✅ Successfully re-linked Orphaned Lead to Campaign');
-                        }
-                    } else {
-                        logger.warn({ sessionName }, '⚠️ Could not find campaign for session to re-link orphaned lead.');
-                    }
-                }
-            }
-
             // 3. Triage / New Lead Logic
             if (!lead) {
-                // MULTI-TENANCY FIX: Find Campaign by Session Name (Node-Based Routing)
-                let campaignId = null;
+                // If we already resolved the campaign, use it to create the lead
+                let campaignId = targetCampaign?.id || null;
 
-                if (sessionName && sessionName !== 'default') {
-                    const sessionCampaign = await this.campaignService.getCampaignBySession(sessionName);
-                    if (sessionCampaign) {
-                        campaignId = sessionCampaign.id;
-                        logger.info({ sessionName, campaignId, campaignName: sessionCampaign.name }, '📍 Routing Lead based on Trigger Node Session Config');
+                // Fallback: If no session campaign, check if we should look for "Any" lead?
+                // No, strict scoping means if I didn't find a lead for THIS campaign, I create one.
+
+                if (!campaignId) {
+                    // Check again if we can find a campaign (reduncancy for safety)
+                    if (sessionName && sessionName !== 'default') {
+                        /* Already checked above */
+                    } else {
+                        // Triage/Inbox Logic (No session provided)
+                        logger.warn({ sessionName, phone: cleanPhone }, '⚠️ No session specific campaign. Lead might be orphaned.');
                     }
                 }
+
 
                 // If no session-specific campaign, we DO NOT fall back to Triage/Inbox.
                 // Strict One-to-One mapping as requested.
@@ -364,13 +382,15 @@ class WorkflowEngine {
                 let adContext = {};
                 if (referral) {
                     adContext = {
-                        ad_source_id: referral.source_id,
-                        ad_headline: referral.headline,
-                        ad_body: referral.body,
-                        ad_media_type: referral.media_type,
-                        ad_source_url: referral.source_url
+                        ad_attribution: {
+                            source_id: referral.source_id,
+                            headline: referral.headline,
+                            body: referral.body,
+                            media_type: referral.media_type,
+                            source_url: referral.source_url
+                        }
                     };
-                    logger.info({ referral }, '💾 Persisting Ad Context (Professional Columns)');
+                    logger.info({ referral }, '💾 Persisting Ad Context (JSONB)');
                 }
 
                 // Create the lead
@@ -507,9 +527,12 @@ class WorkflowEngine {
                     const graph = campaigns.strategy_graph || campaigns.graph;
                     if (graph && graph.nodes && graph.nodes.length > 0) {
                         logger.info({ leadId: lead.id, campaignId: campaigns.id }, '🔄 Using FSM path (handleUserReply)');
+                        // Attach transient image data to lead for AI Vision
+                        if (imageData) lead._imageData = imageData;
                         await this.handleUserReply(lead, campaigns, messageBody);
                     } else {
                         // Legacy path - use processLead
+                        if (imageData) lead._imageData = imageData;
                         await this.processLead(lead, campaigns);
                     }
                 } finally {
@@ -751,6 +774,15 @@ class WorkflowEngine {
                 if (result.output) {
                     executionContext = { ...executionContext, ...result.output };
 
+                    // NEW: AUTO-UPDATE LEAD STATUS FROM INTENT (Kanban Logic)
+                    if (result.output.intent) {
+                        try {
+                            await this.leadService.updateLeadStatusFromIntent(lead.id, result.output.intent);
+                        } catch (intentError) {
+                            logger.warn({ leadId: lead.id, error: intentError.message }, 'Failed to auto-update lead status from intent');
+                        }
+                    }
+
                     // Persist updated context to DB
                     await this.supabase.from('leads').update({
                         context: executionContext,
@@ -837,11 +869,22 @@ class WorkflowEngine {
                         lead.current_node_id = next.id;
 
                         // If we just executed an agentic node, we usually stop and wait for reply
-                        // UNLESS it's a logic node or something that should chain.
-                        // CHECKPOINT: Break after communication nodes to prevent "racing" through the flow.
-                        if (node.type === 'agentic' || node.type === 'agent' || node.type === 'broadcast') break;
+                        // UNLESS the node didn't send a message (e.g. slots satisfied → auto-exit).
+                        // In that case, continueExecution=true means "proceed to next node immediately".
+                        if (!result.continueExecution && (node.type === 'agentic' || node.type === 'agent' || node.type === 'broadcast')) break;
 
                         continue;
+                    }
+
+                    // NO NEXT NODE: Clear checkpoint to prevent re-execution loop.
+                    // Without this, handleUserReply finds a stale USER_REPLY checkpoint
+                    // and re-invokes the same node on every subsequent message.
+                    if (this.stateCheckpointService) {
+                        const staleCheckpoint = await this.stateCheckpointService.loadCheckpoint(lead.id, fullCampaign.id);
+                        if (staleCheckpoint) {
+                            await this.stateCheckpointService.markCompleted(staleCheckpoint.id);
+                            logger.info({ leadId: lead.id, nodeId: node.id }, '🏁 No outgoing edge — workflow instance completed');
+                        }
                     }
                     break;
                 } else if (result.status === 'waiting' || result.status === NodeExecutionStateEnum.AWAITING_ASYNC) {
@@ -874,6 +917,21 @@ class WorkflowEngine {
             }
         } catch (err) {
             logger.error({ leadId: lead.id, error: err.message }, 'Error processing lead');
+
+            // ERROR VISUALIZATION: Persist error state to DB
+            // This allows the frontend to show the "Red Node" badge
+            try {
+                await this.supabase.from('leads').update({
+                    node_state: {
+                        ...(lead.node_state || {}), // Preserve existing state if any
+                        error: true,
+                        errorMessage: err.message,
+                        failedAt: new Date().toISOString()
+                    }
+                }).eq('id', lead.id);
+            } catch (dbErr) {
+                logger.error({ error: dbErr.message }, 'Failed to persist error state');
+            }
         }
     }
 
@@ -896,11 +954,18 @@ class WorkflowEngine {
     }
 
     _getNextNode(currentNodeId, graph, actionLabel = null) {
-        // Debug Log
-        // logger.info({ currentNodeId, actionLabel, edges: graph.edges.length }, '🔍 _getNextNode Lookup');
-
         if (actionLabel) {
-            // Case-insensitive semantic match
+            // 1. Try sourceHandle match (for condition nodes with output-0, output-1...)
+            const handleEdge = graph.edges.find(e =>
+                e.source === currentNodeId &&
+                e.sourceHandle === actionLabel
+            );
+            if (handleEdge) {
+                logger.debug({ currentNodeId, actionLabel, target: handleEdge.target }, '🔀 Edge matched by sourceHandle');
+                return graph.nodes.find(n => n.id === handleEdge.target);
+            }
+
+            // 2. Fallback: Case-insensitive label match
             const smartEdge = graph.edges.find(e =>
                 e.source === currentNodeId &&
                 e.label?.toLowerCase() === actionLabel.toLowerCase()
@@ -921,6 +986,22 @@ class WorkflowEngine {
 
     async _transitionLegacy(lead, nextNodeId, campaignId) {
         await this.leadService.transitionToNode(lead.id, nextNodeId, campaignId);
+
+        // SYNC FIX: Update workflow_instance to match lead state
+        // This prevents handleUserReply from reverting to a stale node
+        try {
+            await this.supabase.from('workflow_instances')
+                .update({
+                    current_node_id: nextNodeId,
+                    node_state: NodeExecutionStateEnum.ENTERED,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('lead_id', lead.id)
+                .eq('campaign_id', campaignId);
+        } catch (e) {
+            // Ignore if instance doesn't exist yet (legacy mode)
+        }
+
         if (this.campaignSocket) {
             this.campaignSocket.emitLeadUpdate(lead.id, { current_node_id: nextNodeId }, campaignId);
         }
@@ -1076,13 +1157,51 @@ class WorkflowEngine {
         }
     }
 
-    isBusinessHours() {
-        const now = new Date();
-        const day = now.getDay();
-        const hour = now.getHours();
-        const isWeekday = day >= 1 && day <= 5;
-        const isWorkingHour = hour >= 8 && hour < 20;
-        return isWeekday && isWorkingHour;
+    /**
+     * Checks if current time is within business hours for a campaign.
+     * Reads from campaign.settings.businessHours if available, otherwise uses defaults.
+     * @param {object} [campaign] - Campaign object with optional settings.businessHours
+     */
+    isBusinessHours(campaign = null) {
+        const bh = campaign?.settings?.businessHours;
+
+        // If business hours are explicitly disabled, always allow
+        if (bh && bh.enabled === false) return true;
+
+        const tz = bh?.timezone || 'America/Sao_Paulo';
+        const start = bh?.start ?? 8;
+        const end = bh?.end ?? 20;
+        const workDays = bh?.workDays ?? [1, 2, 3, 4, 5]; // Mon-Fri
+
+        // Get current time in the campaign's timezone
+        let now;
+        try {
+            const formatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: tz,
+                hour: 'numeric',
+                minute: 'numeric',
+                weekday: 'short',
+                hour12: false
+            });
+            const parts = formatter.formatToParts(new Date());
+            const hourPart = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+            const weekdayStr = parts.find(p => p.type === 'weekday')?.value || '';
+
+            // Map weekday string to JS day number (0=Sun, 1=Mon, ..., 6=Sat)
+            const dayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+            const dayNum = dayMap[weekdayStr] ?? new Date().getDay();
+
+            const isWorkDay = workDays.includes(dayNum);
+            const isWorkingHour = hourPart >= start && hourPart < end;
+            return isWorkDay && isWorkingHour;
+        } catch (e) {
+            // Fallback to server time if timezone fails
+            logger.warn({ tz, error: e.message }, 'Failed to parse timezone, falling back to server time');
+            now = new Date();
+            const day = now.getDay();
+            const hour = now.getHours();
+            return workDays.includes(day) && hour >= start && hour < end;
+        }
     }
     /**
      * Discrete-First FSM Core: Advance the state of a campaign instance.
@@ -1092,7 +1211,7 @@ class WorkflowEngine {
     async advanceState(instanceId, event) {
         // 1. Load Instance & Campaign
         const { data: instance, error } = await this.supabase
-            .from('campaign_instances')
+            .from('workflow_instances')
             .select(`
                 *,
                 campaigns (
@@ -1148,11 +1267,21 @@ class WorkflowEngine {
      * Moves FSM to a new node and executes it.
      */
     async _transitionTo(instance, nodeId) {
+        const previousNodeId = instance.current_node_id; // Capture before transition
+
         // Update State -> ENTERED
         await this._updateState(instance.id, {
             current_node_id: nodeId,
             node_state: NodeExecutionStateEnum.ENTERED
         });
+
+        // Emit real-time event to frontend canvas
+        if (this.campaignSocket) {
+            this.campaignSocket.emitLeadUpdate(instance.lead_id, {
+                current_node_id: nodeId,
+                previous_node_id: previousNodeId || null
+            }, instance.campaign_id);
+        }
 
         const campaign = instance.campaigns;
         const graph = campaign.strategy_graph || campaign.graph || { nodes: [], edges: [] };
@@ -1228,7 +1357,7 @@ class WorkflowEngine {
     }
 
     async _updateState(instanceId, updates) {
-        await this.supabase.from('campaign_instances').update({
+        await this.supabase.from('workflow_instances').update({
             ...updates,
             updated_at: new Date().toISOString()
         }).eq('id', instanceId);
@@ -1252,7 +1381,7 @@ class WorkflowEngine {
     async jumpToFlow(instanceId, flowName) {
         // 1. Get Instance & Graph
         const { data: instance } = await this.supabase
-            .from('campaign_instances')
+            .from('workflow_instances')
             .select('*, campaigns(graph, strategy_graph)')
             .eq('id', instanceId)
             .single();
@@ -1292,7 +1421,7 @@ class WorkflowEngine {
     async getOrCreateInstance(lead, campaign) {
         // Check if instance already exists
         const { data: existing } = await this.supabase
-            .from('campaign_instances')
+            .from('workflow_instances')
             .select('*')
             .eq('campaign_id', campaign.id)
             .eq('lead_id', lead.id)
@@ -1315,13 +1444,13 @@ class WorkflowEngine {
 
         // Create new instance
         const { data: instance, error } = await this.supabase
-            .from('campaign_instances')
+            .from('workflow_instances')
             .insert({
                 campaign_id: campaign.id,
                 lead_id: lead.id,
                 current_node_id: entryNode.id,
                 node_state: NodeExecutionStateEnum.ENTERED,
-                status: CampaignStatusEnum.RUNNING,
+                // status: CampaignStatusEnum.RUNNING, // REMOVED: Column does not exist in workflow_instances
                 context: {}
             })
             .select('*')
@@ -1425,7 +1554,8 @@ class WorkflowEngine {
             current_node_id: checkpoint.current_node_id,
             node_state: checkpoint.node_state,
             context: checkpoint.context,
-            last_message_body: messageBody // Ensure current message is available
+            last_message_body: messageBody, // Ensure current message is available
+            _imageData: lead._imageData || null // Carry over transient image data
         };
 
         // Continue processing - the agentic node will see the new message

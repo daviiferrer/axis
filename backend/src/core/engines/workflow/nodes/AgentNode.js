@@ -1,6 +1,7 @@
 const { resolveDNA, SAFETY_DEFAULTS } = require('../../../config/AgentDNA');
 const { NodeExecutionStateEnum } = require('../../../types/CampaignEnums');
 const { composingCache } = require('../../../services/system/CacheService');
+const socketService = require('../../../../shared/SocketService');
 const logger = require('../../../../shared/Logger').createModuleLogger('agent-node');
 
 /**
@@ -24,6 +25,7 @@ class AgentNode {
         this.leadService = dependencies.leadService;
         this.modelService = dependencies.modelService;
         this.campaignSocket = dependencies.campaignSocket;
+        this.voiceService = dependencies.voiceService;
     }
 
     async execute(lead, campaign, nodeConfig, graph, context) {
@@ -113,6 +115,16 @@ class AgentNode {
         let attempts = 0;
         const maxAttempts = 3;
 
+        // THINKING: Emit AI is processing (multi-tenant)
+        const ownerId = campaign.user_id;
+        if (ownerId) {
+            socketService.emitThinking(ownerId, chat.id, {
+                isThinking: true,
+                step: 'Analisando conversa...',
+                nodeId: nodeConfig.id
+            });
+        }
+
         do {
             attempts++;
             const responseText = await this.geminiClient.generateSimple(
@@ -134,6 +146,16 @@ class AgentNode {
                 }
                 response = JSON.parse(cleanText);
 
+                // THINKING: Emit AI thought content
+                if (ownerId && response.thought) {
+                    socketService.emitThinking(ownerId, chat.id, {
+                        isThinking: true,
+                        step: response.thought,
+                        intent: response.intent,
+                        nodeId: nodeConfig.id
+                    });
+                }
+
                 const mergedGuardrails = { ...dna.guardrailProfile, ...nodeConfig.data?.guardrails };
                 const validation = this.validateResponse(response, contextData, mergedGuardrails);
 
@@ -142,9 +164,21 @@ class AgentNode {
                 logger.warn({ attempt: attempts, reason: validation.reason }, 'Guardrail failure');
             } catch (e) {
                 logger.error({ error: e.message, attempt: attempts }, 'Failed to parse AI response');
-                if (attempts >= maxAttempts) return { status: NodeExecutionStateEnum.FAILED, error: 'JSON Parse Failure' };
+                if (attempts >= maxAttempts) {
+                    // THINKING: Emit stop on failure
+                    if (ownerId) socketService.emitThinking(ownerId, chat.id, { isThinking: false });
+                    return { status: NodeExecutionStateEnum.FAILED, error: 'JSON Parse Failure' };
+                }
             }
         } while (attempts < maxAttempts);
+
+        // THINKING: Emit AI finished thinking
+        if (ownerId) {
+            socketService.emitThinking(ownerId, chat.id, {
+                isThinking: false,
+                thought: response?.thought || null
+            });
+        }
 
         if (!response) return { status: NodeExecutionStateEnum.FAILED, error: 'Failed to generate valid response' };
 
@@ -156,15 +190,61 @@ class AgentNode {
             return { status: NodeExecutionStateEnum.EXITED, edge: 'handoff', reason: finalValidation.reason };
         }
 
-        // 6. Send via WAHA with HUMANIZED PHYSICS
+        // 6. Voice Synthesis (DETERMINISTIC)
+        if (this.voiceService && dna.voice_config) {
+            try {
+                const voiceCtx = {
+                    ...contextData,
+                    intent: response.intent,
+                    nodeGoal: nodeConfig.data?.goal,
+                    lastMessage: history[history.length - 1],
+                    turnCount: history.length
+                };
+                if (this.voiceService.shouldUseVoice(dna.voice_config, voiceCtx)) {
+                    let targetVoiceId = dna.voice_config.voice_id;
+
+                    // FALLBACK: If voice ID is "Cherry" (default placeholder) or invalid, try to find a real enrolled voice
+                    if (!targetVoiceId || targetVoiceId === 'Cherry' || targetVoiceId.startsWith('default-')) {
+                        logger.warn({ leadId: lead.id, invalidVoice: targetVoiceId }, '⚠️ Invalid Voice ID detected. Attempting to resolve latest enrolled voice...');
+                        try {
+                            const voices = await this.voiceService.listVoices(campaign.user_id, agentId);
+                            if (voices && voices.length > 0) {
+                                targetVoiceId = voices[0].voice_id; // Use latest voice
+                                logger.info({ leadId: lead.id, resolvedVoice: targetVoiceId }, '🎙️ Resolved to latest enrolled voice');
+                            } else {
+                                logger.warn({ leadId: lead.id }, '❌ No enrolled voices found for fallback. Voice synthesis skipped.');
+                                throw new Error('No enrolled voices available');
+                            }
+                        } catch (err) {
+                            logger.error({ err: err.message }, 'Failed to resolve fallback voice');
+                            throw err; // Stop voice, fallback to text
+                        }
+                    }
+
+                    logger.info({ leadId: lead.id, voiceId: targetVoiceId }, '🎙️ Voice triggered');
+                    const audio = await this.voiceService.synthesize(
+                        response.response,
+                        targetVoiceId,
+                        dna.voice_config.voice_instruction
+                    );
+                    if (audio) response.audio_base64 = audio;
+                }
+            } catch (voiceErr) {
+                logger.error({ err: voiceErr.message }, '❌ Voice synthesis failed (fallback to text)');
+            }
+        }
+
+        // 7. Send via WAHA with HUMANIZED PHYSICS
         // Pass the resolved sessionName to the sender method
         await this.sendResponseWithPhysics(lead, campaign, chatId, chat.id, response, dna.physics, sessionName);
 
-        // 8. Update Lead Score
+        // 8. Update Lead Score (dynamic slots)
         if (this.leadService) {
+            const criticalSlots = nodeConfig.data?.criticalSlots || [];
             await this.leadService.updateLeadScore(
                 lead.id,
                 response.qualification_slots || {},
+                criticalSlots,
                 response.sentiment_score
             );
         }
@@ -280,6 +360,12 @@ class AgentNode {
             }
         }
 
+        // FIX: If audio exists but text was suppressed (messagesToSend empty), 
+        // add a placeholder to trigger the loop so audio gets sent.
+        if (messagesToSend.length === 0 && aiResponse.audio_base64) {
+            messagesToSend = ['[AUDIO_PLACEHOLDER]'];
+        }
+
         // 2. Iterate and Send with Latency
         for (let i = 0; i < messagesToSend.length; i++) {
             // 🛑 SMART ANTI-COLLISION: Check if user started typing during thought process
@@ -298,7 +384,20 @@ class AgentNode {
             // 2a. Voice Note Support
             if (isFirst && aiResponse.audio_base64) {
                 logger.info({ leadId: lead.id }, 'Sending AI-generated Voice Note');
-                await this.wahaClient.sendVoiceBase64(sessionName, wahaChatId, aiResponse.audio_base64);
+
+                let audioToSend = aiResponse.audio_base64;
+                try {
+                    logger.debug('🔄 Converting audio to Opus for mobile compatibility...');
+                    const convertedAudio = await this.wahaClient.convertVoice(sessionName, { data: aiResponse.audio_base64 });
+                    if (convertedAudio) {
+                        audioToSend = convertedAudio;
+                        logger.info('✅ Audio converted to Opus successfully');
+                    }
+                } catch (conversionError) {
+                    logger.warn({ error: conversionError.message }, '⚠️ Audio conversion failed, sending original (might not play on mobile)');
+                }
+
+                await this.wahaClient.sendVoiceBase64(sessionName, wahaChatId, audioToSend);
                 await this.logMessage(lead, chatId, '[AUDIO_VOICE_NOTE]', true);
                 continue;
             }

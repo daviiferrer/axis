@@ -38,7 +38,12 @@ export interface Campaign {
         sent: number;
         responded: number;
         converted: number;
+        revenue?: number;
+        total?: number;
+        ai_cost?: number;
+        roi?: number;
     };
+    settings?: CampaignSettings;
 }
 
 export interface CampaignFlow {
@@ -53,6 +58,20 @@ export interface CampaignFlow {
     is_published: boolean;
     created_at: string;
     updated_at: string;
+}
+
+export interface CampaignSettings {
+    businessHours: {
+        enabled: boolean;
+        start: number;
+        end: number;
+        timezone: string;
+        workDays: number[];
+    };
+    outbound?: {
+        delayBetweenLeads: number;
+        batchSize: number;
+    };
 }
 
 export const campaignService = {
@@ -92,5 +111,16 @@ export const campaignService = {
     publishFlow: async (id: string) => {
         const response = await api.post(`/${id}/publish`);
         return response.data.flow;
-    }
+    },
+
+    // Settings
+    getSettings: async (id: string): Promise<CampaignSettings> => {
+        const response = await api.get(`/${id}/settings`);
+        return response.data.settings;
+    },
+
+    updateSettings: async (id: string, settings: CampaignSettings): Promise<CampaignSettings> => {
+        const response = await api.patch(`/${id}/settings`, settings);
+        return response.data.settings;
+    },
 };

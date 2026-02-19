@@ -350,6 +350,22 @@ class SettingsService {
         const settings = await this.getSettings(userId);
         return settings?.waha_dashboard_password || null;
     }
+
+    /**
+     * Get DashScope (Qwen TTS) API key.
+     */
+    async getDashscopeApiKey(userId = null) {
+        const settings = await this.getSettings(userId);
+        return settings?.dashscope_api_key || null;
+    }
+
+    /**
+     * Get LMNT API key.
+     */
+    async getLmntApiKey(userId = null) {
+        const settings = await this.getSettings(userId);
+        return settings?.lmnt_api_key || null;
+    }
 }
 
 module.exports = SettingsService;

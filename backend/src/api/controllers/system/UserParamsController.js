@@ -1,6 +1,8 @@
 /**
  * UserParamsController - Handles user profile parameters (API Keys).
  */
+const logger = require('../../../shared/Logger').createModuleLogger('user-params');
+
 class UserParamsController {
     constructor({ supabaseClient }) {
         this.supabase = supabaseClient;
@@ -37,7 +39,7 @@ class UserParamsController {
                 return res.status(400).json({ error: 'Invalid provider' });
             }
 
-            console.log(`[UserParamsController] Updating ${columnName} for user ${userId}...`);
+            logger.info({ columnName, userId }, 'Updating API key');
 
             const { data, error } = await this.supabase
                 .from('profiles')
@@ -47,20 +49,20 @@ class UserParamsController {
                 .maybeSingle();
 
             if (!data) {
-                console.warn(`[UserParamsController] No profile found for user ${userId} to update.`);
+                logger.warn({ userId }, 'No profile found for user to update');
                 // Optionally create it? For now just return error or success false
                 return res.status(404).json({ error: 'Profile not found' });
             }
 
             if (error) {
-                console.error('[UserParamsController] Update Error:', error);
+                logger.error({ err: error }, 'Update Error');
                 return res.status(500).json({ error: 'Failed to update API key' });
             }
 
             return res.json({ success: true, message: 'API Key updated successfully' });
 
         } catch (error) {
-            console.error('[UserParamsController] Error:', error);
+            logger.error({ err: error }, 'updateApiKey error');
             res.status(500).json({ error: 'Internal Server Error' });
         }
     }
@@ -105,7 +107,7 @@ class UserParamsController {
             return res.json({ hasKey });
 
         } catch (error) {
-            console.error('[UserParamsController] Error:', error);
+            logger.error({ err: error }, 'hasApiKey error');
             res.status(500).json({ error: 'Internal Server Error' });
         }
     }

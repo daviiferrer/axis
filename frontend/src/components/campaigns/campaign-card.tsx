@@ -1,21 +1,21 @@
 'use client'
 
-import { Campaign, campaignService } from "@/services/campaign"
-import { Badge } from "@/components/ui/badge"
+import { Campaign, campaignService, CampaignSettings } from "@/services/campaign"
 import { Button } from "@/components/ui/button"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger
 } from "@/components/ui/overlay/dropdown-menu"
-import { MoreVertical, Play, Pause, Edit, Trash2, GitFork, Activity, MessageSquare, Users, TrendingUp } from "lucide-react"
+import { MoreVertical, Play, Pause, Trash2, GitFork, PhoneOutgoing, ArrowDownLeft, Clock, Settings, Moon } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { toast } from "sonner"
 import { motion } from "framer-motion"
+import { cn } from "@/lib/utils"
+import { CampaignSettingsPanel } from "./campaign-settings-panel"
 
 interface CampaignCardProps {
     campaign: Campaign
@@ -23,9 +23,37 @@ interface CampaignCardProps {
     index?: number
 }
 
+/**
+ * Checks if the current time is within configured business hours (client-side mirror of backend logic).
+ */
+function isWithinBusinessHours(bh: CampaignSettings['businessHours']): boolean {
+    if (!bh || !bh.enabled) return true; // If disabled, always "active" (24/7)
+
+    try {
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: bh.timezone || 'America/Sao_Paulo',
+            hour: 'numeric',
+            weekday: 'short',
+            hour12: false,
+        });
+        const parts = formatter.formatToParts(new Date());
+        const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+        const weekdayStr = parts.find(p => p.type === 'weekday')?.value || '';
+        const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+        const dayNum = dayMap[weekdayStr] ?? new Date().getDay();
+
+        const isWorkDay = (bh.workDays || [1, 2, 3, 4, 5]).includes(dayNum);
+        const isWorkingHour = hour >= (bh.start ?? 8) && hour < (bh.end ?? 20);
+        return isWorkDay && isWorkingHour;
+    } catch {
+        return true; // Fallback: assume within hours
+    }
+}
+
 export function CampaignCard({ campaign, onUpdate, index = 0 }: CampaignCardProps) {
     const router = useRouter()
     const [isLoading, setIsLoading] = useState(false)
+    const [showSettings, setShowSettings] = useState(false)
 
     const handleStatusToggle = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -58,112 +86,190 @@ export function CampaignCard({ campaign, onUpdate, index = 0 }: CampaignCardProp
     }
 
     const isActive = campaign.status === 'active';
-    const isPaused = campaign.status === 'paused';
+    const hasBH = !!campaign.settings?.businessHours;
+    const withinHours = useMemo(() => {
+        if (!hasBH) return true;
+        return isWithinBusinessHours(campaign.settings!.businessHours);
+    }, [campaign.settings, hasBH]);
 
-    // Verify connection status by inspecting the graph for configured Trigger Nodes
-    const isConnected = (campaign.graph?.nodes || []).some((n: any) => n.type === 'trigger' && n.data?.sessionName);
+    // Real operating status: active AND within business hours
+    const isOperating = isActive && withinHours;
+    const isOutsideHours = isActive && !withinHours && hasBH && campaign.settings!.businessHours.enabled;
+
+    // Inbound if it has a Trigger Node with a session name
+    const isInbound = (campaign.graph?.nodes || []).some((n: any) => n.type === 'trigger' && n.data?.sessionName);
+    const isOutbound = !isInbound;
 
     return (
-        <motion.div
-            layoutId={`campaign-card-${campaign.id}`}
-            initial={false}
-            whileHover={{ y: -5, transition: { duration: 0.2 } }}
-            className={`
-                group relative overflow-hidden rounded-3xl border transition-all duration-300 backdrop-blur-sm
-                ${isActive
-                    ? 'border-green-500/30 bg-white/60 hover:shadow-xl hover:shadow-green-500/10'
-                    : 'border-gray-200 bg-white/40 hover:shadow-xl hover:shadow-gray-200/50'
-                }
-            `}
-            onClick={() => router.push(`/app/campaigns/${campaign.id}/flow`)}
-        >
-            {/* Status Strip */}
-            <div className={`absolute top-0 left-0 right-0 h-1.5 ${isActive ? 'bg-gradient-to-r from-green-400 to-emerald-500' : isPaused ? 'bg-yellow-400' : 'bg-gray-200'}`} />
+        <>
+            <motion.div
+                layoutId={`campaign-card-${campaign.id}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className={cn(
+                    "group relative overflow-hidden rounded-2xl border bg-white transition-all duration-300 h-full flex flex-col",
+                    isOperating
+                        ? "border-green-200 shadow-sm hover:shadow-lg hover:border-green-300"
+                        : isOutsideHours
+                            ? "border-amber-200 shadow-sm hover:shadow-md hover:border-amber-300"
+                            : "border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200"
+                )}
+                onClick={() => router.push(`/app/campaigns/${campaign.id}/flow`)}
+            >
+                <div className="p-5 flex flex-col h-full cursor-pointer relative z-10">
+                    {/* Header */}
+                    <div className="flex justify-between items-start mb-3">
+                        <div className="space-y-1.5">
+                            <div className="flex items-center gap-2">
+                                <span className={cn(
+                                    "flex h-2 w-2 rounded-full",
+                                    isOperating
+                                        ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"
+                                        : isOutsideHours
+                                            ? "bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.4)]"
+                                            : "bg-gray-300"
+                                )} />
+                                <div className={cn(
+                                    "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                                    isOutbound ? "bg-purple-50 text-purple-700" : "bg-blue-50 text-blue-700"
+                                )}>
+                                    {isOutbound ? <PhoneOutgoing size={10} /> : <ArrowDownLeft size={10} />}
+                                    {isOutbound ? 'Ativa (Out)' : 'Receptiva (In)'}
+                                </div>
 
-            <div className="p-5 flex flex-col h-full cursor-pointer">
-                {/* Header */}
-                <div className="flex justify-between items-start mb-4">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            {isActive && (
-                                <span className="relative flex h-2.5 w-2.5">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
-                                </span>
-                            )}
-                            <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-1">{campaign.name}</h3>
+                                {/* Outside hours badge */}
+                                {isOutsideHours && (
+                                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-[10px] font-bold uppercase tracking-wider">
+                                        <Moon size={10} />
+                                        Fora do horário
+                                    </div>
+                                )}
+                            </div>
+                            <h3 className="font-bold text-gray-900 text-lg leading-tight group-hover:text-blue-600 transition-colors line-clamp-1">
+                                {campaign.name}
+                            </h3>
                         </div>
-                        <p className="text-xs text-gray-500 font-medium">{campaign.type === 'outbound' ? 'PROSPECÇÃO ATIVA' : 'INBOUND RECEPTIVO'}</p>
+
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-gray-400 hover:text-gray-900 rounded-full hover:bg-gray-100"
+                                onClick={handleStatusToggle}
+                                title={isActive ? "Pausar" : "Iniciar"}
+                            >
+                                {isActive ? <Pause size={16} /> : <Play size={16} />}
+                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-900 rounded-full hover:bg-gray-100">
+                                        <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48 rounded-xl">
+                                    <DropdownMenuItem onClick={() => router.push(`/app/campaigns/${campaign.id}/flow`)}>
+                                        <GitFork className="mr-2 h-4 w-4" /> Editar Fluxo
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowSettings(true);
+                                    }}>
+                                        <Settings className="mr-2 h-4 w-4" /> Configurações
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={handleDelete}>
+                                        <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
                     </div>
 
-                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-gray-400 hover:text-gray-900"
-                            onClick={handleStatusToggle}
-                        >
-                            {isActive ? <Pause size={16} /> : <Play size={16} />}
-                        </Button>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-900">
-                                    <MoreVertical className="h-4 w-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48 rounded-xl">
-                                <DropdownMenuLabel>Ações da Campanha</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => router.push(`/app/campaigns/${campaign.id}/flow`)}>
-                                    <GitFork className="mr-2 h-4 w-4" /> Editar Fluxo
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={handleDelete}>
-                                    <Trash2 className="mr-2 h-4 w-4" /> Excluir
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                    {/* Description */}
+                    <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-grow leading-relaxed">
+                        {campaign.description || "Sem descrição definida."}
+                    </p>
+
+                    {/* Business Hours Schedule */}
+                    {campaign.settings?.businessHours && (
+                        <div className={cn(
+                            "flex items-center gap-2 mb-4 px-3 py-2 rounded-lg",
+                            isOutsideHours ? "bg-amber-50" : "bg-gray-50"
+                        )}>
+                            <Clock size={13} className={cn(
+                                isOutsideHours ? "text-amber-500" :
+                                    campaign.settings.businessHours.enabled ? "text-blue-500" : "text-gray-400"
+                            )} />
+                            {campaign.settings.businessHours.enabled ? (
+                                <span className="text-xs text-gray-600">
+                                    <span className={cn(
+                                        "font-semibold",
+                                        isOutsideHours ? "text-amber-700" : "text-gray-800"
+                                    )}>
+                                        {String(campaign.settings.businessHours.start).padStart(2, '0')}h - {String(campaign.settings.businessHours.end).padStart(2, '0')}h
+                                    </span>
+                                    {' · '}
+                                    {[{ v: 1, l: 'Seg' }, { v: 2, l: 'Ter' }, { v: 3, l: 'Qua' }, { v: 4, l: 'Qui' }, { v: 5, l: 'Sex' }, { v: 6, l: 'Sáb' }, { v: 0, l: 'Dom' }]
+                                        .filter(d => campaign.settings?.businessHours.workDays.includes(d.v))
+                                        .map(d => d.l).join(', ')}
+                                </span>
+                            ) : (
+                                <span className="text-xs text-gray-500">Funciona 24/7</span>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Main Stats */}
+                    <div className="flex items-center gap-4 pt-4 border-t border-gray-50 mt-auto">
+                        {(campaign.stats?.revenue || 0) > 0 ? (
+                            <div className="flex flex-col">
+                                <span className="text-xs text-green-600/70 font-medium">Receita</span>
+                                <span className="text-lg font-bold text-green-600">
+                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(campaign.stats?.revenue || 0)}
+                                </span>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col">
+                                <span className="text-xs text-gray-400 font-medium">Leads</span>
+                                <span className="text-lg font-bold text-gray-900">{campaign.stats?.total || 0}</span>
+                            </div>
+                        )}
+
+                        <div className="flex flex-col">
+                            <span className="text-xs text-gray-400 font-medium">Custo AI</span>
+                            <span className="text-lg font-bold text-gray-900">
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(campaign.stats?.ai_cost || 0)}
+                            </span>
+                        </div>
+
+                        {(campaign.stats?.roi || 0) !== 0 ? (
+                            <div className="flex flex-col">
+                                <span className="text-xs text-purple-600/70 font-medium">ROI</span>
+                                <span className="text-lg font-bold text-purple-600">{campaign.stats?.roi}%</span>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col">
+                                <span className="text-xs text-gray-400 font-medium">Respostas</span>
+                                <span className="text-lg font-bold text-gray-900">{campaign.stats?.responded || 0}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Description */}
-                <p className="text-sm text-gray-600 line-clamp-2 mb-6 flex-grow">
-                    {campaign.description || "Sem descrição. Adicione detalhes para organizar suas campanhas."}
-                </p>
+                {/* Hover Overlay */}
+                <div className="absolute inset-0 z-0 bg-gray-50/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+            </motion.div>
 
-                {/* Stats Grid - Glass Effect */}
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                    <div className="bg-white/50 rounded-xl p-2.5 text-center border border-gray-100/50 group-hover:border-blue-100/50 transition-colors">
-                        <Users size={14} className="mx-auto text-gray-400 mb-1" />
-                        <div className="font-bold text-gray-900 text-lg leading-none">{campaign.stats?.sent || 0}</div>
-                        <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mt-0.5">Leads</div>
-                    </div>
-                    <div className="bg-white/50 rounded-xl p-2.5 text-center border border-gray-100/50 group-hover:border-blue-100/50 transition-colors">
-                        <MessageSquare size={14} className="mx-auto text-blue-400 mb-1" />
-                        <div className="font-bold text-blue-600 text-lg leading-none">{campaign.stats?.responded || 0}</div>
-                        <div className="text-[10px] uppercase font-bold text-blue-400/70 tracking-wider mt-0.5">Ativos</div>
-                    </div>
-                    <div className="bg-white/50 rounded-xl p-2.5 text-center border border-gray-100/50 group-hover:border-green-100/50 transition-colors">
-                        <TrendingUp size={14} className="mx-auto text-green-500 mb-1" />
-                        <div className="font-bold text-green-600 text-lg leading-none">{campaign.stats?.converted || 0}</div>
-                        <div className="text-[10px] uppercase font-bold text-green-500/70 tracking-wider mt-0.5">Vendas</div>
-                    </div>
-                </div>
-
-                {/* Footer / Connect Status */}
-                <div className="flex items-center justify-between pt-3 border-t border-gray-50 text-xs mt-auto">
-                    <span className={`
-                        flex items-center gap-1.5 px-2 py-1 rounded-full font-medium
-                        ${isConnected ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}
-                    `}>
-                        <Activity size={10} />
-                        {isConnected ? 'Conectado' : 'Desconectado'}
-                    </span>
-                    <span className="text-gray-400 font-mono text-[10px]">{new Date(campaign.updated_at).toLocaleDateString()}</span>
-                </div>
-            </div>
-
-            {/* Hover Gradient Shine */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/30 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 pointer-events-none" />
-        </motion.div>
+            {/* Settings Panel */}
+            <CampaignSettingsPanel
+                campaignId={campaign.id}
+                open={showSettings}
+                onClose={() => {
+                    setShowSettings(false);
+                    onUpdate?.();
+                }}
+            />
+        </>
     )
 }

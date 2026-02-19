@@ -217,20 +217,44 @@ class AgenticNode extends AgentNode {
         // 4. Generate Response with tracing
         logger.info({ leadId: lead.id, model: targetModel, agentId }, '🧠 Calling Gemini... (Sandwich Pattern Applied)');
 
-        // Generation span disabled
+        let aiResult;
 
-        const aiResult = await this.geminiClient.generateSimple(
-            targetModel,
-            systemInstruction,
-            "Responda ao lead.",
-            {
-                companyId: campaign.company_id,
-                campaignId: campaign.id,
-                chatId: chat.id,
-                userId: campaign.user_id, // Pass owner for SaaS logging & Key Retrieval
-                sessionId: campaign.session_name || campaign.waha_session_name
-            }
-        );
+        // CHECK FOR IMAGE DATA (Multimodal)
+        if (lead._imageData) {
+            logger.info({ leadId: lead.id, mimeType: lead._imageData.mimeType }, '🖼️ Using Vision Model for Image Analysis');
+            const mediaItems = [{
+                mimeType: lead._imageData.mimeType,
+                data: lead._imageData.data
+            }];
+
+            aiResult = await this.geminiClient.generateWithVision(
+                targetModel,
+                systemInstruction,
+                "Analise a imagem e responda ao lead de acordo com seu objetivo.",
+                mediaItems,
+                {
+                    companyId: campaign.company_id,
+                    campaignId: campaign.id,
+                    chatId: chat.id,
+                    userId: campaign.user_id,
+                    sessionId: campaign.session_name || campaign.waha_session_name
+                }
+            );
+        } else {
+            // Standard Text Generation
+            aiResult = await this.geminiClient.generateSimple(
+                targetModel,
+                systemInstruction,
+                "Responda ao lead.",
+                {
+                    companyId: campaign.company_id,
+                    campaignId: campaign.id,
+                    chatId: chat.id,
+                    userId: campaign.user_id, // Pass owner for SaaS logging & Key Retrieval
+                    sessionId: campaign.session_name || campaign.waha_session_name
+                }
+            );
+        }
 
         let response;
         try {
@@ -258,7 +282,42 @@ class AgenticNode extends AgentNode {
                 rawText = rawText.substring(0, rawText.length - 1); // Remove last }
             }
 
-            response = JSON.parse(rawText);
+            // FIX: Escape literal newlines/tabs inside JSON string values.
+            // Gemini often outputs markdown with real line breaks inside the "response" field,
+            // which are invalid inside JSON strings and cause JSON.parse to fail.
+            rawText = rawText.replace(/(?<=":[ ]*"(?:[^"\\]|\\.)*)(\r?\n)/g, '\\n')
+                .replace(/(?<=":[ ]*"(?:[^"\\]|\\.)*)(\t)/g, '\\t');
+
+            try {
+                response = JSON.parse(rawText);
+            } catch (innerErr) {
+                // Second attempt: manually extract response field with regex
+                logger.warn({ innerError: innerErr.message }, 'First JSON.parse failed, attempting regex extraction');
+                const thoughtMatch = rawText.match(/"thought"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+                const responseMatch = rawText.match(/"response"\s*:\s*"([\s\S]*?)"\s*,\s*"(?:ready_to_close|sentiment|crm|qualification)/);
+                const sentimentMatch = rawText.match(/"sentiment_score"\s*:\s*([\d.]+)/);
+                const confidenceMatch = rawText.match(/"confidence_score"\s*:\s*([\d.]+)/);
+
+                if (responseMatch) {
+                    // Clean up the extracted response (un-escape for display)
+                    const extractedResponse = responseMatch[1]
+                        .replace(/\\n/g, '\n')
+                        .replace(/\\t/g, '\t')
+                        .replace(/\\"/g, '"');
+
+                    response = {
+                        thought: thoughtMatch ? thoughtMatch[1] : 'Extracted via regex fallback',
+                        response: extractedResponse,
+                        sentiment_score: sentimentMatch ? parseFloat(sentimentMatch[1]) : 0.5,
+                        confidence_score: confidenceMatch ? parseFloat(confidenceMatch[1]) : 0.5,
+                        qualification_slots: {},
+                        crm_actions: []
+                    };
+                    logger.info({ leadId: lead.id }, '✅ Regex extraction succeeded — response recovered');
+                } else {
+                    throw innerErr; // Let outer catch handle it
+                }
+            }
         } catch (e) {
             logger.error({ error: e.message, raw: aiResult.text() }, 'Failed to parse AI response');
             // FALLBACK: Generate safe response instead of failing
@@ -380,6 +439,67 @@ class AgenticNode extends AgentNode {
             }
         }
 
+        // 5.3. Persist qualification_slots SCOPED to current criticalSlots only
+        const aiSlots = response.qualification_slots || {};
+        const existingQualification = lead.custom_fields?.qualification || {};
+        const configuredSlots = nodeConfig.data?.criticalSlots || [];
+        let slotsUpdated = false;
+
+        // Start fresh: only keep slots that are in the CURRENT config
+        const mergedSlots = {};
+        for (const slotName of configuredSlots) {
+            // Priority: new AI value > existing persisted value > nothing
+            const aiValue = aiSlots[slotName];
+            const existingValue = existingQualification[slotName];
+            if (aiValue && aiValue !== 'unknown' && aiValue !== null) {
+                mergedSlots[slotName] = aiValue;
+            } else if (existingValue && existingValue !== 'unknown' && existingValue !== null) {
+                mergedSlots[slotName] = existingValue;
+            }
+        }
+
+        // Check if any NEW data was extracted this turn
+        for (const slotName of configuredSlots) {
+            const aiValue = aiSlots[slotName];
+            if (aiValue && aiValue !== 'unknown' && aiValue !== null && aiValue !== existingQualification[slotName]) {
+                slotsUpdated = true;
+                break;
+            }
+        }
+
+        // Always persist scoped slots (also cleans up stale data from old configs)
+        const needsCleanup = Object.keys(existingQualification).some(k => !configuredSlots.includes(k));
+        if (slotsUpdated || needsCleanup) {
+            const updatedCustomFields = {
+                ...(lead.custom_fields || {}),
+                qualification: mergedSlots
+            };
+            await this.supabase.from('leads').update({
+                custom_fields: updatedCustomFields
+            }).eq('id', lead.id);
+
+            // Update local lead reference so slot check below uses fresh data
+            lead.custom_fields = updatedCustomFields;
+
+            logger.info({
+                leadId: lead.id,
+                slots: mergedSlots,
+                configuredSlots,
+                filled: configuredSlots.filter(s => mergedSlots[s]),
+                missing: configuredSlots.filter(s => !mergedSlots[s])
+            }, '💾 Qualification slots persisted to lead');
+
+            // 5.4. Update Lead Score (dynamic, based on slot fill percentage + sentiment)
+            if (this.leadService) {
+                await this.leadService.updateLeadScore(
+                    lead.id,
+                    mergedSlots,
+                    configuredSlots,
+                    response.sentiment_score
+                );
+            }
+        }
+
         // 5.5. Process CRM Actions (Handoff, etc.)
         let handoffTriggered = false; // New flag for flow control
         if (response.crm_actions && response.crm_actions.length > 0) {
@@ -391,12 +511,103 @@ class AgenticNode extends AgentNode {
                         custom_fields: { ...lead.custom_fields, handoff_reason: action.reason }
                     }).eq('id', lead.id);
                     handoffTriggered = true; // Set flag
-                    // TODO: Emit socket event
+                    if (this.campaignSocket) {
+                        this.campaignSocket.emit('agent.handoff', {
+                            leadId: lead.id,
+                            reason: action.reason,
+                            campaignId: campaign.id,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
                 }
             }
         }
 
-        // 6. Send Message with HUMANIZED PHYSICS (Delegated to Base)
+        // 6. SLOT CHECK FIRST — Before sending response
+        // If all critical slots are already filled, EXIT immediately without sending
+        // another AI message (prevents "give me your CPF" when CPF is already collected)
+        const criticalSlots = nodeConfig.data?.criticalSlots || [];
+        let slotsSatisfied = true;
+
+        if (criticalSlots.length > 0) {
+            // Use PERSISTED accumulated slots (all turns), scoped to current config
+            const persistedSlots = lead.custom_fields?.qualification || {};
+            slotsSatisfied = criticalSlots.every(slot => persistedSlots[slot] && persistedSlots[slot] !== 'unknown');
+            logger.info({
+                leadId: lead.id,
+                satisfied: slotsSatisfied,
+                filled: criticalSlots.filter(s => persistedSlots[s] && persistedSlots[s] !== 'unknown'),
+                missing: criticalSlots.filter(s => !persistedSlots[s] || persistedSlots[s] === 'unknown'),
+                values: Object.fromEntries(criticalSlots.map(s => [s, persistedSlots[s] || 'unknown']))
+            }, '🕵️ Critical Slots Check');
+
+            // CRITICAL: If slots are satisfied, EXIT BEFORE sending response
+            if (slotsSatisfied) {
+                logger.info({ leadId: lead.id }, '✅ All critical slots filled. Skipping AI response and auto-completing node.');
+                return {
+                    status: NodeExecutionStateEnum.EXITED,
+                    edge: 'default',
+                    continueExecution: true, // No message was sent, don't wait for user reply
+                    output: {
+                        ...response,
+                        ready_to_close: true,
+                        conversation_ended: false
+                    }
+                };
+            }
+        }
+
+        // 8. Classify Intent (HOISTED for Voice Context)
+        const classifiedIntent = this._classifyIntent(response.intent || response.thought);
+        const classifiedSentiment = this._classifySentiment(response.sentiment_score);
+
+        // 6. Voice Synthesis (DETERMINISTIC)
+        if (this.voiceService && dna.voice_config) {
+            try {
+                const voiceCtx = {
+                    ...contextData,
+                    intent: response.intent || classifiedIntent,
+                    nodeGoal: nodeConfig.data?.goal,
+                    lastMessage: history[history.length - 1],
+                    turnCount: turnCount
+                };
+
+                if (this.voiceService.shouldUseVoice(dna.voice_config, voiceCtx)) {
+                    let targetVoiceId = dna.voice_config.voice_id;
+
+                    // Qwen Fallback Fix for "Cherry" / Invalid IDs
+                    if (!targetVoiceId || targetVoiceId === 'Cherry' || targetVoiceId.startsWith('default-')) {
+                        logger.warn({ leadId: lead.id, invalidVoice: targetVoiceId }, '⚠️ (Agentic) Invalid Voice ID. Resolving fallback...');
+                        try {
+                            const voices = await this.voiceService.listVoices(campaign.user_id, agentId);
+                            if (voices && voices.length > 0) {
+                                targetVoiceId = voices[0].voice_id;
+                                logger.info({ leadId: lead.id, resolvedVoice: targetVoiceId }, '🎙️ (Agentic) Fallback to latest enrolled voice');
+                            } else {
+                                throw new Error('No enrolled voices found for fallback');
+                            }
+                        } catch (e) {
+                            logger.error({ err: e.message }, 'Voice fallback failed');
+                            throw e;
+                        }
+                    }
+
+                    logger.info({ leadId: lead.id, voiceId: targetVoiceId }, '🎙️ Voice triggered (Agentic)');
+                    // Use finalizedText which has passed guardrails
+                    const audio = await this.voiceService.synthesize(
+                        finalizedText || response.response,
+                        targetVoiceId,
+                        dna.voice_config.voice_instruction
+                    );
+                    if (audio) response.audio_base64 = audio;
+                }
+            } catch (err) {
+                logger.error({ err: err.message }, '❌ Agentic Voice Synthesis Failed');
+            }
+        }
+
+        // 7. Send Message with HUMANIZED PHYSICS (Delegated to Base)
+        // Only reached if slots are NOT yet satisfied (or no criticalSlots configured)
         // FIX: AI uses |Split| delimiter to indicate message breaks
         let messagesToSend = null;
         const responseText = response.response || finalizedText;
@@ -412,17 +623,29 @@ class AgenticNode extends AgentNode {
 
         const syntheticResponse = {
             messages: messagesToSend,  // Pre-split messages (if |Split| was used)
-            response: messagesToSend ? null : responseText, // Fallback: let burstiness handle it
+            response: response.audio_base64 ? null : (messagesToSend ? null : responseText), // Suppress text if audio exists
             thought: response.thought,
+            audio_base64: response.audio_base64 // <--- PASS AUDIO
         };
 
         const sessionName = nodeConfig.data?.sessionName || campaign.session_name || campaign.waha_session_name;
         await this.sendResponseWithPhysics(lead, campaign, chatId, chat.id, syntheticResponse, dna.physics, sessionName, operatingAgent.name);
 
-        // 7. Classify Intent for Campaign FSM to read
-        // CRITICAL: Agent classifies, Campaign decides transition
-        const classifiedIntent = this._classifyIntent(response.intent || response.thought);
-        const classifiedSentiment = this._classifySentiment(response.sentiment_score);
+
+
+        // AUTO-TRANSITION: Guarantee new → contacted after first AI reply
+        // If the AI just replied, the lead was contacted — period.
+        if (lead.status === 'new') {
+            try {
+                await this.supabase.from('leads').update({
+                    status: 'contacted',
+                    updated_at: new Date().toISOString()
+                }).eq('id', lead.id);
+                logger.info({ leadId: lead.id }, '📬 Lead auto-transitioned: new → contacted (first AI reply)');
+            } catch (e) {
+                logger.warn({ leadId: lead.id, error: e.message }, 'Failed to auto-transition lead to contacted');
+            }
+        }
 
         logger.info({
             leadId: lead.id,
@@ -430,30 +653,6 @@ class AgenticNode extends AgentNode {
             sentiment: classifiedSentiment,
             confidence: response.confidence_score
         }, '🏷️ Agent Classification (Campaign will read this)');
-
-        // 8. Slot Validation (Merged from QualificationNode)
-        const criticalSlots = nodeConfig.data?.criticalSlots || [];
-        let slotsSatisfied = true;
-
-        if (criticalSlots.length > 0) {
-            const slots = response.qualification_slots || {};
-            slotsSatisfied = criticalSlots.every(slot => slots[slot] && slots[slot] !== 'unknown');
-            logger.info({ leadId: lead.id, satisfied: slotsSatisfied, missing: criticalSlots.filter(s => !slots[s] || slots[s] === 'unknown') }, '🕵️ Critical Slots Check');
-
-            // CRITICAL FIX: If slots are satisfied, EXIT THE NODE
-            if (slotsSatisfied) {
-                logger.info({ leadId: lead.id }, '✅ All critical slots filled. Auto-completing node.');
-                return {
-                    status: NodeExecutionStateEnum.EXITED,
-                    edge: 'default', // Or 'qualified' if available
-                    output: {
-                        ...response,
-                        ready_to_close: true,
-                        conversation_ended: false // Logic node will decide next step
-                    }
-                };
-            }
-        }
 
         // FSM-Compliant Return
         // If handoff was triggered, we EXIT the node to stop the loop

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     X, Zap, Clock, GitBranch, MessageSquare, CornerUpRight, ExternalLink, Users, Flag, Bot, Brain,
-    Split, CheckCircle, Filter, ArrowLeft, ArrowRight, MousePointer2
+    Split, CheckCircle, Filter, ArrowLeft, ArrowRight, MousePointer2, RefreshCw
 } from 'lucide-react';
 import { Node, Edge } from '@xyflow/react';
 import { Input } from '@/components/ui/input';
@@ -13,9 +13,10 @@ import { agentService, Agent } from '@/services/agentService';
 import { campaignService } from '@/services/campaign';
 import {
     TriggerConfig, DelayConfig, SplitConfig, ActionConfig,
-    LogicConfig, GotoConfig, GotoCampaignConfig, HandoffConfig,
-    ClosingConfig, AgentConfig
+    BroadcastConfig, LogicConfig, GotoConfig, GotoCampaignConfig,
+    HandoffConfig, ClosingConfig, AgentConfig
 } from './node-configs';
+import { FollowUpConfig } from './node-configs/followup-config';
 
 interface NodeConfigModalProps {
     selectedNode: Node | null;
@@ -32,13 +33,14 @@ const NODE_META: Record<string, { icon: React.ReactNode; color: string; label: s
     split: { icon: <Split className="w-5 h-5" />, color: 'text-pink-600 bg-pink-50', label: 'Split A/B' },
     action: { icon: <MessageSquare className="w-5 h-5" />, color: 'text-sky-600 bg-sky-50', label: 'Ação' },
     broadcast: { icon: <MessageSquare className="w-5 h-5" />, color: 'text-sky-600 bg-sky-50', label: 'Broadcast' },
-    logic: { icon: <GitBranch className="w-5 h-5" />, color: 'text-slate-600 bg-slate-50', label: 'Logic Router' },
+    logic: { icon: <GitBranch className="w-5 h-5" />, color: 'text-slate-600 bg-slate-50', label: 'Condição IF/ELSE' },
     goto: { icon: <CornerUpRight className="w-5 h-5" />, color: 'text-cyan-600 bg-cyan-50', label: 'Goto' },
     goto_campaign: { icon: <ExternalLink className="w-5 h-5" />, color: 'text-indigo-600 bg-indigo-50', label: 'Ir para Campanha' },
     handoff: { icon: <Users className="w-5 h-5" />, color: 'text-rose-600 bg-rose-50', label: 'Transbordo' },
     closing: { icon: <Flag className="w-5 h-5" />, color: 'text-red-600 bg-red-50', label: 'Fechamento' },
     agent: { icon: <Bot className="w-5 h-5" />, color: 'text-purple-600 bg-purple-50', label: 'Agente IA' },
     agentic: { icon: <Bot className="w-5 h-5" />, color: 'text-purple-600 bg-purple-50', label: 'Agente IA' },
+    followup: { icon: <RefreshCw className="w-5 h-5" />, color: 'text-teal-600 bg-teal-50', label: 'Follow-Up' },
 };
 
 const AGENT_TYPES = ['agent', 'agentic'];
@@ -146,10 +148,11 @@ export function NodeConfigModal({ selectedNode, onClose, onUpdateNode, nodes, ed
             case 'split':
                 return <SplitConfig formData={formData} onChange={handleChange} />;
             case 'action':
-            case 'broadcast':
                 return <ActionConfig formData={formData} onChange={handleChange} />;
+            case 'broadcast':
+                return <BroadcastConfig formData={formData} onChange={handleChange} />;
             case 'logic':
-                return <LogicConfig />;
+                return <LogicConfig formData={formData} onChange={handleChange} />;
             case 'goto':
                 return <GotoConfig formData={formData} onChange={handleChange} />;
             case 'goto_campaign':
@@ -158,6 +161,8 @@ export function NodeConfigModal({ selectedNode, onClose, onUpdateNode, nodes, ed
                 return <HandoffConfig formData={formData} onChange={handleChange} campaigns={campaigns} />;
             case 'closing':
                 return <ClosingConfig formData={formData} onChange={handleChange} />;
+            case 'followup':
+                return <FollowUpConfig formData={formData} onChange={handleChange} />;
             case 'agent':
             case 'agentic':
                 return <AgentConfig formData={formData} onChange={handleChange} agents={agents} onAgentsChange={refreshAgents} />;
@@ -211,7 +216,7 @@ export function NodeConfigModal({ selectedNode, onClose, onUpdateNode, nodes, ed
                                             <div className="absolute inset-0 z-10 bg-white/10" /> {/* Overlay */}
                                             {/* Header Replica */}
                                             <div className="px-8 py-5 border-b border-gray-100 bg-white flex items-center gap-4">
-                                                <div className={`p-3 rounded-2xl ${NODE_META[connectedNodes.incoming[0]?.type || 'default']?.color || 'bg-gray-100 text-gray-500'}`}>
+                                                <div className={`${(NODE_META[connectedNodes.incoming[0]?.type || 'default']?.color || 'text-gray-500').split(' ')[0]}`}>
                                                     {NODE_META[connectedNodes.incoming[0]?.type || 'default']?.icon || <Zap className="w-5 h-5" />}
                                                 </div>
                                                 <div>
@@ -247,7 +252,7 @@ export function NodeConfigModal({ selectedNode, onClose, onUpdateNode, nodes, ed
                                     {/* Header */}
                                     <div className="flex items-center justify-between px-8 py-5 border-b border-gray-100 bg-white z-20">
                                         <div className="flex items-center gap-4">
-                                            <div className={`p-3 rounded-2xl ${meta.color} shadow-sm`}>
+                                            <div className={`${meta.color.split(' ')[0]}`}>
                                                 {meta.icon}
                                             </div>
                                             <div>
@@ -289,16 +294,7 @@ export function NodeConfigModal({ selectedNode, onClose, onUpdateNode, nodes, ed
                                         {renderContent()}
                                     </div>
 
-                                    {/* Footer Status */}
-                                    <div className="px-8 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between z-20">
-                                        <div className="flex items-center gap-2.5">
-                                            <div className="bg-white p-1.5 rounded-lg border border-gray-100 shadow-sm">
-                                                <Bot size={14} className="text-indigo-500" />
-                                            </div>
-                                            <p className="text-xs text-gray-600 font-medium">Configuração {type}</p>
-                                        </div>
-                                        <p className="text-[10px] text-gray-300 font-mono tracking-wider">ID: {selectedNode.id.slice(0, 8)}</p>
-                                    </div>
+
                                 </motion.div>
 
                                 {/* NEXT NODE (Right Slot) */}
@@ -317,7 +313,7 @@ export function NodeConfigModal({ selectedNode, onClose, onUpdateNode, nodes, ed
                                             <div className="absolute inset-0 z-10 bg-white/10" /> {/* Overlay */}
                                             {/* Header Replica */}
                                             <div className="px-8 py-5 border-b border-gray-100 bg-white flex items-center gap-4">
-                                                <div className={`p-3 rounded-2xl ${NODE_META[connectedNodes.outgoing[0]?.type || 'default']?.color || 'bg-gray-100 text-gray-500'}`}>
+                                                <div className={`${(NODE_META[connectedNodes.outgoing[0]?.type || 'default']?.color || 'text-gray-500').split(' ')[0]}`}>
                                                     {NODE_META[connectedNodes.outgoing[0]?.type || 'default']?.icon || <Zap className="w-5 h-5" />}
                                                 </div>
                                                 <div>

@@ -67,6 +67,8 @@ export interface WahaMessage {
     timestamp: number;
     hasMedia?: boolean;
     mediaUrl?: string;
+    mediaType?: 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'file' | null;
+    mimetype?: string;
     fromMe: boolean;
     ack?: number; // Added ack for ticks (1=sent, 2=delivered, 3=read)
     _data?: any;
@@ -253,6 +255,30 @@ function ChatList({
         return chat.status === statusFilter;
     }) || [];
 
+    const handleSelectChat = async (chat: WahaChat) => {
+        onSelectChat(chat);
+        // Mark as read — optimistic update + API call
+        if (chat.unreadCount && chat.unreadCount > 0) {
+            // Optimistic: set unreadCount to 0 locally
+            mutateChats(
+                chats?.map(c => c.id === chat.id ? { ...c, unreadCount: 0 } : c),
+                false
+            );
+            // Fire & forget API call (session comes from the chat's sessionName)
+            if (chat.sessionName) {
+                wahaService.markAsRead(chat.sessionName, chat.id).catch(err => {
+                    console.warn('markAsRead failed:', err);
+                });
+            }
+        }
+    };
+
+    const formatTokens = (tokens: number) => {
+        if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`;
+        if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}k`;
+        return String(tokens);
+    };
+
     return (
         <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
             <div className="flex flex-col gap-1 p-2">
@@ -260,7 +286,7 @@ function ChatList({
                     <ContextMenu key={chat.id}>
                         <ContextMenuTrigger asChild>
                             <button
-                                onClick={() => onSelectChat(chat)}
+                                onClick={() => handleSelectChat(chat)}
                                 className={`group flex items-start gap-3 p-3 rounded-xl text-left transition-all duration-300 border border-transparent hover:bg-gray-50 relative overflow-hidden ${selectedChatId === chat.id
                                     ? "bg-blue-50/50 border-blue-100 shadow-sm"
                                     : "bg-white"
@@ -281,21 +307,49 @@ function ChatList({
                                         <span className={`text-sm truncate font-inter ${selectedChatId === chat.id ? "font-bold text-gray-900" : "font-medium text-gray-700"}`}>
                                             {formatPhone(chat.name)}
                                         </span>
-                                        {chat.lastMessage && (
-                                            <span className="text-[10px] text-gray-400 font-mono">
-                                                {new Date(chat.lastMessage.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </span>
-                                        )}
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            {chat.lastMessage && (
+                                                <span className="text-[10px] text-gray-400 font-mono">
+                                                    {new Date(chat.lastMessage.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            )}
+                                            {chat.unreadCount ? (
+                                                <div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white shadow-[0_2px_8px_rgba(37,99,235,0.3)]">
+                                                    {chat.unreadCount}
+                                                </div>
+                                            ) : null}
+                                        </div>
                                     </div>
                                     <p className={`text-xs truncate font-inter ${chat.unreadCount ? "font-semibold text-gray-900" : "text-gray-500 font-light"}`}>
                                         {chat.lastMessage?.body || "Inicie a conversa"}
                                     </p>
+                                    {/* Enrichment row: session · campaign · tokens */}
+                                    {(chat.sessionName || chat.campaignName || (chat.aiTokens && chat.aiTokens > 0)) && (
+                                        <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400 font-inter">
+                                            {chat.sessionName && (
+                                                <span className="flex items-center gap-0.5 truncate max-w-[90px]" title={chat.sessionName}>
+                                                    📡 {chat.sessionName}
+                                                </span>
+                                            )}
+                                            {chat.campaignName && (
+                                                <>
+                                                    <span className="text-gray-300">·</span>
+                                                    <span className="flex items-center gap-0.5 truncate max-w-[90px]" title={chat.campaignName}>
+                                                        🎯 {chat.campaignName}
+                                                    </span>
+                                                </>
+                                            )}
+                                            {chat.aiTokens && chat.aiTokens > 0 ? (
+                                                <>
+                                                    <span className="text-gray-300">·</span>
+                                                    <span className="flex items-center gap-0.5" title={`${chat.aiTokens} tokens`}>
+                                                        🤖 {formatTokens(chat.aiTokens)}
+                                                    </span>
+                                                </>
+                                            ) : null}
+                                        </div>
+                                    )}
                                 </div>
-                                {chat.unreadCount ? (
-                                    <div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white shadow-[0_2px_8px_rgba(37,99,235,0.3)]">
-                                        {chat.unreadCount}
-                                    </div>
-                                ) : null}
                             </button>
                         </ContextMenuTrigger>
                         <ContextMenuContent>
@@ -554,6 +608,9 @@ function ChatWindow({
     const [isAttachOpen, setIsAttachOpen] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
+    // AI Thinking State
+    const [thinking, setThinking] = useState<{ isThinking: boolean; step?: string; intent?: string } | null>(null);
+
     // Dynamic User Info
     const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || "Usuário";
     const userRole = user?.role || "Admin";
@@ -618,9 +675,18 @@ function ChatWindow({
         socket.on('presence.update', handlePresence);
         socket.on('chat.acting', handleActing);
 
+        // AI Thinking listener
+        const handleThinking = (data: any) => {
+            // Only process thinking for the current chat
+            if (data.chatId !== chat.id) return;
+            setThinking(data.isThinking ? { isThinking: true, step: data.step, intent: data.intent } : null);
+        };
+        socket.on('ai.thinking', handleThinking);
+
         return () => {
             socket.off('presence.update', handlePresence);
             socket.off('chat.acting', handleActing);
+            socket.off('ai.thinking', handleThinking);
         };
     }, [socket, session, chat]);
 
@@ -730,7 +796,49 @@ function ChatWindow({
                                     ? 'bg-[#155dfc]/10 rounded-tr-sm text-gray-900'
                                     : 'bg-gray-100 rounded-tl-sm text-gray-800'
                                     }`}>
-                                    <p className="text-[13px] font-normal leading-relaxed whitespace-pre-wrap break-words">{msg.body}</p>
+
+                                    {/* Media Rendering */}
+                                    {msg.hasMedia && msg.mediaUrl && msg.mediaType === 'image' && (
+                                        <img
+                                            src={msg.mediaUrl}
+                                            alt="Imagem"
+                                            className="rounded-xl max-w-full max-h-64 object-cover mb-1.5 cursor-pointer hover:opacity-90 transition-opacity"
+                                            onClick={() => window.open(msg.mediaUrl, '_blank')}
+                                        />
+                                    )}
+                                    {msg.hasMedia && msg.mediaUrl && msg.mediaType === 'audio' && (
+                                        <audio controls className="max-w-full mb-1.5" preload="metadata">
+                                            <source src={msg.mediaUrl} type={msg.mimetype || 'audio/ogg'} />
+                                        </audio>
+                                    )}
+                                    {msg.hasMedia && msg.mediaUrl && msg.mediaType === 'document' && (
+                                        <a
+                                            href={msg.mediaUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-2 p-2 bg-white/50 rounded-lg hover:bg-white/80 transition-colors mb-1.5"
+                                        >
+                                            <FileText className="size-5 text-purple-600" />
+                                            <span className="text-xs text-blue-600 underline">Abrir documento</span>
+                                        </a>
+                                    )}
+                                    {msg.hasMedia && msg.mediaUrl && msg.mediaType === 'video' && (
+                                        <video controls className="rounded-xl max-w-full max-h-64 mb-1.5" preload="metadata">
+                                            <source src={msg.mediaUrl} type={msg.mimetype || 'video/mp4'} />
+                                        </video>
+                                    )}
+                                    {msg.hasMedia && msg.mediaUrl && msg.mediaType === 'sticker' && (
+                                        <img
+                                            src={msg.mediaUrl}
+                                            alt="Sticker"
+                                            className="max-w-[150px] max-h-[150px] object-contain mb-1.5"
+                                        />
+                                    )}
+
+                                    {/* Text body */}
+                                    {msg.body && !(['[📷 Imagem recebida]', '[AUDIO_MESSAGE]'].includes(msg.body) && msg.hasMedia) && (
+                                        <p className="text-[13px] font-normal leading-relaxed whitespace-pre-wrap break-words">{msg.body}</p>
+                                    )}
                                     <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
                                         <span className="text-[10px] text-gray-500">
                                             {new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -740,15 +848,55 @@ function ChatWindow({
                                 </div>
                             </div>
 
-                            {/* Right Side: Avatar (User) */}
+                            {/* Right Side: Avatar (User) - Dynamic */}
                             {msg.fromMe && (
                                 <Avatar className="size-6 shrink-0 mb-1">
-                                    <AvatarImage src="https://github.com/shadcn.png" />
-                                    <AvatarFallback>U</AvatarFallback>
+                                    <AvatarImage src={user?.user_metadata?.avatar_url || user?.user_metadata?.picture} />
+                                    <AvatarFallback>{userName?.charAt(0)?.toUpperCase() || 'U'}</AvatarFallback>
                                 </Avatar>
                             )}
                         </div>
                     ))}
+
+                    {/* AI Thinking Bubble */}
+                    {thinking?.isThinking && (
+                        <div className="w-full max-w-3xl mx-auto flex items-end gap-2 justify-end">
+                            <div className="flex flex-col items-end max-w-[70%]">
+                                <span className="text-[10px] text-gray-400 mb-1 px-1">IA, Pensando...</span>
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="p-3 rounded-2xl rounded-tr-sm bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-100/50"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex gap-1">
+                                            <motion.span
+                                                className="size-1.5 bg-blue-400 rounded-full"
+                                                animate={{ opacity: [0.3, 1, 0.3] }}
+                                                transition={{ repeat: Infinity, duration: 1.2, delay: 0 }}
+                                            />
+                                            <motion.span
+                                                className="size-1.5 bg-blue-400 rounded-full"
+                                                animate={{ opacity: [0.3, 1, 0.3] }}
+                                                transition={{ repeat: Infinity, duration: 1.2, delay: 0.3 }}
+                                            />
+                                            <motion.span
+                                                className="size-1.5 bg-blue-400 rounded-full"
+                                                animate={{ opacity: [0.3, 1, 0.3] }}
+                                                transition={{ repeat: Infinity, duration: 1.2, delay: 0.6 }}
+                                            />
+                                        </div>
+                                        {thinking.step && (
+                                            <p className="text-[11px] text-blue-600/80 italic max-w-[200px] truncate">
+                                                {thinking.step}
+                                            </p>
+                                        )}
+                                    </div>
+                                </motion.div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Invisible div to scroll to */}
                     <div ref={messagesEndRef} />
                 </motion.div>

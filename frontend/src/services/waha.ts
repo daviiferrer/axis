@@ -41,7 +41,10 @@ export interface WahaChat {
         timestamp: number;
     };
     unreadCount?: number;
-    status?: 'PROSPECTING' | 'QUALIFIED' | 'FINISHED'; // Added for UI filtering
+    sessionName?: string;
+    campaignName?: string;
+    aiTokens?: number;
+    status?: 'PROSPECTING' | 'QUALIFIED' | 'FINISHED';
     tags?: string[];
 }
 
@@ -189,6 +192,11 @@ export const wahaService = {
 
     updateTags: async (session: string, chatId: string, tags: string[]) => {
         const response = await api.post(`/chat/tags`, { session, chatId, tags });
+        return response.data;
+    },
+
+    markAsRead: async (session: string, chatId: string) => {
+        const response = await api.post(`/chatting/chats/${session}/${chatId}/read`);
         return response.data;
     },
 

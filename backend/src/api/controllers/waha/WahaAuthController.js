@@ -1,3 +1,5 @@
+const logger = require('../../../shared/Logger').createModuleLogger('waha-auth');
+
 class WahaAuthController {
     constructor({ wahaClient }) {
         this.waha = wahaClient;
@@ -9,7 +11,7 @@ class WahaAuthController {
             const result = await this.waha.getAuthQR(req.params.session);
             res.json(result);
         } catch (error) {
-            console.error('[WahaAuthController] getQR error:', error.message);
+            logger.error({ err: error.message }, 'getQR error');
 
             // Check for connection/timeout errors (Offline)
             if (error.message.includes('WAHA Connection Error') || error.message.includes('ECONNREFUSED')) {

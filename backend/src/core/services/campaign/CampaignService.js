@@ -1,6 +1,7 @@
 /**
  * CampaignService - Core Service for Campaign Management
  */
+const logger = require('../../../shared/Logger').createModuleLogger('campaign-service');
 class CampaignService {
     constructor({ supabaseClient }) {
         this.supabase = supabaseClient;
@@ -50,7 +51,7 @@ class CampaignService {
             .order('updated_at', { ascending: false });
 
         if (error) {
-            console.error('Error listing active campaigns for session lookup:', error);
+            logger.error({ err: error }, 'Error listing active campaigns for session lookup');
             return null;
         }
 
@@ -67,12 +68,12 @@ class CampaignService {
             );
 
             if (triggerNode) {
-                console.log(`[CampaignService] ✅ Matched session "${sessionName}" to campaign "${campaign.name}" (${campaign.id})`);
+                logger.info({ sessionName, campaignName: campaign.name, campaignId: campaign.id }, 'Matched session to campaign');
                 return campaign;
             }
         }
 
-        console.warn(`[CampaignService] ❌ No active campaign found for session "${sessionName}". Checked ${activeCampaigns.length} campaigns.`);
+        logger.warn({ sessionName, checkedCount: activeCampaigns.length }, 'No active campaign found for session');
         return null;
     }
 
@@ -92,15 +93,22 @@ class CampaignService {
         // campaignData: { name, description, session_id }
         const client = scopedClient || this.supabase;
 
+        const insertPayload = {
+            user_id: userId,
+            name: campaignData.name,
+            description: campaignData.description,
+            status: 'draft',
+            env: process.env.NODE_ENV || 'development' // AUTO-TAGGING: Isolate Dev/Prod
+        };
+
+        // Support direct session assignment if provided
+        if (campaignData.waha_session_name) {
+            insertPayload.waha_session_name = campaignData.waha_session_name;
+        }
+
         const { data, error } = await client
             .from('campaigns')
-            .insert({
-                user_id: userId,
-                name: campaignData.name,
-                description: campaignData.description,
-                status: 'draft',
-                env: process.env.NODE_ENV || 'development' // AUTO-TAGGING: Isolate Dev/Prod
-            })
+            .insert(insertPayload)
             .select()
 
         if (error) throw error;
@@ -152,6 +160,7 @@ class CampaignService {
     async saveFlow(campaignId, flowData, scopedClient = null) {
         // Update the 'graph' jsonb column directly on the campaign
         const client = scopedClient || this.supabase;
+
         const { data, error } = await client
             .from('campaigns')
             .update({
@@ -235,22 +244,65 @@ class CampaignService {
         return data;
     }
 
+    /**
+     * Retrieves aggregated statistics for a campaign.
+     * Includes: Leads Count, Conversions, Revenue, and AI Costs.
+     */
     async getCampaignStats(campaignId) {
-        // Logic to calculate stats (leads, responses, conversions)
-        // This is a placeholder for actual complex query or RPC
-        const { data: leads } = await this.supabase
-            .from('leads')
-            .select('status')
-            .eq('campaign_id', campaignId);
+        try {
+            // 1. Leads Stats (Count + Revenue)
+            const { data: leads, error: leadsError } = await this.supabase
+                .from('leads')
+                .select('status, revenue')
+                .eq('campaign_id', campaignId);
 
-        const stats = {
-            total: leads?.length || 0,
-            active: leads?.filter(l => l.status === 'active').length || 0,
-            responded: leads?.filter(l => l.status === 'responded').length || 0,
-            converted: leads?.filter(l => l.status === 'converted').length || 0
-        };
+            if (leadsError) {
+                logger.error({ error: leadsError, campaignId }, 'Failed to fetch lead stats');
+                throw leadsError;
+            }
 
-        return stats;
+            const total = leads.length;
+            const active = leads.filter(l => l.status === 'new' || l.status === 'contacted' || l.status === 'negotiating').length;
+            const converted = leads.filter(l => l.status === 'converted').length;
+
+            // Sum Revenue (defaults to 0 if null)
+            const revenue = leads.reduce((sum, lead) => sum + (Number(lead.revenue) || 0), 0);
+
+            // 2. AI Cost Stats
+            const { data: usageLogs, error: usageError } = await this.supabase
+                .from('ai_usage_logs')
+                .select('cost')
+                .eq('campaign_id', campaignId);
+
+            if (usageError) {
+                logger.warn({ error: usageError, campaignId }, 'Failed to fetch AI usage stats');
+            }
+
+            // Sum AI Cost
+            const aiCost = (usageLogs || []).reduce((sum, log) => sum + (Number(log.cost) || 0), 0);
+
+            // 3. ROI Calculation
+            const profit = revenue - aiCost;
+            const roi = aiCost > 0 ? ((profit / aiCost) * 100).toFixed(1) : 0;
+
+            return {
+                total,
+                active,
+                // responded: leads.filter(l => l.status === 'responded').length, // Legacy
+                negotiating: leads.filter(l => l.status === 'negotiating').length,
+                converted,
+                revenue,
+                ai_cost: aiCost,
+                profit,
+                roi
+            };
+        } catch (error) {
+            logger.error({ error: error.message, campaignId }, 'getCampaignStats failed');
+            return { total: 0, active: 0, converted: 0, revenue: 0, ai_cost: 0 };
+        }
+    }
+    async getFlowStats(campaignId, scopedClient) {
+        return this.leadService.getFlowStats(campaignId, scopedClient);
     }
 }
 

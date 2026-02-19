@@ -113,6 +113,43 @@ export interface DNAConfig {
         role: IdentityRole;
     };
     business_context?: BusinessContext;
+    voice_config?: VoiceConfig;
+}
+
+export type VoiceResponseMode = 'text_only' | 'mirror' | 'hybrid' | 'voice_only';
+
+export interface VoiceConfig {
+    enabled: boolean;
+    response_mode: VoiceResponseMode;
+    voice_id?: string;
+    voice_name?: string;
+    provider?: string;
+    voice_instruction?: string;
+    // LMNT / Advanced Settings
+    speed?: number;
+    temperature?: number;
+    dynamic_emotion?: boolean;
+    triggers?: {
+        first_message?: boolean;
+        mirror_audio?: boolean;
+        after_objection?: boolean;
+        on_close?: boolean;
+    };
+}
+
+export interface VoiceClone {
+    id: string;
+    user_id: string;
+    agent_id?: string;
+    voice_id: string;
+    provider: string;
+    name: string;
+    description?: string;
+    sample_url?: string;
+    preview_url?: string;
+    metadata?: Record<string, unknown>;
+    is_active: boolean;
+    created_at: string;
 }
 
 export interface Agent {
@@ -153,5 +190,31 @@ export const agentService = {
 
     delete: async (id: string): Promise<void> => {
         await api.delete(`/agents/${id}`);
-    }
+    },
+
+    // Voice Management
+    enrollVoice: async (audioBase64: string, voiceName: string, description?: string, agentId?: string, provider?: string): Promise<{ voice_id: string; provider: string }> => {
+        const response = await api.post('/agents/voice-enroll', { audioBase64, voiceName, description, agentId, provider });
+        return response.data;
+    },
+
+    listVoices: async (agentId?: string): Promise<VoiceClone[]> => {
+        const params = agentId ? `?agentId=${agentId}` : '';
+        const response = await api.get(`/agents/voices${params}`);
+        return response.data;
+    },
+
+    deleteVoice: async (voiceId: string, provider?: string, agentId?: string): Promise<{ success: boolean }> => {
+        // We might need to send provider/agentId in query or body depending on backend implementation. 
+        // Standard REST suggests DELETE body is discouraged but possible, or use query params.
+        // Backend `VoiceService.deleteVoice` needs them. Let's use query params / body.
+        // Axios delete supports `data` config.
+        const response = await api.delete(`/agents/voices/${voiceId}`, { data: { provider, agentId } });
+        return response.data;
+    },
+
+    previewVoice: async (voiceId: string, text?: string, provider?: string, agentId?: string): Promise<{ audio_base64: string }> => {
+        const response = await api.post('/agents/voice-preview', { voiceId, text, provider, agentId });
+        return response.data;
+    },
 };

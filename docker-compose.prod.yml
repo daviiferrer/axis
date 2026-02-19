@@ -81,10 +81,10 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env.production
+      - ${ENV_FILE:-.env.production}
     environment:
       - PORT=8000
-      - NODE_ENV=production
+      - NODE_ENV=${NODE_ENV:-production}
       # ==== Bootstrap Only (from .env) ====
       # ==== Bootstrap Only (from .env) ====
       # Variables loaded via env_file configuration

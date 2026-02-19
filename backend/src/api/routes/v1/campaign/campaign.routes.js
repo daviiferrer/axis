@@ -19,6 +19,10 @@ function createCampaignRouter(campaignController, authMiddleware, riskMiddleware
     router.put('/:id/flow', rbac(Resources.CAMPAIGN, Actions.UPDATE), (req, res) => campaignController.saveFlow(req, res));
     router.post('/:id/publish', rbac(Resources.CAMPAIGN, Actions.UPDATE), riskMiddleware, (req, res) => campaignController.publishFlow(req, res));
 
+    // Campaign Settings
+    router.get('/:id/settings', rbac(Resources.CAMPAIGN, Actions.READ), (req, res) => campaignController.getSettings(req, res));
+    router.patch('/:id/settings', rbac(Resources.CAMPAIGN, Actions.UPDATE), (req, res) => campaignController.updateSettings(req, res));
+
     return router;
 }
 

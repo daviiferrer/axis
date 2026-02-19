@@ -1,3 +1,5 @@
+const logger = require('../../../shared/Logger').createModuleLogger('waha-screenshot');
+
 class WahaScreenshotController {
     constructor({ wahaClient }) {
         this.waha = wahaClient;
@@ -17,7 +19,7 @@ class WahaScreenshotController {
             });
             res.end(imgBuffer);
         } catch (error) {
-            console.error('[WahaScreenshotController] Error:', error.message);
+            logger.error({ err: error.message }, 'Screenshot error');
             res.status(500).json({ error: error.message });
         }
     }

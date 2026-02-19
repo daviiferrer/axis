@@ -9,7 +9,7 @@ const GeminiClient = require('./infra/clients/GeminiClient');
 const RagClient = require('./infra/clients/RagClient');
 
 // --- Services ---
-const CompanyService = require('./core/services/system/CompanyService');
+
 const ChatService = require('./core/services/chat/ChatService');
 const SettingsService = require('./core/services/system/SettingsService');
 const ConfigService = require('./core/services/system/ConfigService'); // [NEW]
@@ -27,6 +27,8 @@ const DashboardService = require('./core/services/analytics/DashboardService');
 const SchedulingService = require('./core/services/scheduling/SchedulingService');
 const EmbeddingService = require('./core/services/rag/EmbeddingService');
 const HybridSearchService = require('./core/services/rag/HybridSearchService');
+const VoiceService = require('./core/services/voice/VoiceService');
+const TranscriptionService = require('./core/services/voice/TranscriptionService');
 
 // --- Controllers ---
 const SettingsController = require('./api/controllers/system/SettingsController');
@@ -53,7 +55,7 @@ const WahaPresenceController = require('./api/controllers/waha/WahaPresenceContr
 const WahaMediaController = require('./api/controllers/waha/WahaMediaController');
 const WahaObservabilityController = require('./api/controllers/waha/WahaObservabilityController');
 const WahaScreenshotController = require('./api/controllers/waha/WahaScreenshotController');
-const CompanyController = require('./api/controllers/system/CompanyController');
+
 const SchedulingController = require('./api/controllers/scheduling/SchedulingController');
 const FacebookAdsController = require('./api/controllers/facebook/FacebookAdsController');
 
@@ -105,7 +107,7 @@ function configureContainer() {
 
         // 3. Core Services (Scoped by default for user context isolation if needed)
         // If they are strictly stateless, singleton is fine, but Scoped is safer for future context.
-        companyService: asClass(CompanyService).scoped(),
+
         chatService: asClass(ChatService).scoped(),
         settingsService: asClass(SettingsService).scoped(),
         configService: asClass(ConfigService).singleton().inject((c) => ({
@@ -139,6 +141,8 @@ function configureContainer() {
             systemConfig: c.systemConfig
         })),
         hybridSearchService: asClass(HybridSearchService).singleton(),
+        voiceService: asClass(VoiceService).singleton(),
+        transcriptionService: asClass(TranscriptionService).singleton(),
 
         // Singletons (Stateful/Global)
         // Singletons (Stateful/Global)
@@ -188,7 +192,7 @@ function configureContainer() {
         chatController: asClass(ChatController),
         healthController: asClass(HealthController),
         billingController: asClass(BillingController),
-        companyController: asClass(CompanyController),
+
 
         // WAHA Controllers
         wahaSessionController: asClass(WahaSessionController).inject((c) => ({

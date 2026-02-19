@@ -3,6 +3,8 @@
  * Registers the 'supabaseAdmin' client as the 'supabaseClient' in the current scope.
  * Use this for routes that operate with System Privileges (Webhooks, Cron).
  */
+const logger = require('../../shared/Logger').createModuleLogger('admin-scope');
+
 const adminScopeMiddleware = (req, res, next) => {
     try {
         const { asValue } = require('awilix');
@@ -13,10 +15,10 @@ const adminScopeMiddleware = (req, res, next) => {
             supabaseClient: asValue(adminClient)
         });
 
-        console.log('🛡️ [Middleware] Admin Scope Activated for:', req.originalUrl);
+        logger.info({ url: req.originalUrl }, 'Admin Scope Activated');
         next();
     } catch (err) {
-        console.error('Failed to activate Admin Scope:', err);
+        logger.error({ err }, 'Failed to activate Admin Scope');
         res.status(500).json({ error: 'System Context Error' });
     }
 };

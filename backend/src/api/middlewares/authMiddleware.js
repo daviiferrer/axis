@@ -1,6 +1,5 @@
 /**
- * Authentication Middleware (Refactored for Clean Slate)
- * Uses SupabaseClientFactory and Memberships table.
+ * Authentication Middleware
  */
 const logger = require('../../shared/Logger').createModuleLogger('auth');
 

@@ -1,6 +1,8 @@
 /**
  * ChatController - MODELO VINDO DA TABELA AGENTS via ModelService.
  */
+const logger = require('../../../shared/Logger').createModuleLogger('chat-controller');
+
 class ChatController {
     constructor(chatService, wahaClient, historyService, geminiClient, modelService) {
         this.chatService = chatService;
@@ -27,7 +29,7 @@ class ChatController {
                 .eq('user_id', userId);
 
             if (error) {
-                console.error('[ChatController] Error fetching user sessions:', error);
+                logger.error({ err: error }, 'Error fetching user sessions');
                 throw error;
             }
 
@@ -36,11 +38,11 @@ class ChatController {
             // 3. Filter: Only return sessions that verify: WAHA_EXIST && USER_OWNS
             const filteredSessions = allSessions.filter(session => allowedSessionNames.has(session.name));
 
-            console.log(`[ChatController] getSessions: User ${userId} requested sessions. Returning ${filteredSessions.length} of ${allSessions.length} available.`);
+            logger.debug({ userId, filtered: filteredSessions.length, total: allSessions.length }, 'getSessions result');
 
             res.json(filteredSessions);
         } catch (error) {
-            console.error('[ChatController] getSessions error:', error);
+            logger.error({ err: error }, 'getSessions error');
             res.status(500).json({ error: 'Failed to fetch sessions' });
         }
     }
@@ -60,7 +62,7 @@ class ChatController {
             if (error.message === 'Insufficient credits') {
                 return res.status(402).json({ error: 'Insufficient credits' });
             }
-            console.error(error);
+            logger.error({ err: error }, 'sendMessage error');
             res.status(500).json({ error: 'Failed to send message: ' + error.message });
         }
     }
@@ -75,7 +77,7 @@ class ChatController {
             const result = await this.chatService.updateTags(chatId, session, tags);
             res.json({ tags: result });
         } catch (error) {
-            console.error(error);
+            logger.error({ err: error }, 'updateTags error');
             res.status(500).json({ error: 'Failed to update tags' });
         }
     }
@@ -106,7 +108,7 @@ class ChatController {
 
             res.json({ hint: hint.trim() });
         } catch (error) {
-            console.error('[ChatController] getOracleHint error:', error.message);
+            logger.error({ err: error.message }, 'getOracleHint error');
             res.json({ hint: 'Analise o histórico para contexto.' });
         }
     }

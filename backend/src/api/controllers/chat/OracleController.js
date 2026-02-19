@@ -2,6 +2,8 @@
  * OracleController - Handles contextual hints generation.
  * MODELO VINDO DA TABELA AGENTS via ModelService.
  */
+const logger = require('../../../shared/Logger').createModuleLogger('oracle');
+
 class OracleController {
     constructor({ geminiClient, historyService, modelService }) {
         this.geminiClient = geminiClient;
@@ -33,7 +35,7 @@ A dica deve ser prática e específica para esta conversa.`;
             res.json({ hint: hint || 'Analise o histórico para contexto.' });
 
         } catch (error) {
-            console.error('[OracleController] Error:', error.message);
+            logger.error({ err: error.message }, 'getHint error');
             res.json({ hint: 'Analise o histórico para contexto.' });
         }
     }

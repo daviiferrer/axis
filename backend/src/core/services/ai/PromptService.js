@@ -1,5 +1,6 @@
 const { getRoleBlueprint } = require('./AgentRolePrompts');
 const { DNAPrompts } = require('../../config/DNAPromptLibrary');
+const logger = require('../../../shared/Logger').createModuleLogger('prompt-service');
 
 /**
  * PromptService - Core Service for Prompt Engineering
@@ -63,7 +64,14 @@ class PromptService {
 
         // === LAYER 5: OVERRIDE (Bottom - Critical Directives) ===
         const criticalSlots = nodeConfig?.data?.criticalSlots || [];
-        const overrideLayer = this.#buildOverrideLayer(nodeDirective, lead, criticalSlots);
+        logger.info({
+            nodeId: nodeConfig?.id,
+            criticalSlots,
+            count: criticalSlots.length,
+            hasNodeConfig: !!nodeConfig,
+            nodeDataKeys: nodeConfig?.data ? Object.keys(nodeConfig.data) : []
+        }, '🎯 SLOT DEBUG: criticalSlots resolved for prompt');
+        const overrideLayer = this.#buildOverrideLayer(nodeDirective, lead, criticalSlots, dna);
 
         // Sandwich Pattern: Security → DNA → Context → Persona Refresh → Objectives → Style → Human → Override
         return [
@@ -112,13 +120,14 @@ class PromptService {
         // RESOLVE COMPANY NAME (Strict Priority: Node > AgentDNA > Campaign fallback)
         // Note: campaign.company_name column was removed from DB. Rely on DNA.
         const nodeCompanyValue = nodeConfig?.data?.company_context?.name;
-        const dnaCompanyValue = dna.identity?.company || agent?.dna_config?.identity?.company;
+        const dnaCompanyValue = dna.business_context?.company_name || dna.identity?.company || agent?.dna_config?.business_context?.company_name || agent?.dna_config?.identity?.company;
 
         let resolvedCompanyName = nodeCompanyValue || dnaCompanyValue;
 
-        // Fallback or Strict Error
+        // Graceful fallback instead of crash — canvas will show visual error
         if (!resolvedCompanyName || resolvedCompanyName === 'NOT_CONFIGURED') {
-            resolvedCompanyName = 'Empresa (Não Identificada)'; // Better fallback than English
+            resolvedCompanyName = 'Empresa';
+            logger.warn({ nodeId: nodeConfig?.id, agentId: agent?.id }, '⚠️ COMPANY: Nome da empresa não configurado — usando placeholder. Configure no DNA do agente ou no override do nó.');
         }
 
         const customPlaybook = nodeConfig?.data?.business_context?.custom_context ||
@@ -337,6 +346,25 @@ ${roleBlueprint}
     </sales_methodology>`;
         }
 
+        // SALES INSTINCT: Sentiment-Based Closing Trigger
+        let salesInstinct = '';
+        const sentimentScore = lead?.last_sentiment || 0.5;
+        const pleasure = lead?.emotional_state?.pleasure || 0.5;
+
+        // Dynamic Goal Resolution
+        const nodeGoal = nodeConfig?.data?.goal || nodeConfig?.data?.cta || 'FECHAMENTO (CTA)';
+
+        // If High Pleasure/Sentiment (> 0.8) AND reasonable turn count (> 2)
+        if ((sentimentScore > 0.8 || pleasure > 0.8) && (chatHistory?.length || 0) > 2) {
+            salesInstinct = `
+    <sales_instinct priority="CRITICAL">
+        🚨 OPORTUNIDADE DE FECHAMENTO DETECTADA 🚨
+        O lead demonstra sentimento MUITO POSITIVO (Entusiasmo/Prazer).
+        NÃO ENROLE: Pare de explicar e tente o OBJETIVO ATUAL: [ ${nodeGoal} ] agora.
+        Se já tiver as informações necessárias, proponha o próximo passo imediatamente.
+    </sales_instinct>`;
+        }
+
         return `
 <context type="variable">
     <identity>
@@ -398,6 +426,8 @@ ${roleBlueprint}
         Se o lead disser algo como "quero falar com humano", "atendente real", "pessoa de verdade", "não é robô", 
         você DEVE incluir no response JSON: "crm_actions": [{"action": "request_handoff", "reason": "Lead solicitou atendente humano"}]
     </handoff_triggers>
+
+    ${salesInstinct}
 </context>`;
     }
 
@@ -631,19 +661,23 @@ ${roleBlueprint}
      * Layer 5: Override - Critical directives that MUST be followed.
      * Placed at the end for LLM recency bias.
      */
-    #buildOverrideLayer(nodeDirective, lead, criticalSlots = []) {
+    #buildOverrideLayer(nodeDirective, lead, criticalSlots = [], dna = {}) {
         const nodeVars = lead?.node_variables || {};
         const microGoals = nodeVars.micro_goals?.join(', ') || '';
         const currentCta = nodeVars.current_cta || '';
 
-        // Build dynamic qualification_slots from criticalSlots config
-        const slotEntries = { lead_name: null }; // Always include lead_name
+        // Build dynamic qualification_slots ONLY from configured criticalSlots
+        // Pre-fill with already-extracted values from lead.custom_fields.qualification
+        const existingQualification = lead?.custom_fields?.qualification || {};
+        const slotEntries = { lead_name: lead?.name || null }; // Always include lead_name
         for (const slot of criticalSlots) {
-            if (slot !== 'lead_name') slotEntries[slot] = 'unknown';
+            if (slot !== 'lead_name') {
+                // Use existing value if already extracted, otherwise 'unknown'
+                slotEntries[slot] = existingQualification[slot] || 'unknown';
+            }
         }
-        // Fallback to BANT if no slots configured
         if (criticalSlots.length === 0) {
-            Object.assign(slotEntries, { budget: 'unknown', authority: 'unknown', need: 'unknown', timeline: 'unknown' });
+            logger.warn({ nodeId: nodeConfig?.id }, '⚠️ SLOTS: No criticalSlots configured — only lead_name will be tracked');
         }
         const slotsJson = JSON.stringify(slotEntries, null, 16).replace(/\n/g, '\n                ');
 
@@ -765,9 +799,10 @@ ${roleBlueprint}
         
         Para finalizar:
         1. Marque "ready_to_close": true
-        2. Se for agendamento, adicione "crm_actions": [{"action": "schedule_meeting"}]
-        3. Se for venda, adicione "crm_actions": [{"action": "close_sale"}]
-        4. NÃO faça mais perguntas desnecessárias. Avance.
+        2. NÃO faça mais perguntas desnecessárias. Avance.
+        ${allowedCtas.includes('SCHEDULE_CALL') ? '3. Se for agendamento, adicione "crm_actions": [{"action": "schedule_meeting"}]' : ''}
+        ${allowedCtas.includes('CLOSE_SALE') || allowedCtas.includes('SEND_PROPOSAL') ? '4. Se for venda/proposta, adicione "crm_actions": [{"action": "close_sale"}]' : ''}
+        ${allowedCtas.includes('REQUEST_HANDOFF') ? '5. Se precisar de humano, adicione "crm_actions": [{"action": "request_handoff", "reason": "motivo"}]' : ''}
     </supervisor_override>`;
 
         objectivesXml += `

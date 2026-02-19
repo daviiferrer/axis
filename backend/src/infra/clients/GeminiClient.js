@@ -307,6 +307,62 @@ class GeminiClient {
         return this.simpleBreaker.fire(modelName, systemInstruction, prompt, options);
     }
 
+    /**
+     * Generate content with vision (image analysis).
+     * Supports sending images alongside text prompts for multimodal AI processing.
+     *
+     * @param {string} modelName - Gemini model (e.g., 'gemini-2.0-flash')
+     * @param {string} systemInstruction - System prompt
+     * @param {string} textPrompt - Text prompt/question about the image
+     * @param {Array} mediaItems - Array of { mimeType: string, data: string (base64) }
+     * @param {object} options - Additional options (userId, campaignId, etc.)
+     */
+    async generateWithVision(modelName, systemInstruction, textPrompt, mediaItems = [], options = {}) {
+        const start = performance.now();
+        const model = await this._ensureClient(modelName, 'generateWithVision', options);
+
+        const genModel = this.genAI.getGenerativeModel({
+            model,
+            systemInstruction,
+            safetySettings: SALES_SAFETY_SETTINGS,
+        });
+
+        // Build multimodal parts: images first, then text
+        const parts = [];
+        for (const item of mediaItems) {
+            parts.push({
+                inlineData: {
+                    mimeType: item.mimeType,
+                    data: item.data // base64 string
+                }
+            });
+        }
+        parts.push({ text: textPrompt });
+
+        const result = await genModel.generateContent(parts);
+        const response = result.response;
+        const usage = response.usageMetadata || {};
+
+        const total_ms = Math.round(performance.now() - start);
+        const metrics = {
+            model,
+            total_ms,
+            prompt_tokens: usage.promptTokenCount || 0,
+            completion_tokens: usage.candidatesTokenCount || 0
+        };
+
+        logger.info({ model, total_ms, mediaCount: mediaItems.length }, '🖼️ Vision generation completed');
+        response._metrics = metrics;
+
+        // BILLING & LOGGING HOOK
+        if (options.companyId || options.userId) {
+            this._handleBilling(metrics, { companyId: options.companyId, isComplex: true });
+            this._logUsage(metrics, options);
+        }
+
+        return response;
+    }
+
     async getEmbedding(modelName, text, options = {}) {
         const start = performance.now();
         const model = await this._ensureClient(modelName, 'getEmbedding', options);

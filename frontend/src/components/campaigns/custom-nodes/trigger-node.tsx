@@ -44,6 +44,17 @@ export const TriggerNode = memo(({ data: rawData, isConnectable, selected }: Nod
             data={data}
         >
             <div className="space-y-3">
+                {/* Active Leads Badge */}
+                {((data.activeLeads as number) || 0) > 0 && (
+                    <div className="absolute -top-3 right-4 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-600 text-white shadow-sm border-[1.5px] border-white z-50">
+                        <span className="relative flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span>
+                        </span>
+                        <span className="text-[10px] font-bold">{data.activeLeads as number}</span>
+                    </div>
+                )}
+
                 {/* Triage Mode Indicator */}
                 {data.isTriage && (
                     <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-900 text-white">

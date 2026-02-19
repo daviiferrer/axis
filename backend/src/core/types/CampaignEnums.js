@@ -347,6 +347,17 @@ const QualificationSlotEnum = {
 };
 
 // ============================================================================
+// 17. LEAD STATUS ENUM (Kanban Columns)
+// ============================================================================
+const LeadStatusEnum = {
+    NEW: 'new',
+    CONTACTED: 'contacted',
+    NEGOTIATING: 'negotiating', // AI active / High Intent
+    CONVERTED: 'converted',     // Sale closed
+    LOST: 'lost'
+};
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 module.exports = {
@@ -376,6 +387,7 @@ module.exports = {
     ChannelTypeEnum,
     MessageTypeEnum,
     ConsentStatusEnum,
+    LeadStatusEnum, // <--- Added
 
     // Operational & Safety
     CampaignModeEnum,

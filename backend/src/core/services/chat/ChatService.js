@@ -4,13 +4,14 @@ const logger = require('../../../shared/Logger').createModuleLogger('chat-servic
  * ChatService - Core Service for Chat Management and Persistence
  */
 class ChatService {
-    constructor({ supabaseClient, billingService, wahaClient, settingsService, jidService, campaignService }) {
+    constructor({ supabaseClient, billingService, wahaClient, settingsService, jidService, campaignService, transcriptionService }) {
         this.supabase = supabaseClient;
         this.billingService = billingService;
         this.wahaClient = wahaClient;
         this.settingsService = settingsService;
         this.jidService = jidService;
         this.campaignService = campaignService;
+        this.transcriptionService = transcriptionService;
     }
 
     /**
@@ -88,7 +89,7 @@ class ChatService {
             .single();
 
         if (error) {
-            console.error('[ChatService] Chat Upsert Error:', error.message);
+            logger.error({ err: error.message }, 'Chat Upsert Error');
             throw error;
         }
         return data;
@@ -103,7 +104,7 @@ class ChatService {
             .upsert(messageData, { onConflict: 'id' });
 
         if (error) {
-            console.error('[ChatService] Message Save Error:', error.message);
+            logger.error({ err: error.message }, 'Message Save Error');
             throw error;
         }
     }
@@ -119,7 +120,7 @@ class ChatService {
             .eq('session_name', sessionName);
 
         if (error) {
-            console.error('[ChatService] Tags Update Error:', error.message);
+            logger.error({ err: error.message }, 'Tags Update Error');
             throw error;
         }
         return tags;
@@ -136,7 +137,7 @@ class ChatService {
             .eq('session_name', sessionName);
 
         if (error) {
-            console.error('[ChatService] Metadata Update Error:', error.message);
+            logger.error({ err: error.message }, 'Metadata Update Error');
             throw error;
         }
     }
@@ -152,6 +153,31 @@ class ChatService {
 
         // Voice/Audio Message Support
         const isVoiceMessage = payload.hasMedia && (payload.media?.mimetype?.includes('audio') || payload._data?.type === 'audio' || payload._data?.type === 'ptt');
+
+        // Image/Photo Message Support
+        const isImageMessage = payload.hasMedia && (payload.media?.mimetype?.includes('image') || payload._data?.type === 'image');
+
+        // Document Message Support
+        const isDocumentMessage = payload.hasMedia && !isVoiceMessage && !isImageMessage && (
+            payload.media?.mimetype?.includes('application') ||
+            payload.media?.mimetype?.includes('pdf') ||
+            payload._data?.type === 'document'
+        );
+
+        // Resolve media URL and type for DB storage
+        let mediaUrl = null;
+        let mediaType = null;
+
+        if (payload.hasMedia) {
+            const mediaData = payload.media || payload._data?.media;
+            mediaUrl = mediaData?.url || null;
+            if (isVoiceMessage) mediaType = 'audio';
+            else if (isImageMessage) mediaType = 'image';
+            else if (isDocumentMessage) mediaType = 'document';
+            else if (payload.media?.mimetype?.includes('video')) mediaType = 'video';
+            else if (payload.media?.mimetype?.includes('webp') || payload._data?.type === 'sticker') mediaType = 'sticker';
+            else mediaType = 'file';
+        }
 
         // If it's a voice message, use inline media and transcribe it
         let body = payload.body;
@@ -169,29 +195,55 @@ class ChatService {
 
                     // If no base64 but has URL, download it
                     if (!audioBase64 && mediaData.url) {
-                        logger.info({ url: mediaData.url }, '📥 Downloading audio from URL...');
+                        // FIX: WAHA might return internal container URL (0.0.0.0 or localhost)
+                        // We need to rewrite it to the service name 'waha' for docker-compose networking
+                        let downloadUrl = mediaData.url;
+                        if (downloadUrl.includes('0.0.0.0') || downloadUrl.includes('localhost')) {
+                            downloadUrl = downloadUrl.replace('0.0.0.0', 'waha').replace('localhost', 'waha');
+                            logger.info({ original: mediaData.url, rewritten: downloadUrl }, '🔄 Rewrote media URL for Docker networking');
+                        }
+
+                        logger.info({ url: downloadUrl }, '📥 Downloading audio from URL...');
                         try {
                             const axios = require('axios');
-                            const response = await axios.get(mediaData.url, {
+                            const headers = {};
+                            if (process.env.WAHA_API_KEY) {
+                                headers['X-Api-Key'] = process.env.WAHA_API_KEY;
+                            }
+
+                            const response = await axios.get(downloadUrl, {
                                 responseType: 'arraybuffer',
+                                headers,
                                 timeout: 10000
                             });
                             audioBase64 = Buffer.from(response.data).toString('base64');
                             logger.info('✅ Audio downloaded successfully');
                         } catch (downloadError) {
-                            logger.error({ error: downloadError.message }, '❌ Failed to download audio from URL');
+                            logger.error({ error: downloadError.message, url: downloadUrl }, '❌ Failed to download audio from URL');
                         }
                     }
 
                     if (audioBase64) {
+                        // Resolve User ID from Session to fetch API Key
+                        let userId = null;
+                        try {
+                            const { data: sessionData } = await this.supabase
+                                .from('sessions')
+                                .select('user_id')
+                                .eq('session_name', sessionName)
+                                .single();
+                            userId = sessionData?.user_id;
+                        } catch (sessionErr) {
+                            logger.warn({ sessionName, err: sessionErr.message }, 'Failed to resolve userId for transcription');
+                        }
+
                         // Transcribe using Gemini
-                        const transcription = await this._transcribeAudio({
+                        const transcription = await this.transcriptionService.transcribe({
                             mimetype: mediaData.mimetype,
                             data: audioBase64
-                        });
+                        }, userId);
 
                         if (transcription) {
-                            // Direct text format - AI understands better
                             body = transcription;
                             logger.info({ transcription: transcription.substring(0, 100) }, '✅ Audio transcribed successfully');
                         } else {
@@ -210,6 +262,60 @@ class ChatService {
                 logger.error({ error: audioError.message, stack: audioError.stack }, '❌ Voice message processing failed');
                 body = '[AUDIO_MESSAGE]';
             }
+        }
+
+        // Image message: extract base64 for AI vision + use caption as body
+        let imageData = null;
+        if (isImageMessage) {
+            const caption = payload.body || payload._data?.caption || '';
+            if (!body) {
+                body = caption || '[📷 Imagem enviada pelo cliente]';
+            }
+
+            // Extract image base64 for AI Vision analysis
+            try {
+                const mediaData = payload.media || payload._data?.media;
+                if (mediaData && mediaData.mimetype) {
+                    let imgBase64 = mediaData.data;
+
+                    // If no inline base64 but has URL, download it (same as voice logic)
+                    if (!imgBase64 && mediaData.url) {
+                        logger.info({ url: mediaData.url }, '📥 Downloading image from URL for AI Vision...');
+                        try {
+                            const axios = require('axios');
+                            const response = await axios.get(mediaData.url, {
+                                responseType: 'arraybuffer',
+                                timeout: 15000,
+                                maxContentLength: 5 * 1024 * 1024 // 5MB limit
+                            });
+                            imgBase64 = Buffer.from(response.data).toString('base64');
+                            logger.info('✅ Image downloaded for AI Vision');
+                        } catch (downloadError) {
+                            logger.warn({ error: downloadError.message }, '⚠️ Failed to download image for AI Vision');
+                        }
+                    }
+
+                    if (imgBase64) {
+                        imageData = {
+                            data: imgBase64,
+                            mimeType: mediaData.mimetype
+                        };
+                        logger.info({ from: payload.from, mimeType: mediaData.mimetype, sizeKB: Math.round(imgBase64.length * 0.75 / 1024) }, '🖼️ Image captured for AI Vision analysis');
+                    }
+                }
+            } catch (imgError) {
+                logger.warn({ error: imgError.message }, '⚠️ Image extraction failed, continuing without vision');
+            }
+
+            logger.info({ from: payload.from, hasCaption: !!caption, hasImageData: !!imageData }, '🖼️ Image message detected');
+        }
+
+        // Document message: use filename/caption or placeholder
+        if (isDocumentMessage && !body) {
+            const filename = payload.media?.filename || payload._data?.filename || 'documento';
+            const caption = payload.body || payload._data?.caption || '';
+            body = caption || `[📄 Documento: ${filename}]`;
+            logger.info({ from: payload.from, filename }, '📄 Document message detected');
         }
 
         // If still no body, ignore the message
@@ -325,6 +431,8 @@ class ChatService {
                     body,
                     from_me: fromMe,
                     is_voice_message: isVoiceMessage, // Track for metrics
+                    type: mediaType,        // image, audio, document, video, sticker, null
+                    media_url: mediaUrl,    // URL from WAHA for media retrieval
                     created_at: new Date(payload.timestamp * 1000).toISOString()
                 }, { onConflict: 'message_id' })
                 .select()
@@ -363,6 +471,11 @@ class ChatService {
             pushName,
             referral,
             isVoiceMessage,
+            isImageMessage,
+            isDocumentMessage,
+            mediaType,
+            mediaUrl,
+            imageData, // Base64 image data for AI Vision (null if no image)
             message: message // This will be undefined if we don't lift it!
         };
 
@@ -436,76 +549,6 @@ class ChatService {
         }
     }
 
-    /**
-     * Transcribes audio using Gemini API
-     * @private
-     */
-    async _transcribeAudio(audioData) {
-        try {
-            // Get Gemini API key from settings
-            const settings = await this.settingsService.getSettings();
-            const apiKey = settings?.gemini_api_key;
-
-            if (!apiKey) {
-                logger.warn('No Gemini API key found, cannot transcribe audio');
-                return null;
-            }
-
-            const { GoogleGenerativeAI } = require('@google/generative-ai');
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
-
-            // Convert audio data to inline data format
-            const audioPart = {
-                inlineData: {
-                    mimeType: audioData.mimetype,
-                    data: audioData.data // Base64 string
-                }
-            };
-
-            logger.info({ mimetype: audioData.mimetype, dataLength: audioData.data?.length }, 'Sending audio to Gemini for transcription');
-
-            const result = await model.generateContent([
-                {
-                    text: `Você é um assistente de transcrição de áudio profissional.
-
-INSTRUÇÕES:
-1. Transcreva EXATAMENTE o que a pessoa está FALANDO no áudio
-2. Retorne APENAS o texto falado, sem timestamps, sem marcadores de tempo, sem formatação
-3. Se não conseguir entender algo, escreva [inaudível]
-4. Não adicione comentários, análises ou descrições
-5. IMPORTANTE: Não retorne timestamps como "00:00", "00:01", etc. Retorne apenas a FALA
-
-EXEMPLO CORRETO:
-Áudio: "Olá, gostaria de agendar uma reunião"
-Resposta: "Olá, gostaria de agendar uma reunião"
-
-EXEMPLO INCORRETO:
-Resposta: "00:00\n00:01\n00:02"
-
-Agora transcreva este áudio:`
-                },
-                audioPart
-            ]);
-
-            const transcription = result.response.text().trim();
-
-            // Validation: Check if response is just timestamps (common Gemini bug)
-            const isInvalidTimestamps = /^[\d:.\s\n]+$/.test(transcription);
-            const hasOnlyTimePatterns = (transcription.match(/\d{1,2}:\d{2}/g) || []).length > 5;
-
-            if (isInvalidTimestamps || hasOnlyTimePatterns) {
-                logger.warn({ transcription: transcription.substring(0, 200) }, '⚠️ Gemini returned timestamps instead of transcription');
-                return null;
-            }
-
-            logger.info({ length: transcription.length }, 'Transcription completed');
-            return transcription || null;
-        } catch (error) {
-            logger.error({ error: error.message, stack: error.stack }, 'Failed to transcribe audio with Gemini');
-            return null;
-        }
-    }
 }
 
 module.exports = ChatService;

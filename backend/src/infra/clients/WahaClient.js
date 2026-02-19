@@ -50,8 +50,8 @@ class WahaClient {
             files: '/api/files',
             presence: '/api/{session}/presence',
             media: {
-                voice: '/api/convert/voice', // Hypothetical or specific WAHA module
-                video: '/api/convert/video'
+                voice: '/api/{session}/media/convert/voice',
+                video: '/api/{session}/media/convert/video'
             },
             screenshot: '/api/screenshot',
             system: {
@@ -457,9 +457,27 @@ class WahaClient {
     }
 
     // --- Media Methods ---
-    // (Assuming WAHA or a helper service does this, strictly mapping as requested)
-    async convertVoice(audioData) {
-        throw new Error('Not implemented in WahaClient infra yet');
+    async convertVoice(session, { url, data }) {
+        // Endpoint: POST /api/{session}/media/convert/voice
+        const endpoint = this.#endpoints.media.voice.replace('{session}', session);
+        const fullUrl = this.#getUrl(endpoint);
+
+        try {
+            const response = await this.http.post(
+                fullUrl,
+                { url, data },
+                {
+                    headers: await this.#getHeaders(),
+                    responseType: 'arraybuffer' // Expecting binary Opus data
+                }
+            );
+
+            // Convert binary response to base64
+            const base64 = Buffer.from(response.data).toString('base64');
+            return base64;
+        } catch (error) {
+            this.#handleError(error);
+        }
     }
 
     // --- Observability ---

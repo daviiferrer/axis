@@ -60,7 +60,20 @@ class WebhookController {
                     await this.handleMessageEvent(payload, sessionName);
                     break;
                 case 'session.status':
-                    this.socketService.emit('session.status', { session: sessionName, status: payload?.status });
+                    // 1. Update DB (triggers Supabase Realtime for persistent sync)
+                    if (payload?.status && this.supabase) {
+                        try {
+                            await this.supabase
+                                .from('sessions')
+                                .update({ status: payload.status, updated_at: new Date().toISOString() })
+                                .eq('session_name', sessionName);
+                            logger.info({ session: sessionName, status: payload.status }, '✅ Session status synced to DB');
+                        } catch (dbErr) {
+                            logger.error({ session: sessionName, error: dbErr.message }, 'Failed to sync session status to DB');
+                        }
+                    }
+                    // 2. Emit via Socket.IO (instant UI feedback)
+                    this.socketService.emitToSession(sessionName, 'session.status', { session: sessionName, status: payload?.status });
                     break;
                 case 'message.ack':
                     await this.handleMessageAck(payload, sessionName);
@@ -97,10 +110,14 @@ class WebhookController {
                 } else {
                     const chatId = result.chatId || result.from;
 
-                    // REAL-TIME UPDATE: Emit to frontend
+                    // REAL-TIME UPDATE: Emit to frontend (multi-tenant)
                     if (this.socketService && result.message) {
                         // Normalize message to match Frontend WahaMessage interface
                         const rawMsg = result.message;
+
+                        // Media detection: resolve type and URL from payload
+                        const mediaInfo = this._resolveMediaInfo(payload);
+
                         const formattedMsg = {
                             id: rawMsg.message_id, // Use Waha ID, not DB UUID
                             from: rawMsg.from_me ? 'me' : chatId,
@@ -109,11 +126,15 @@ class WebhookController {
                             timestamp: new Date(rawMsg.created_at).getTime() / 1000,
                             fromMe: rawMsg.from_me,
                             ack: rawMsg.status === 'read' ? 3 : (rawMsg.status === 'delivered' ? 2 : 1),
-                            hasMedia: false, // TODO: Support media
+                            hasMedia: mediaInfo.hasMedia,
+                            mediaUrl: mediaInfo.mediaUrl || rawMsg.media_url || null,
+                            mediaType: mediaInfo.mediaType || rawMsg.type || null,
+                            mimetype: mediaInfo.mimetype || null,
                             _data: {}
                         };
 
-                        this.socketService.emit('message.received', {
+                        // Multi-tenant: emit to session owner only
+                        this.socketService.emitToSession(sessionName, 'message.received', {
                             chatId: chatId,
                             message: formattedMsg,
                             session: sessionName
@@ -135,7 +156,7 @@ class WebhookController {
                                 logger.info({ phone: result.phone }, '▶️ Anti-Collision: Resuming AI trigger');
                                 // Await to ensure persistence is done? It's already awaited above. 
                                 // But we can add a small safety delay or just ensure we catch.
-                                await this.workflowEngine.triggerAiForLead(result.phone, result.body, result.referral, sessionName);
+                                await this.workflowEngine.triggerAiForLead(result.phone, result.body, result.referral, sessionName, result.imageData);
                             }
                         }, cooldown + 500);
                     } else {
@@ -153,7 +174,7 @@ class WebhookController {
                         // Since line 53 is awaited, we are good.
                         // But let's verify if triggerAiForLead should be awaited to handle errors properly here.
                         // FIX: Async execution to avoid blocking webhook (Fire & Forget)
-                        this.workflowEngine.triggerAiForLead(result.phone, result.body, result.referral, sessionName)
+                        this.workflowEngine.triggerAiForLead(result.phone, result.body, result.referral, sessionName, result.imageData)
                             .catch(err => logger.error({ error: err.message, phone: result.phone }, '❌ Async Workflow Trigger Failed'));
                     }
                 }
@@ -180,7 +201,8 @@ class WebhookController {
 
             if (error) throw error;
 
-            this.socketService.emit('message.ack', {
+            // Multi-tenant: emit ack to session owner only
+            this.socketService.emitToSession(sessionName, 'message.ack', {
                 session: sessionName,
                 messageId: messageId,
                 messageSuffix: suffix,
@@ -201,7 +223,7 @@ class WebhookController {
                 status = payload.data?.Unavailable === false ? 'online' : 'offline';
 
                 // Emit Presence Update
-                this.socketService.emit('presence.update', {
+                this.socketService.emitToSession(sessionName, 'presence.update', {
                     session: sessionName,
                     chatId: rawId,
                     status: status,
@@ -219,7 +241,7 @@ class WebhookController {
                     const action = payload.data?.Media === 'audio' ? 'recording' : 'typing';
 
                     // Emit Acting Event
-                    this.socketService.emit('chat.acting', {
+                    this.socketService.emitToSession(sessionName, 'chat.acting', {
                         session: sessionName,
                         chatId: rawId,
                         action: action
@@ -230,7 +252,7 @@ class WebhookController {
                     logger.info({ chatId: rawId }, '⏸️ Client stopped typing');
 
                     // Emit Stop Acting
-                    this.socketService.emit('chat.acting', {
+                    this.socketService.emitToSession(sessionName, 'chat.acting', {
                         session: sessionName,
                         chatId: rawId,
                         action: 'stop'
@@ -246,6 +268,39 @@ class WebhookController {
         this.workflowEngine.handlePresenceUpdate(rawId, status, sessionName).catch(e =>
             logger.error({ error: e.message }, 'Presence update failed')
         );
+    }
+
+    /**
+     * Resolves media info from WAHA webhook payload.
+     * Supports images, documents, audio, video, stickers.
+     */
+    _resolveMediaInfo(payload) {
+        const media = payload.media || payload._data?.media;
+        const hasMedia = !!payload.hasMedia;
+        if (!hasMedia || !media) return { hasMedia: false };
+
+        const mimetype = media.mimetype || '';
+        const mediaUrl = media.url || null;
+        let mediaType = 'file';
+
+        if (mimetype.includes('image')) {
+            mediaType = 'image';
+        } else if (mimetype.includes('audio') || payload._data?.type === 'ptt') {
+            mediaType = 'audio';
+        } else if (mimetype.includes('video')) {
+            mediaType = 'video';
+        } else if (mimetype.includes('application') || mimetype.includes('pdf') || mimetype.includes('document')) {
+            mediaType = 'document';
+        } else if (mimetype.includes('webp') || payload._data?.type === 'sticker') {
+            mediaType = 'sticker';
+        }
+
+        return {
+            hasMedia: true,
+            mediaUrl,
+            mediaType,
+            mimetype
+        };
     }
 }
 

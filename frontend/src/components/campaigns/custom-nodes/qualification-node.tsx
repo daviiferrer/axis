@@ -29,8 +29,8 @@ export const QualificationNode = memo(({ data, isConnectable, selected }: any) =
 
             {/* Header */}
             <div className="p-3 border-b border-gray-100 flex items-center gap-3 bg-green-50/30">
-                <div className={`p-1.5 rounded-lg ${selected ? 'bg-green-600 text-white' : 'bg-green-100 text-green-700'}`}>
-                    <Flag size={14} strokeWidth={2} />
+                <div className={`${selected ? 'text-green-600' : 'text-green-700'}`}>
+                    <Flag size={18} strokeWidth={2} />
                 </div>
                 <div className="flex-1">
                     <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">SDR QUALIFY</h3>

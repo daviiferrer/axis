@@ -67,7 +67,7 @@ async function bootstrap() {
     app.use(cors({
         origin: process.env.CORS_ORIGIN || "*"
     }));
-    app.use(express.json());
+    app.use(express.json({ limit: '50mb' }));
 
     // Metrics Middleware (Native - low overhead)
     const { metricsMiddleware, getMetrics } = require('./api/middlewares/metricsMiddleware');
@@ -78,7 +78,8 @@ async function bootstrap() {
 
     // Initialize Shared Services that need explicit startup
     const socketService = container.resolve('socketService');
-    socketService.initialize(io);
+    const supabaseForSocket = container.resolve('supabaseClient');
+    socketService.initialize(io, supabaseForSocket);
 
     // 4. Resolve Controllers for Router
     // CRITICAL FIX: We cannot resolve Scoped Controllers (depending on Scoped Services) 
@@ -126,7 +127,7 @@ async function bootstrap() {
         chatController: makeLazyController('chatController'),
         healthController: makeLazyController('healthController'),
         billingController: makeLazyController('billingController'),
-        companyController: makeLazyController('companyController'),
+
 
         // System & User
         userParamsController: makeLazyController('userParamsController'),

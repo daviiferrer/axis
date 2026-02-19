@@ -3,7 +3,8 @@
 import React, { memo } from 'react';
 import { NodeProps } from '@xyflow/react';
 import { GitBranch, ArrowRightCircle } from 'lucide-react';
-import { BaseNode, NODE_PRESETS } from './base-node';
+import { BaseNode, NODE_PRESETS, ConnectorPort } from './base-node';
+import { Position } from '@xyflow/react';
 
 interface LogicNodeData {
     label?: string;
@@ -12,7 +13,7 @@ interface LogicNodeData {
 }
 
 // ============================================================================
-// LOGIC NODE: Conditional branching (Premium Version)
+// LOGIC NODE: Conditional branching with aligned output ports
 // ============================================================================
 
 export const LogicNode = memo(({ data: rawData, isConnectable, selected }: NodeProps) => {
@@ -23,11 +24,10 @@ export const LogicNode = memo(({ data: rawData, isConnectable, selected }: NodeP
         <BaseNode
             {...NODE_PRESETS.logic}
             icon={GitBranch}
-            title={data.label || 'Roteador'}
+            title={data.label || 'Condição IF/ELSE'}
             subtitle="Lógica"
             showInputHandle={true}
-            showOutputHandle={true}
-            outputHandleCount={Math.max(conditions.length + 1, 2)} // +1 for default/else
+            showOutputHandle={false}
             selected={selected}
             isConnectable={isConnectable}
             data={data}
@@ -37,12 +37,20 @@ export const LogicNode = memo(({ data: rawData, isConnectable, selected }: NodeP
                     conditions.map((cond: any, idx: number) => (
                         <div
                             key={idx}
-                            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-100"
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-100 relative"
                         >
                             <ArrowRightCircle size={12} className="text-slate-400" />
                             <span className="text-xs text-slate-600 font-medium truncate">
                                 {cond.variable} {cond.operator} {cond.value}
                             </span>
+                            {/* Port aligned to this row */}
+                            <ConnectorPort
+                                type="source"
+                                position={Position.Right}
+                                id={`output-${idx}`}
+                                isConnectable={isConnectable}
+                                color="bg-slate-400"
+                            />
                         </div>
                     ))
                 ) : (
@@ -55,9 +63,43 @@ export const LogicNode = memo(({ data: rawData, isConnectable, selected }: NodeP
 
                 {/* Default/Else path indicator */}
                 {conditions.length > 0 && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 border border-dashed border-gray-200">
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 border border-dashed border-gray-200 relative">
                         <span className="text-[10px] text-gray-400 italic">Caso contrário (else)</span>
+                        <ConnectorPort
+                            type="source"
+                            position={Position.Right}
+                            id={`output-${conditions.length}`}
+                            isConnectable={isConnectable}
+                            color="bg-gray-400"
+                        />
                     </div>
+                )}
+
+                {/* Fallback ports when no conditions */}
+                {conditions.length === 0 && (
+                    <>
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-100 relative">
+                            <ArrowRightCircle size={12} className="text-slate-400" />
+                            <span className="text-xs text-slate-500">Saída 1</span>
+                            <ConnectorPort
+                                type="source"
+                                position={Position.Right}
+                                id="output-0"
+                                isConnectable={isConnectable}
+                                color="bg-slate-400"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 border border-dashed border-gray-200 relative">
+                            <span className="text-[10px] text-gray-400 italic">Caso contrário (else)</span>
+                            <ConnectorPort
+                                type="source"
+                                position={Position.Right}
+                                id="output-1"
+                                isConnectable={isConnectable}
+                                color="bg-gray-400"
+                            />
+                        </div>
+                    </>
                 )}
             </div>
         </BaseNode>

@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { socket } from "@/services/socket";
 import { Socket } from "socket.io-client";
+import { useAuth } from "@/context/AuthContext";
 
 interface SocketContextType {
     socket: Socket | null;
@@ -18,11 +19,17 @@ export const useSocket = () => useContext(SocketContext);
 
 export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     const [isConnected, setIsConnected] = useState(false);
+    const { user } = useAuth();
 
     useEffect(() => {
         function onConnect() {
             console.log("[SocketContext] Connected");
             setIsConnected(true);
+            // Join user-specific room for multi-tenant event routing
+            if (user?.id) {
+                socket.emit('join:user', user.id);
+                console.log("[SocketContext] Joined user room:", user.id);
+            }
         }
 
         function onDisconnect() {
@@ -38,6 +45,9 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         // Connect
         if (!socket.connected) {
             socket.connect();
+        } else if (user?.id) {
+            // Already connected, join room
+            socket.emit('join:user', user.id);
         }
 
         return () => {
@@ -45,7 +55,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
             socket.off("disconnect", onDisconnect);
             socket.disconnect();
         };
-    }, []);
+    }, [user?.id]);
 
     return (
         <SocketContext.Provider value={{ socket, isConnected }}>

@@ -277,10 +277,21 @@ class DashboardService {
     }
 
     async getSystemHealth() {
+        let wahaMock = { active: 0, total: 0 };
+        try {
+            const sessions = await this.wahaClient.getSessions(true);
+            if (Array.isArray(sessions)) {
+                wahaMock.total = sessions.length;
+                wahaMock.active = sessions.filter(s => s.status === 'WORKING' || s.status === 'SCAN_QR_CODE').length;
+            }
+        } catch (err) {
+            // Keep default 0 on error to avoid crashing dashboard
+        }
+
         return {
             status: 'healthy',
-            waha_sessions: { active: 1, total: 1 }, // TODO: Fetch from WAHA
-            db_latency_ms: 12,
+            waha_sessions: wahaMock,
+            db_latency_ms: 12, // TODO: Implement real DB ping if needed
             last_check: new Date().toISOString()
         };
     }

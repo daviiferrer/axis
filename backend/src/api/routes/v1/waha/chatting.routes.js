@@ -6,6 +6,7 @@ module.exports = (chattingController) => {
     // Text
     router.get('/chats', (req, res) => chattingController.getChats(req, res));
     router.delete('/chats/:session/:chatId', (req, res) => chattingController.deleteChat(req, res)); // Added Delete Route
+    router.post('/chats/:session/:chatId/read', (req, res) => chattingController.markAsRead(req, res)); // Mark as Read
     router.get('/messages', (req, res) => chattingController.getMessages(req, res));
     router.get('/chats/:session/:chatId/sentiment', (req, res) => chattingController.getLeadSentiment(req, res));
 

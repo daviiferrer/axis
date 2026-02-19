@@ -2,6 +2,8 @@
  * CampaignController - Handles campaign-related API requests.
  */
 const { getRequestClient } = require('../../../shared/SupabaseHelper');
+const logger = require('../../../shared/Logger').createModuleLogger('campaign-controller');
+
 
 class CampaignController {
     constructor({ campaignService, supabaseClient }) {
@@ -15,7 +17,7 @@ class CampaignController {
             const campaigns = await this.campaignService.listCampaigns(scopedClient);
             res.json(campaigns);
         } catch (error) {
-            console.error('[CampaignController] listCampaigns Error:', error);
+            logger.error({ err: error }, 'listCampaigns Error');
             res.status(500).json({ error: error.message });
         }
     }
@@ -71,6 +73,43 @@ class CampaignController {
         }
     }
 
+    async getFlowStats(req, res) {
+        try {
+            const { id } = req.params;
+            // Use scoped client for security (RLS)
+            const scopedClient = getRequestClient(req, this.supabase);
+
+            // Note: We need to access LeadService. 
+            // The controller constructor has campaignService but might not have leadService directly if not injected.
+            // But CampaignService usually has access to LeadService or we can inject it.
+            // Let's check constructor: constructor({ campaignService, supabaseClient })
+            // It seems we don't have leadService here.
+            // BUT, strictly speaking, this is a Campaign related stat. 
+            // I should have added `getFlowStats` to `CampaignService` which calls `LeadService` OR 
+            // injected `leadService` into `CampaignController`.
+            // Let's assume I can add it to `CampaignService` as a wrapper or inject `leadService`.
+            // Given I added it to `LeadService` in the previous step, I need to access it.
+            // Let's modify `container.js` to inject leadService into CampaignController if needed, 
+            // OR simpler: `campaignService` probably has `leadService`? No, services usually don't depend on each other linearly.
+
+            // QUICK FIX: I will use `this.campaignService` to fetch it if I add the wrapper there, 
+            // OR I will just use `this.supabase` directly here if I'm lazy (bad practice).
+
+            // BEST PRACTICE: I will assume `campaignService` can handle this by delegating to `leadService` 
+            // OR I should use `LeadController` for this route?
+            // "get /campaigns/:id/flow-stats" feels like a campaign route.
+            // "get /api/leads/stats?campaign_id=..." feels like a lead route.
+            // In the plan I said `GET /api/campaigns/:id/flow-stats`.
+            // Let's Update CampaignService to include this method wrapper.
+
+            const stats = await this.campaignService.getFlowStats(id, scopedClient);
+            res.json(stats);
+        } catch (error) {
+            // logger.error...
+            res.status(500).json({ error: error.message });
+        }
+    }
+
     async deleteCampaign(req, res) {
         try {
             const { id } = req.params;
@@ -89,7 +128,7 @@ class CampaignController {
             const flow = await this.campaignService.getFlow(id, scopedClient);
             res.json(flow);
         } catch (error) {
-            console.error('[CampaignController] getFlow Error:', error);
+            logger.error({ err: error }, 'getFlow Error');
             res.status(500).json({ error: error.message, stack: error.stack });
         }
     }
@@ -99,21 +138,20 @@ class CampaignController {
             const { id } = req.params;
             const flowData = req.body; // Expecting { nodes: [], edges: [], viewport: {} }
 
-            console.log(`[CampaignController] 💾 Saving flow for campaign ${id}`);
-            console.log(`[CampaignController] Nodes count: ${flowData?.nodes?.length}`);
+            logger.debug({ campaignId: id, nodesCount: flowData?.nodes?.length }, 'Saving flow');
             if (flowData?.nodes) {
                 const trigger = flowData.nodes.find(n => n.type === 'trigger');
                 if (trigger) {
-                    console.log(`[CampaignController] 🔍 Trigger Node Data:`, JSON.stringify(trigger.data, null, 2));
+                    logger.debug({ triggerData: trigger.data }, 'Trigger Node Data');
                 }
             }
 
             const scopedClient = getRequestClient(req, this.supabase);
             const result = await this.campaignService.saveFlow(id, flowData, scopedClient);
-            console.log(`[CampaignController] ✅ Flow saved successfully.`);
+            logger.info({ campaignId: id }, 'Flow saved successfully');
             res.json({ success: true, flow: result });
         } catch (error) {
-            console.error('[CampaignController] saveFlow Error:', error);
+            logger.error({ err: error }, 'saveFlow Error');
             res.status(500).json({ error: error.message, stack: error.stack });
         }
     }
@@ -125,6 +163,58 @@ class CampaignController {
             const result = await this.campaignService.publishFlow(id, scopedClient);
             res.json({ success: true, flow: result });
         } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    }
+
+    async getSettings(req, res) {
+        try {
+            const { id } = req.params;
+            const { data, error } = await this.supabase
+                .from('campaigns')
+                .select('settings')
+                .eq('id', id)
+                .single();
+
+            if (error) throw error;
+            res.json({ success: true, settings: data.settings || {} });
+        } catch (error) {
+            logger.error({ err: error }, 'getSettings Error');
+            res.status(500).json({ error: error.message });
+        }
+    }
+
+    async updateSettings(req, res) {
+        try {
+            const { id } = req.params;
+            const settings = req.body;
+
+            // Validate structure
+            if (settings.businessHours) {
+                const bh = settings.businessHours;
+                if (bh.start !== undefined && (bh.start < 0 || bh.start > 23)) {
+                    return res.status(400).json({ error: 'start hour must be 0-23' });
+                }
+                if (bh.end !== undefined && (bh.end < 0 || bh.end > 23)) {
+                    return res.status(400).json({ error: 'end hour must be 0-23' });
+                }
+                if (bh.workDays && !Array.isArray(bh.workDays)) {
+                    return res.status(400).json({ error: 'workDays must be an array' });
+                }
+            }
+
+            const { data, error } = await this.supabase
+                .from('campaigns')
+                .update({ settings })
+                .eq('id', id)
+                .select('settings')
+                .single();
+
+            if (error) throw error;
+            logger.info({ campaignId: id }, 'Campaign settings updated');
+            res.json({ success: true, settings: data.settings });
+        } catch (error) {
+            logger.error({ err: error }, 'updateSettings Error');
             res.status(500).json({ error: error.message });
         }
     }
