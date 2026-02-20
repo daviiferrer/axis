@@ -110,6 +110,7 @@ class CampaignService {
             .from('campaigns')
             .insert(insertPayload)
             .select()
+            .single();
 
         if (error) throw error;
         return data;
