@@ -394,6 +394,9 @@ class GeminiClient {
         if (!userId && !companyId) return; // Need an owner
 
         try {
+            // UUID Validation regex
+            const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
             // Calculate Cost using 2026 Real Pricing
             const cost = ModelPricingService.calculateCost(
                 metrics.model,
@@ -401,16 +404,24 @@ class GeminiClient {
                 metrics.completion_tokens || 0
             );
 
-            await this.settingsService.supabase.from('ai_usage_logs').insert({
-                user_id: userId || null,
-                session_id: sessionId || null,
-                campaign_id: campaignId || null,
-                chat_id: chatId || null,
+            const logEntry = {
+                user_id: isUUID(userId) ? userId : null,
+                session_id: isUUID(sessionId) ? sessionId : null,
+                campaign_id: isUUID(campaignId) ? campaignId : null,
+                chat_id: isUUID(chatId) ? chatId : null,
                 model: metrics.model,
                 tokens_input: metrics.prompt_tokens || 0,
                 tokens_output: metrics.completion_tokens || 0,
                 cost: cost
-            });
+            };
+
+            const { error } = await this.settingsService.supabase.from('ai_usage_logs').insert(logEntry);
+
+            if (error) {
+                logger.error({ error: error.message, model: metrics.model }, 'Supabase AI usage insert failed');
+            } else {
+                logger.debug({ model: metrics.model, cost }, 'AI usage logged successfully');
+            }
         } catch (e) {
             logger.error({ error: e.message }, 'Failed to log AI usage');
         }
