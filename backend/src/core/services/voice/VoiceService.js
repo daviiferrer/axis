@@ -33,10 +33,10 @@ class VoiceService {
      */
     async synthesize(text, voiceId, instruction = '', providerName, options = {}) {
         const provider = this.#getProvider(providerName);
-        const apiKey = await this.#getApiKey(providerName);
+        const apiKey = await this.#getApiKey(providerName, options.userId);
 
         if (!apiKey) {
-            logger.warn({ provider: provider.name }, '⚠️ TTS API Key missing. Skipping synthesis.');
+            logger.warn({ provider: provider.name, userId: options.userId }, '⚠️ TTS API Key missing. Skipping synthesis.');
             return null;
         }
 
@@ -318,9 +318,9 @@ class VoiceService {
      * @param {string} [providerName]
      * @returns {Promise<string|null>} Audio as base64
      */
-    async previewVoice(voiceId, text, providerName) {
+    async previewVoice(voiceId, text, providerName, options = {}) {
         const previewText = text || 'Olá! Esta é uma prévia da minha voz clonada. Como você está?';
-        return this.synthesize(previewText, voiceId, '', providerName); // use synthesize method
+        return this.synthesize(previewText, voiceId, '', providerName, options); // use synthesize method
     }
 }
 

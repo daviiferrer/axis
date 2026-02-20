@@ -228,7 +228,10 @@ class AgentController {
             // FALLBACK REMOVED: User requested strict behavior.
 
             const previewText = text || 'Olá! Esta é uma prévia da minha voz clonada. Como você está?';
-            const audioBase64 = await this.voiceService.previewVoice(voiceId, previewText, provider);
+            const audioBase64 = await this.voiceService.previewVoice(voiceId, previewText, provider, {
+                userId,
+                agentId: req.body.agentId
+            });
             if (!audioBase64) return res.status(500).json({ error: 'Preview generation failed' });
 
             res.json({ audio_base64: audioBase64 });

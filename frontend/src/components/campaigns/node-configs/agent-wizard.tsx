@@ -129,12 +129,20 @@ export function AgentWizard({ formData, onChange, agents, onAgentsChange }: Agen
     };
 
     // Helper to update DNA directly
-    const updateDna = (section: string, field: string, value: any) => {
+    const updateDna = (section: string, fieldOrUpdates: string | Record<string, any>, value?: any) => {
         const currentDna = formData.dna || DEFAULT_DNA;
         const currentSection = currentDna[section] || {};
+
+        let newSectionData;
+        if (typeof fieldOrUpdates === 'string') {
+            newSectionData = { ...currentSection, [fieldOrUpdates]: value };
+        } else {
+            newSectionData = { ...currentSection, ...fieldOrUpdates };
+        }
+
         onChange('dna', {
             ...currentDna,
-            [section]: { ...currentSection, [field]: value }
+            [section]: newSectionData
         });
     };
 

@@ -98,11 +98,22 @@ export function AgentConfig({ formData, onChange, agents, onAgentsChange }: Agen
         }
     };
 
-    const updateDna = (section: string, key: string, value: any) => {
-        setDna(prev => ({
-            ...prev,
-            [section]: { ...(prev as any)[section], [key]: value }
-        }));
+    const updateDna = (section: string, keyOrUpdates: string | Record<string, any>, value?: any) => {
+        setDna(prev => {
+            const currentSection = (prev as any)[section] || {};
+            let newSectionData;
+
+            if (typeof keyOrUpdates === 'string') {
+                newSectionData = { ...currentSection, [keyOrUpdates]: value };
+            } else {
+                newSectionData = { ...currentSection, ...keyOrUpdates };
+            }
+
+            return {
+                ...prev,
+                [section]: newSectionData
+            };
+        });
     };
 
     const handleSave = async () => {

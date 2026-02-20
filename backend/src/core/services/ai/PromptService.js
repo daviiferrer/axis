@@ -39,13 +39,13 @@ class PromptService {
         const securityLayer = canaryToken ? this.#buildSecurityLayer(canaryToken) : '';
 
         // === LAYER 1: DNA (Top - Immutable Agent Identity) ===
-        const dnaLayer = this.#buildDnaLayer(agent, campaign, product, nodeConfig, dna);
+        const dnaLayer = this.#buildDnaLayer(agent, campaign, product, nodeConfig, dna, nodeDirective);
 
         // === LAYER 2: CONTEXT (Middle - Variable Data) ===
         const contextLayer = this.#buildContextLayer({
             agent, campaign, lead, product, objectionPlaybook,
             strategy_graph, methodology, icp, chatHistory, ragContext,
-            emotionalAdjustment, scopePolicy, nodeConfig
+            emotionalAdjustment, scopePolicy, nodeConfig, nodeDirective
         });
 
         // === LAYER 3: PERSONA REFRESH (Anti-Drift) ===
@@ -101,8 +101,8 @@ class PromptService {
 <custom_tools priority="critical">
     <instruction>
         Você tem acesso a Ferramentas Customizadas (APIs/Webhooks). 
-        SE e SOMENTE SE o lead manifestar a intenção descrita na ferramenta e você precisar obter ou enviar dados, 
-        você DEVE interromper a resposta normal e devolver APENAS o JSON abaixo:
+        SE e SOMENTE SE o lead manifestar a intenção descrita na ferramenta e você precisar DEFINITIVAMENTE obter ou enviar dados, 
+        você DEVE interromper a resposta normal e devolver APENAS o JSON abaixo OMITINDO campos do padrão:
         
         \`\`\`json
         {
@@ -116,7 +116,11 @@ class PromptService {
         }
         \`\`\`
         
-        Se você enviar "tool_call", o sistema vai processar e te devolver a resposta mágica. NÃO invente os resultados.
+        REGRAS CRÍTICAS DE FERRAMENTAS:
+        1. Se o lead NÃO quer comprar/usar ou se você precisa primeiro de mais informações, NÃO CHAME A FERRAMENTA.
+        2. Se você chamar a ferramenta, NÃO INCLUA "response", "crm_actions" ou "ready_to_close". APENAS "thought" e "tool_call".
+        3. SE VOCÊ NÃO FOR ACIONAR NENHUMA FERRAMENTA: OMITA a chave "tool_call" do JSON completamente, ou envie "tool_call": null. JAMAIS invente um nome de ferramenta apenas para criticar.
+        4. SE VOCÊ JÁ CHAMOU a ferramenta, e o histórico mostrar a resposta do [SISTEMA], NÃO CHAME A FERRAMENTA NOVAMENTE. Apenas retorne a sua resposta normal em "response".
     </instruction>
     <available_tools>
 `;
@@ -135,7 +139,7 @@ class PromptService {
         // Remind the user to NOT output the regular message body if executing a tool call
         const structureOverride = `
     <!-- ALERTA SOBRE FERRAMENTAS -->
-    Se você acionar uma ferramenta (usando "tool_call"), NÃO inclua os campos "messages" ou "crm_actions" no JSON final. Apenas o "thought" e o "tool_call".
+    Se OMITIR "tool_call", siga respondendo com o campo "response" normalmente.
 `;
         return xml + structureOverride;
     }
@@ -159,8 +163,9 @@ class PromptService {
      * Uses AgentRolePrompts to enforce strict Blueprints.
      * @param {Object} nodeConfig - Node config for company_context fallback only
      * @param {Object} resolvedDna - The resolved DNA object from AgentDNA service
+     * @param {string} nodeDirective - Instructions or playbook text needed for role blueprint
      */
-    #buildDnaLayer(agent, campaign, product, nodeConfig = null, resolvedDna = null) {
+    #buildDnaLayer(agent, campaign, product, nodeConfig = null, resolvedDna = null, nodeDirective = "") {
         // Use resolved DNA (raw) if available (handles string parsing), otherwise fallback to agent config
         const dna = resolvedDna?.raw || (typeof agent?.dna_config === 'string' ? JSON.parse(agent.dna_config) : agent?.dna_config) || {};
 
@@ -271,7 +276,7 @@ ${roleBlueprint}
      */
     #buildContextLayer(data) {
         const { agent, campaign, lead, product, objectionPlaybook,
-            methodology, icp, ragContext, emotionalAdjustment, scopePolicy, chatHistory, nodeConfig } = data;
+            methodology, icp, ragContext, emotionalAdjustment, scopePolicy, chatHistory, nodeConfig, nodeDirective } = data;
 
         // --- IDENTITY & COMPLIANCE (Moved from DNA) ---
         const dna = agent?.dna_config || {};
@@ -343,7 +348,23 @@ ${roleBlueprint}
         }
 
         const historyFormatted = chatHistory && chatHistory.length > 0
-            ? chatHistory.map(m => `[${m.role === 'assistant' ? 'Você' : 'Lead'}]: ${m.content}`).join('\n')
+            ? chatHistory.map(m => {
+                if (m.role === 'function' && m.parts?.[0]?.functionResponse) {
+                    const funcName = m.parts[0].functionResponse.name;
+                    const result = m.parts[0].functionResponse.response.result;
+                    const error = m.parts[0].functionResponse.response.error;
+                    if (error) return `[SISTEMA - Erro na ferramenta '${funcName}']: ${error}`;
+                    const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+                    return `[SISTEMA - Resultado da ferramenta '${funcName}']: ${resultStr}`;
+                }
+                if (m.role === 'model' && m.parts?.[0]?.functionCall) {
+                    const funcName = m.parts[0].functionCall.name;
+                    const args = JSON.stringify(m.parts[0].functionCall.args || {});
+                    return `[SISTEMA - Você chamou a ferramenta '${funcName}' com os seguintes argumentos]: ${args}`;
+                }
+                const roleName = (m.role === 'assistant' || m.role === 'model') ? 'Você' : 'Lead';
+                return `[${roleName}]: ${m.content || m.text || ''}`;
+            }).join('\n')
             : 'Nenhuma mensagem anterior. Este é o primeiro contato.';
 
 
@@ -763,8 +784,8 @@ ${roleBlueprint}
     <response_format>
         RESPONDA APENAS com este JSON:
         {
-            "thought": "Raciocínio interno (estilo, estratégia, próximo passo)...",
-            "response": "Sua resposta final seguindo as regras de ESTILO.",
+            "thought": "Raciocínio interno...",
+            "response": "Sua resposta final.",
             "ready_to_close": false,
             "crm_actions": [],
             "sentiment_score": 0.5,
@@ -841,7 +862,10 @@ ${roleBlueprint}
         OU se o lead já concordou com o objetivo principal (${goal}),
         VOCÊ DEVE FINALIZAR ESTA ETAPA IMEDIATAMENTE.
         
-        Para finalizar:
+        REGRA DE OURO DAS FERRAMENTAS:
+        Se existir alguma Ferramenta Customizada aplicável (ex: gerar boleto) e você já tiver os dados necessários, ACIONE A FERRAMENTA ("tool_call") NESTE TURNO. NUNCA marque "ready_to_close" na mesma resposta em que aciona uma ferramenta. A ferramenta SEMPRE tem prioridade máxima.
+        
+        Para finalizar (se não houver ferramenta pendente):
         1. Marque "ready_to_close": true
         2. NÃO faça mais perguntas desnecessárias. Avance.
         ${allowedCtas.includes('SCHEDULE_CALL') ? '3. Se for agendamento, adicione "crm_actions": [{"action": "schedule_meeting"}]' : ''}
