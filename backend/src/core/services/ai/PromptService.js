@@ -828,7 +828,7 @@ ${roleBlueprint}
     <slot_filling>
         <required_slots>${criticalSlots.join(', ')}</required_slots>
         <pending_slots>${pendingSlots.length > 0 ? pendingSlots.join(', ') : 'NENHUM - Todos preenchidos!'}</pending_slots>
-        <instruction>Faça perguntas naturais para descobrir: ${pendingSlots.join(', ') || 'N/A - Avance para próximo passo'}</instruction>
+        <instruction>ATENÇÃO: Extraia estas informações ativamente APENAS SE o seu Playbook exigir essa informação para a etapa ou serviço atual do lead. Se a informação não for necessária para concluir o serviço pedido, NÃO pergunte por ela. Se o usuário fornecer a informação voluntariamente, capture-a silenciosamente.</instruction>
     </slot_filling>`;
         }
 
