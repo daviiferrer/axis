@@ -45,7 +45,7 @@ import { FollowUpNode } from './custom-nodes/followup-node';
 // Custom Edges
 import { AnimatedEdge } from './custom-edges/animated-edge';
 
-import { NodeConfigModal } from './node-config-modal';
+import { NodeConfigSheet } from './node-config-sheet';
 import { CampaignSettingsPanel } from './campaign-settings-panel';
 
 // Node Type Registry
@@ -483,8 +483,8 @@ function FlowBuilderCanvasInner({ campaignId, initialFlow, campaign: initialCamp
                 </motion.div>
             </div>
 
-            {/* Universal Node Config Modal */}
-            <NodeConfigModal
+            {/* Node Config Sheet (Sidebar) */}
+            <NodeConfigSheet
                 selectedNode={nodes.find((n) => n.id === selectedNodeId) || null}
                 onClose={() => setSelectedNodeId(null)}
                 onUpdateNode={handleUpdateNode}

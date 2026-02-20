@@ -28,6 +28,9 @@ export interface BaseNodeProps {
     showOutputHandle?: boolean;
     outputHandleCount?: number;
 
+    // States
+    hasError?: boolean;
+
     // From NodeProps (only what we use)
     selected?: boolean;
     isConnectable?: boolean;
@@ -113,6 +116,7 @@ export const BaseNode = memo(({
     showInputHandle = true,
     showOutputHandle = true,
     outputHandleCount = 1,
+    hasError = false,
     selected,
     isConnectable,
     data,
@@ -121,15 +125,18 @@ export const BaseNode = memo(({
     return (
         <div
             className={cn(
-                // Base Structure
-                "relative group min-w-[280px] max-w-[320px]",
+                // Base Structure — compact (200-240px)
+                "relative group min-w-[200px] max-w-[240px]",
                 "bg-white rounded-2xl",
                 "transition-all duration-300 ease-out",
+                "hover:scale-[1.02] hover:shadow-xl",
 
                 // Shadow & Border
-                selected
-                    ? "shadow-2xl shadow-indigo-500/20 ring-2 ring-indigo-500"
-                    : "shadow-lg shadow-gray-200/60 border border-gray-100"
+                hasError
+                    ? "shadow-lg shadow-red-200/40 ring-2 ring-red-500 border border-red-200"
+                    : selected
+                        ? "shadow-2xl shadow-indigo-500/20 ring-2 ring-indigo-500"
+                        : "shadow-lg shadow-gray-200/60 border border-gray-100"
             )}
         >
             {/* Input Port */}
@@ -164,40 +171,40 @@ export const BaseNode = memo(({
                 </div>
             )}
 
-            {/* Header with Gradient */}
+            {/* Header with Gradient — compact */}
             <div className={cn(
-                "px-4 py-3 border-b border-gray-100/80",
+                "px-3 py-2 border-b border-gray-100/80",
                 "bg-gradient-to-r",
                 gradientFrom,
                 gradientTo
             )}>
-                <div className="flex items-center gap-3">
-                    {/* Icon - no box */}
+                <div className="flex items-center gap-2.5">
+                    {/* Icon — compact */}
                     <div className={cn(
-                        "w-10 h-10 flex items-center justify-center",
-                        "transition-transform duration-200 group-hover:scale-105",
+                        "w-8 h-8 flex items-center justify-center",
+                        "transition-transform duration-200 group-hover:scale-110",
                         iconColor
                     )}>
-                        <Icon size={22} strokeWidth={2} />
+                        <Icon size={18} strokeWidth={2} />
                     </div>
 
                     {/* Title Block */}
                     <div className="flex-1 min-w-0">
                         {subtitle && (
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">
                                 {subtitle}
                             </p>
                         )}
-                        <h3 className="text-sm font-bold text-gray-900 truncate leading-tight">
+                        <h3 className="text-[13px] font-bold text-gray-900 truncate leading-tight">
                             {title || 'Untitled'}
                         </h3>
                     </div>
                 </div>
             </div>
 
-            {/* Content Body */}
+            {/* Content Body — compact */}
             {children && (
-                <div className="p-4">
+                <div className="px-3 py-2">
                     {children}
                 </div>
             )}
