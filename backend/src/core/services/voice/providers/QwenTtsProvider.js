@@ -33,15 +33,17 @@ class QwenTtsProvider {
         let safeName = voiceName.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20);
         if (!safeName) safeName = `voice_${Date.now()}`;
 
-        // Detect mime type from base64 header or default to mpeg
-        let mimeType = 'audio/mpeg';
+        // Detect mime type from base64 header or default to mp3
+        let mimeType = 'audio/mp3';
         let cleanBase64 = audioBase64;
 
         if (audioBase64.startsWith('data:')) {
-            const match = audioBase64.match(/^data:(audio\/\w+);base64,/);
+            const match = audioBase64.match(/^data:([^;]+);base64,/);
             if (match) {
                 mimeType = match[1];
-                cleanBase64 = audioBase64.replace(/^data:audio\/\w+;base64,/, '');
+                // Dashscope prefers mp3 over mpeg
+                if (mimeType === 'audio/mpeg') mimeType = 'audio/mp3';
+                cleanBase64 = audioBase64.replace(/^data:[^;]+;base64,/, '');
             }
         }
 

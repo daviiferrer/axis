@@ -13,6 +13,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { agentService, Agent, DNAConfig, VoiceClone, VoiceConfig } from '@/services/agentService';
 import { profileService } from '@/services/profileService';
+import { VoiceConfigTab } from './voice-config-tab';
 import Link from 'next/link';
 
 // ===== DNA DEFAULTS (Enum-based — matches AgentDNA.js backend enums directly) =====
@@ -222,9 +223,9 @@ export function AgentConfig({ formData, onChange, agents, onAgentsChange }: Agen
                     <Label className="text-xs text-gray-500">Modelo IA</Label>
                     <div className="grid grid-cols-3 gap-2">
                         {[
-                            { id: 'gemini-2.5-flash', name: '2.5 Flash', desc: '⚡ Padrão' },
-                            { id: 'gemini-2.5-flash-lite', name: '2.5 Lite', desc: '💰 Econômico' },
-                            { id: 'gemini-3.0-flash', name: '3.0 Flash', desc: '🧠 Avançado' }
+                            { id: 'gemini-2.5-flash', name: '2.5 Flash', desc: 'Padrão' },
+                            { id: 'gemini-2.5-flash-lite', name: '2.5 Lite', desc: 'Econômico' },
+                            { id: 'gemini-3.0-flash', name: '3.0 Flash', desc: 'Avançado' }
                         ].map(m => (
                             <button key={m.id} onClick={() => setModel(m.id)}
                                 className={`p-2 rounded-lg border-2 text-center transition-all text-xs ${model === m.id
@@ -241,12 +242,12 @@ export function AgentConfig({ formData, onChange, agents, onAgentsChange }: Agen
                     <Label className="text-xs text-gray-500">Cargo</Label>
                     <div className="grid grid-cols-3 gap-2">
                         {[
-                            { id: 'SDR', label: '🎯 SDR' },
-                            { id: 'EXECUTIVE', label: '💰 Closer' },
-                            { id: 'SUPPORT', label: '🎧 Suporte' },
-                            { id: 'ONBOARDING', label: '🚀 Onboard' },
-                            { id: 'CONSULTANT', label: '🧠 Consultor' },
-                            { id: 'CONCIERGE', label: '🛎️ Triagem' },
+                            { id: 'SDR', label: 'SDR' },
+                            { id: 'EXECUTIVE', label: 'Closer' },
+                            { id: 'SUPPORT', label: 'Suporte' },
+                            { id: 'ONBOARDING', label: 'Onboard' },
+                            { id: 'CONSULTANT', label: 'Consultor' },
+                            { id: 'CONCIERGE', label: 'Triagem' },
                         ].map(r => (
                             <button key={r.id} onClick={() => setRole(r.id)}
                                 className={`p-2 rounded-lg border text-xs font-medium transition-all ${role === r.id
@@ -258,18 +259,18 @@ export function AgentConfig({ formData, onChange, agents, onAgentsChange }: Agen
                 </div>
 
                 {/* DNA Tabs */}
-                <Tabs defaultValue="business" className="w-full">
+                <Tabs defaultValue="integration" className="w-full">
                     <TabsList className="w-full grid grid-cols-5 bg-gray-100 p-0.5 rounded-lg h-auto">
-                        <TabsTrigger value="business" className="text-[10px] py-1.5 px-1">🏢 Negócio</TabsTrigger>
-                        <TabsTrigger value="personality" className="text-[10px] py-1.5 px-1">🧠 Persona</TabsTrigger>
-                        <TabsTrigger value="writing" className="text-[10px] py-1.5 px-1">💬 Escrita</TabsTrigger>
-                        <TabsTrigger value="safety" className="text-[10px] py-1.5 px-1">🛡️ Limites</TabsTrigger>
-                        <TabsTrigger value="voice" className="text-[10px] py-1.5 px-1">🎙️ Voz</TabsTrigger>
+                        <TabsTrigger value="integration" className="text-[10px] py-1.5 px-1">Integrar</TabsTrigger>
+                        <TabsTrigger value="personality" className="text-[10px] py-1.5 px-1">Persona</TabsTrigger>
+                        <TabsTrigger value="writing" className="text-[10px] py-1.5 px-1">Escrita</TabsTrigger>
+                        <TabsTrigger value="safety" className="text-[10px] py-1.5 px-1">Limites</TabsTrigger>
+                        <TabsTrigger value="voice" className="text-[10px] py-1.5 px-1">Voz</TabsTrigger>
                     </TabsList>
 
-                    {/* Business Context */}
-                    <TabsContent value="business" className="mt-4 space-y-4">
-                        <BusinessTab dna={dna} updateDna={updateDna} apiKey={apiKey} setApiKey={setApiKey}
+                    {/* Integration Context */}
+                    <TabsContent value="integration" className="mt-4 space-y-4">
+                        <IntegrationTab apiKey={apiKey} setApiKey={setApiKey}
                             hasKey={hasKey} keyLoading={keyLoading} handleSaveKey={handleSaveKey} />
                     </TabsContent>
 
@@ -290,7 +291,7 @@ export function AgentConfig({ formData, onChange, agents, onAgentsChange }: Agen
 
                     {/* Voice */}
                     <TabsContent value="voice" className="mt-4 space-y-4">
-                        <VoiceTab dna={dna} updateDna={updateDna} agentId={selectedAgent?.id} />
+                        <VoiceConfigTab dna={dna} updateDna={updateDna} agentId={selectedAgent?.id} />
                     </TabsContent>
                 </Tabs>
             </div>
@@ -329,217 +330,32 @@ export function AgentConfig({ formData, onChange, agents, onAgentsChange }: Agen
             {/* Action Buttons */}
             <div className="flex gap-2">
                 <Button onClick={handleCreateNew} variant="outline" size="sm" className="flex-1 text-xs">
-                    ➕ Criar Novo
+                    Criar Novo
                 </Button>
                 {formData.agentId && (
                     <>
                         <Button onClick={handleEditSelected} variant="outline" size="sm" className="flex-1 text-xs">
-                            ✏️ Editar DNA
+                            Editar DNA
                         </Button>
                         <Button onClick={() => handleDelete(formData.agentId)} variant="outline" size="sm"
                             className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50">
-                            🗑️
+                            Excluir
                         </Button>
                     </>
                 )}
             </div>
 
-            {/* Node-level configs: Goal, CTAs, Slots */}
-            <AgentNodeSettings formData={formData} onChange={onChange} />
+            {/* Node-level configs removed: Goal, CTAs, Slots, Context are now handled exclusively on the Agent Wizard canvas */}
         </div>
     );
 }
 
 // ===== SUB-COMPONENTS =====
+// AgentNodeSettings was moved to agent-wizard.tsx
 
-function AgentNodeSettings({ formData, onChange }: { formData: any; onChange: (k: string, v: any) => void }) {
-    const goals = [
-        { id: 'QUALIFY_LEAD', label: 'Qualificar', icon: Target, color: 'text-blue-600 bg-blue-50 border-blue-200' },
-        { id: 'CLOSE_SALE', label: 'Vender', icon: Briefcase, color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
-        { id: 'SCHEDULE_MEETING', label: 'Agendar', icon: Calendar, color: 'text-purple-600 bg-purple-50 border-purple-200' },
-        { id: 'HANDLE_OBJECTION', label: 'Objeções', icon: Shield, color: 'text-orange-600 bg-orange-50 border-orange-200' },
-        { id: 'PROVIDE_INFO', label: 'Info/FAQ', icon: MessageSquare, color: 'text-sky-600 bg-sky-50 border-sky-200' },
-        { id: 'RECOVER_COLD', label: 'Recuperar', icon: Zap, color: 'text-amber-600 bg-amber-50 border-amber-200' },
-        { id: 'ONBOARD_USER', label: 'Onboard', icon: Rocket, color: 'text-pink-600 bg-pink-50 border-pink-200' },
-        { id: 'SUPPORT_TICKET', label: 'Suporte', icon: LifeBuoy, color: 'text-indigo-600 bg-indigo-50 border-indigo-200' },
-        { id: 'CUSTOM', label: 'Custom', icon: Settings, color: 'text-gray-600 bg-gray-50 border-gray-200' },
-    ];
-
-    const currentGoal = goals.find(g => g.id === (formData.goal || 'PROVIDE_INFO')) || goals[4];
-    const [slotInput, setSlotInput] = useState('');
-    const currentSlots = Array.isArray(formData.criticalSlots) ? formData.criticalSlots : [];
-
-    const addSlot = () => {
-        if (!slotInput.trim()) return;
-        const newSlot = slotInput.trim().toLowerCase().replace(/\s+/g, '_');
-        if (!currentSlots.includes(newSlot)) {
-            onChange('criticalSlots', [...currentSlots, newSlot]);
-        }
-        setSlotInput('');
-    };
-
-    const removeSlot = (slotToRemove: string) => {
-        onChange('criticalSlots', currentSlots.filter((s: string) => s !== slotToRemove));
-    };
-
-    return (
-        <div className="space-y-6 pt-2">
-
-            {/* GOAL GRID */}
-            <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                    <Brain className="w-4 h-4 text-indigo-600" />
-                    <Label className="text-sm font-semibold text-indigo-950">Objetivo do Nó</Label>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                    {goals.map((type) => {
-                        const Icon = type.icon;
-                        const isSelected = (formData.goal || 'PROVIDE_INFO') === type.id;
-                        return (
-                            <button
-                                key={type.id}
-                                onClick={() => onChange('goal', type.id)}
-                                className={cn(
-                                    "flex flex-col items-center justify-center p-2 rounded-xl border transition-all h-20 gap-1.5",
-                                    isSelected
-                                        ? `border-2 shadow-sm ${type.color.replace('border-', 'border-opacity-100 border-')}`
-                                        : "bg-white border-gray-100 text-gray-400 hover:bg-gray-50 hover:border-gray-200"
-                                )}
-                            >
-                                <Icon className={cn("w-5 h-5", isSelected ? "opacity-100" : "opacity-60")} />
-                                <span className="text-[10px] font-medium leading-none text-center">{type.label}</span>
-                            </button>
-                        );
-                    })}
-                </div>
-
-                {formData.goal === 'CUSTOM' && (
-                    <div className="animate-in fade-in slide-in-from-top-1">
-                        <Textarea rows={2} value={formData.custom_objective || ''}
-                            onChange={(e) => onChange('custom_objective', e.target.value)}
-                            placeholder="Descreva o objetivo específico para a IA..."
-                            className="bg-gray-50 border-0 text-sm rounded-xl focus-visible:ring-1 focus-visible:ring-indigo-500" />
-                    </div>
-                )}
-            </div>
-
-            {/* CRITICAL SLOTS (Interactive Chips) */}
-            <div className={cn("p-4 rounded-xl border space-y-3", "bg-emerald-50/50 border-emerald-100")}>
-                <div className="flex items-center justify-between">
-                    <div>
-                        <Label className="text-sm font-semibold text-emerald-900">Slots Obrigatórios</Label>
-                        <p className="text-[10px] text-emerald-600 mt-0.5">
-                            Informações que a IA <b>DEVE</b> coletar.
-                        </p>
-                    </div>
-                    <span className="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full font-mono font-bold">
-                        {currentSlots.length}
-                    </span>
-                </div>
-
-                <div className="bg-white/80 border border-emerald-100 rounded-xl p-2 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                        {currentSlots.map((slot: string) => (
-                            <span key={slot} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 text-[11px] font-medium animate-in zoom-in-50 duration-200">
-                                {slot}
-                                <button onClick={() => removeSlot(slot)} className="hover:text-emerald-900 transition-colors">
-                                    <X size={10} />
-                                </button>
-                            </span>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Input
-                            placeholder={currentSlots.length === 0 ? "Ex: email, telefone (Enter)" : "Adicionar..."}
-                            value={slotInput}
-                            onChange={(e) => setSlotInput(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ',') {
-                                    e.preventDefault();
-                                    addSlot();
-                                }
-                            }}
-                            className="h-7 border-0 bg-transparent p-0 text-xs focus-visible:ring-0 placeholder:text-gray-400"
-                        />
-                        <button onClick={addSlot} disabled={!slotInput.trim()} className="text-emerald-600 hover:text-emerald-700 disabled:opacity-30">
-                            <Plus size={16} />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Quick Add Suggestions */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                    {['nome', 'email', 'telefone', 'cpf', 'cnpj', 'orçamento'].map(s => {
-                        const isAdded = currentSlots.includes(s);
-                        if (isAdded) return null;
-                        return (
-                            <button key={s} onClick={() => {
-                                if (!currentSlots.includes(s)) onChange('criticalSlots', [...currentSlots, s]);
-                            }} className="text-[9px] bg-white border border-emerald-100 text-emerald-600 px-2 py-1 rounded hover:bg-emerald-50 transition-colors">
-                                + {s}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* CTAs */}
-            <div className="space-y-3">
-                <Label className="text-xs text-gray-500 pl-1">Ações permitidas</Label>
-                <ToggleGroup type="multiple" variant="outline" value={formData.allowed_ctas || []}
-                    onValueChange={(val) => onChange('allowed_ctas', val)} className="justify-start flex-wrap gap-2">
-                    {[
-                        { value: 'ASK_QUESTION', label: '❓ Pergunta' },
-                        { value: 'PROPOSE_DEMO', label: '🎬 Demo' },
-                        { value: 'SEND_PROPOSAL', label: '📄 Proposta' },
-                        { value: 'SCHEDULE_CALL', label: '📞 Agendar' },
-                        { value: 'CONFIRM_INTEREST', label: '✅ Confirmar' },
-                        { value: 'REQUEST_HANDOFF', label: '🙋 Humano' },
-                    ].map(c => (
-                        <ToggleGroupItem key={c.value} value={c.value}
-                            className="h-9 px-3 text-xs data-[state=on]:bg-blue-100 data-[state=on]:text-blue-700 data-[state=on]:border-blue-200 transition-all">{c.label}</ToggleGroupItem>
-                    ))}
-                </ToggleGroup>
-            </div>
-        </div>
-    );
-}
-
-function BusinessTab({ dna, updateDna, apiKey, setApiKey, hasKey, keyLoading, handleSaveKey }: any) {
+function IntegrationTab({ apiKey, setApiKey, hasKey, keyLoading, handleSaveKey }: any) {
     return (
         <div className="space-y-4">
-            <div className="space-y-2">
-                <Label className="text-xs font-bold text-gray-700">Setor</Label>
-                <div className="grid grid-cols-3 gap-1.5">
-                    {[
-                        { id: 'ADVOCACIA', label: '⚖️ Advocacia' },
-                        { id: 'OFICINA_MECANICA', label: '🔧 Oficina' },
-                        { id: 'ASSISTENCIA_TECNICA', label: '🔌 Assist. Técnica' },
-                        { id: 'IMOBILIARIA', label: '🏠 Imobiliária' },
-                        { id: 'CLINICA', label: '🏥 Clínica' },
-                        { id: 'ECOMMERCE', label: '🛒 E-commerce' },
-                        { id: 'SAAS', label: '💻 SaaS' },
-                        { id: 'AGENCIA', label: '🎨 Agência' },
-                        { id: 'CONSULTORIA', label: '📊 Consultoria' },
-                        { id: 'ACADEMIA', label: '💪 Academia' },
-                        { id: 'RESTAURANTE', label: '🍽️ Restaurante' },
-                        { id: 'GENERIC', label: '⚪ Genérico' },
-                    ].map(ind => (
-                        <button key={ind.id} onClick={() => updateDna('business_context', 'industry', ind.id)}
-                            className={`p-2 rounded-lg border text-[10px] font-medium transition-all ${dna.business_context?.industry === ind.id
-                                ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-indigo-300'}`}>
-                            {ind.label}
-                        </button>
-                    ))}
-                </div>
-            </div>
-            <div className="space-y-1">
-                <Label className="text-xs text-gray-500">Nome da Empresa</Label>
-                <Input value={dna.business_context?.company_name || ''} onChange={e => updateDna('business_context', 'company_name', e.target.value)}
-                    className="h-9" placeholder="Ex: Escritório Silva & Associados" />
-            </div>
-
             {/* API Key */}
             <div className="p-3 bg-purple-50 rounded-lg border border-purple-100 space-y-2">
                 <div className="flex items-center justify-between">
@@ -563,10 +379,12 @@ function BusinessTab({ dna, updateDna, apiKey, setApiKey, hasKey, keyLoading, ha
                 </div>
             </div>
 
-            <div className="space-y-1">
-                <Label className="text-xs text-gray-500">Contexto / Playbook</Label>
-                <Textarea value={dna.business_context?.custom_context || ''} onChange={e => updateDna('business_context', 'custom_context', e.target.value)}
-                    className="min-h-[100px] text-xs" placeholder="Informações específicas do negócio..." />
+            {/* Context Note */}
+            <div className="p-3 bg-blue-50/50 border border-blue-100 border-dashed rounded-lg space-y-1">
+                <p className="text-[10px] leading-relaxed text-blue-700 font-medium">
+                    💡 O objetivo, roteiro e modo de voz devem ser configurados no fluxo da campanha.
+                    Este menu define apenas a essência, voz e comportamento do Agente.
+                </p>
             </div>
         </div>
     );
@@ -575,27 +393,27 @@ function BusinessTab({ dna, updateDna, apiKey, setApiKey, hasKey, keyLoading, ha
 function PersonalityTab({ dna, updateDna }: any) {
     const big5Traits = [
         {
-            key: 'openness', label: '🎨 Abertura', options: [
+            key: 'openness', label: 'Abertura', options: [
                 { value: 'LOW', label: 'Prático' }, { value: 'MEDIUM', label: 'Equilibrado' }, { value: 'HIGH', label: 'Criativo' }
             ]
         },
         {
-            key: 'conscientiousness', label: '📋 Conscienciosidade', options: [
+            key: 'conscientiousness', label: 'Conscienciosidade', options: [
                 { value: 'LOW', label: 'Flexível' }, { value: 'MEDIUM', label: 'Equilibrado' }, { value: 'HIGH', label: 'Metódico' }
             ]
         },
         {
-            key: 'extraversion', label: '🗣️ Extroversão', options: [
+            key: 'extraversion', label: 'Extroversão', options: [
                 { value: 'LOW', label: 'Reservado' }, { value: 'MEDIUM', label: 'Equilibrado' }, { value: 'HIGH', label: 'Expansivo' }
             ]
         },
         {
-            key: 'agreeableness', label: '🤝 Amabilidade', options: [
+            key: 'agreeableness', label: 'Amabilidade', options: [
                 { value: 'LOW', label: 'Direto' }, { value: 'MEDIUM', label: 'Equilibrado' }, { value: 'HIGH', label: 'Acolhedor' }
             ]
         },
         {
-            key: 'neuroticism', label: '😰 Neuroticismo', options: [
+            key: 'neuroticism', label: 'Neuroticismo', options: [
                 { value: 'LOW', label: 'Calmo' }, { value: 'MEDIUM', label: 'Moderado' }, { value: 'HIGH', label: 'Reativo' }
             ]
         },
@@ -603,17 +421,17 @@ function PersonalityTab({ dna, updateDna }: any) {
 
     const padTraits = [
         {
-            key: 'pleasure', label: '😊 Prazer', options: [
+            key: 'pleasure', label: 'Prazer', options: [
                 { value: 'NEGATIVE', label: 'Neutro' }, { value: 'NEUTRAL', label: 'Amigável' }, { value: 'POSITIVE', label: 'Alegre' }
             ]
         },
         {
-            key: 'arousal', label: '⚡ Energia', options: [
+            key: 'arousal', label: 'Energia', options: [
                 { value: 'LOW', label: 'Calmo' }, { value: 'MEDIUM', label: 'Moderado' }, { value: 'HIGH', label: 'Energético' }
             ]
         },
         {
-            key: 'dominance', label: '👑 Dominância', options: [
+            key: 'dominance', label: 'Dominância', options: [
                 { value: 'SUBMISSIVE', label: 'Submisso' }, { value: 'EGALITARIAN', label: 'Igual' }, { value: 'DOMINANT', label: 'Assertivo' }
             ]
         },
@@ -673,27 +491,27 @@ function PersonalityTab({ dna, updateDna }: any) {
 function WritingTab({ dna, updateDna }: any) {
     const writingTraits = [
         {
-            section: 'linguistics', key: 'formality', label: '📝 Formalidade', options: [
+            section: 'linguistics', key: 'formality', label: 'Formalidade', options: [
                 { value: 'INFORMAL', label: 'Informal' }, { value: 'BALANCED', label: 'Equilibrado' }, { value: 'FORMAL', label: 'Formal' }
             ]
         },
         {
-            section: 'linguistics', key: 'emoji_frequency', label: '😀 Emojis', options: [
+            section: 'linguistics', key: 'emoji_frequency', label: 'Uso de Emojis', options: [
                 { value: 'NONE', label: 'Nunca' }, { value: 'LOW', label: 'Pouco' }, { value: 'MEDIUM', label: 'Moderado' }, { value: 'HIGH', label: 'Muito' }
             ]
         },
         {
-            section: 'linguistics', key: 'caps_usage', label: '🔠 CAPS', options: [
+            section: 'linguistics', key: 'caps_usage', label: 'Uso de CAPS', options: [
                 { value: 'NEVER', label: 'Nunca' }, { value: 'STANDARD', label: 'Padrão' }, { value: 'FREQUENT', label: 'Frequente' }
             ]
         },
         {
-            section: 'chronemics', key: 'latency_profile', label: '⏱️ Latência', options: [
+            section: 'chronemics', key: 'latency_profile', label: 'Latência', options: [
                 { value: 'FAST', label: 'Rápido' }, { value: 'MODERATE', label: 'Moderado' }, { value: 'SLOW', label: 'Lento' }, { value: 'VARIABLE', label: 'Variável' }
             ]
         },
         {
-            section: 'chronemics', key: 'burstiness', label: '💥 Burstiness', options: [
+            section: 'chronemics', key: 'burstiness', label: 'Burstiness', options: [
                 { value: 'NONE', label: 'Uma msg' }, { value: 'LOW', label: 'Pouco' }, { value: 'MEDIUM', label: 'Médio' }, { value: 'HIGH', label: 'Muito' }
             ]
         },

@@ -111,7 +111,7 @@ class VoiceService {
         }
 
         if (name === 'lmnt') {
-            // If we have a userId, fetch from profiles
+            // 1. If we have a userId, fetch from profiles
             if (userId) {
                 const { data, error } = await this.supabase
                     .from('profiles')
@@ -123,7 +123,11 @@ class VoiceService {
                     return data.lmnt_api_key;
                 }
             }
-            // Fallback: Check process.env just in case, or system settings
+            // 2. Global System Settings Fallback
+            const globalKey = await this.settingsService.getLmntApiKey();
+            if (globalKey) return globalKey;
+
+            // 3. Env var fallback
             if (process.env.LMNT_API_KEY) return process.env.LMNT_API_KEY;
         }
 

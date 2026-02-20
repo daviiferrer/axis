@@ -10,14 +10,10 @@ import {
 import {
     Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 import { wahaService } from '@/services/waha';
@@ -26,7 +22,7 @@ import { campaignService } from '@/services/campaign';
 import {
     TriggerConfig, DelayConfig, SplitConfig, ActionConfig,
     BroadcastConfig, LogicConfig, GotoConfig, GotoCampaignConfig,
-    HandoffConfig, ClosingConfig, AgentConfig
+    HandoffConfig, ClosingConfig
 } from './node-configs';
 import { FollowUpConfig } from './node-configs/followup-config';
 
@@ -62,18 +58,18 @@ const NODE_META: Record<string, { icon: React.ElementType; color: string; bgColo
 };
 
 // ============================================================================
-// Tooltip Helper — inline tooltip for field labels
+// Tooltip Helper
 // ============================================================================
 
-function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
+function FieldLabel({ label, tooltip, className }: { label: string; tooltip?: string; className?: string }) {
     return (
-        <div className="flex items-center gap-1.5">
-            <Label className="text-sm font-medium">{label}</Label>
+        <div className={cn("flex items-center gap-1.5", className)}>
+            <Label className="text-xs font-medium text-gray-700">{label}</Label>
             {tooltip && (
                 <TooltipProvider delayDuration={200}>
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <Info size={13} className="text-gray-400 hover:text-gray-600 cursor-help transition-colors" />
+                            <Info size={12} className="text-gray-400 hover:text-gray-600 cursor-help transition-colors shrink-0" />
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-[260px] text-xs leading-relaxed">
                             {tooltip}
@@ -85,8 +81,12 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
     );
 }
 
+import { AgentWizard } from './node-configs/agent-wizard'; // Import the new wizard
+
+// ... (other imports)
+
 // ============================================================================
-// Agent-specific sidebar content with friendly tabs
+// Agent-specific sidebar — now uses the AgentWizard (Vertical Accordion)
 // ============================================================================
 
 function AgentSheetContent({
@@ -101,151 +101,14 @@ function AgentSheetContent({
     onAgentsChange: () => void;
 }) {
     return (
-        <Tabs defaultValue="mind" className="flex-1 flex flex-col min-h-0">
-            <TabsList className="grid grid-cols-4 mx-4 mt-2 shrink-0">
-                <TabsTrigger value="mind" className="text-xs gap-1">🧠 Mente</TabsTrigger>
-                <TabsTrigger value="collect" className="text-xs gap-1">📋 Coleta</TabsTrigger>
-                <TabsTrigger value="voice" className="text-xs gap-1">🎤 Voz</TabsTrigger>
-                <TabsTrigger value="advanced" className="text-xs gap-1">⚙️ Avançado</TabsTrigger>
-            </TabsList>
-
-            <ScrollArea className="flex-1 min-h-0">
-                {/* ── Tab: Mente (Mind / Core) ──────────── */}
-                <TabsContent value="mind" className="px-4 pb-6 space-y-5 mt-0">
-                    <div className="space-y-4 pt-2">
-                        {/* Existing AgentConfig already handles agent selection, model, prompt etc. */}
-                        <AgentConfig
-                            formData={formData}
-                            onChange={onChange}
-                            agents={agents}
-                            onAgentsChange={onAgentsChange}
-                        />
-                    </div>
-                </TabsContent>
-
-                {/* ── Tab: Coleta (Data Collection / Slots) ─── */}
-                <TabsContent value="collect" className="px-4 pb-6 space-y-5 mt-0">
-                    <div className="space-y-4 pt-2">
-                        <FieldLabel
-                            label="Dados para Coletar"
-                            tooltip="Informações que a IA deve tentar descobrir durante a conversa. Ela fará perguntas naturais para coletar esses dados."
-                        />
-                        <p className="text-xs text-muted-foreground -mt-2">
-                            A IA coletará esses dados de forma natural na conversa, sem parecer um formulário.
-                        </p>
-
-                        {/* Slots are managed inside AgentConfig, but we re-render the relevant section */}
-                        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 p-4">
-                            <div className="space-y-3">
-                                {formData.criticalSlots?.map((slot: string, i: number) => (
-                                    <div key={i} className="flex items-center gap-2">
-                                        <span className="px-2.5 py-1 rounded-lg bg-green-50 text-green-700 text-xs font-medium border border-green-100 capitalize">
-                                            {slot}
-                                        </span>
-                                        <button
-                                            onClick={() => {
-                                                const next = formData.criticalSlots.filter((_: string, idx: number) => idx !== i);
-                                                onChange('criticalSlots', next);
-                                            }}
-                                            className="text-gray-400 hover:text-red-500 text-xs transition-colors"
-                                        >
-                                            ✕
-                                        </button>
-                                    </div>
-                                ))}
-                                {(!formData.criticalSlots || formData.criticalSlots.length === 0) && (
-                                    <p className="text-xs text-gray-400 text-center py-2">
-                                        Nenhum dado configurado. Adicione na aba Mente → Agente.
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </TabsContent>
-
-                {/* ── Tab: Voz (Voice) ──────────── */}
-                <TabsContent value="voice" className="px-4 pb-6 space-y-5 mt-0">
-                    <div className="space-y-4 pt-2">
-                        <FieldLabel
-                            label="Integração de Voz"
-                            tooltip="Habilite para que a IA possa enviar e receber áudios no WhatsApp, tornando a conversa mais natural e humana."
-                        />
-                        <p className="text-xs text-muted-foreground -mt-2">
-                            Quando ativado, a IA poderá enviar áudios e transcrever áudios recebidos.
-                        </p>
-
-                        <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 text-center">
-                            <p className="text-xs text-gray-500">
-                                Configure a voz na aba Mente → Agente → seção Voz.
-                            </p>
-                        </div>
-                    </div>
-                </TabsContent>
-
-                {/* ── Tab: Avançado (Advanced) ──────────── */}
-                <TabsContent value="advanced" className="px-4 pb-6 space-y-5 mt-0">
-                    <div className="space-y-4 pt-2">
-                        <Collapsible defaultOpen={false}>
-                            <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors w-full py-2">
-                                <span className="text-xs">▶</span>
-                                Configurações Técnicas
-                            </CollapsibleTrigger>
-                            <CollapsibleContent className="space-y-5 pt-3">
-                                {/* Temperature */}
-                                <div className="space-y-3">
-                                    <FieldLabel
-                                        label="Criatividade das Respostas"
-                                        tooltip="Controla o quão criativa ou previsível a IA é. Baixa = respostas diretas e seguras. Alta = respostas variadas e criativas."
-                                    />
-                                    <div className="flex justify-between text-[10px] text-muted-foreground px-1">
-                                        <span>🎯 Preciso</span>
-                                        <span className="font-mono font-bold text-gray-700">{formData.temperature ?? 0.3}</span>
-                                        <span>🎨 Criativo</span>
-                                    </div>
-                                    <Slider
-                                        value={[formData.temperature ?? 0.3]}
-                                        min={0}
-                                        max={1}
-                                        step={0.1}
-                                        onValueChange={([v]) => onChange('temperature', v)}
-                                        className="w-full"
-                                    />
-                                    <p className="text-[10px] text-muted-foreground">
-                                        Para advocacia use 0.1-0.3. Para marketing use 0.5-0.7.
-                                    </p>
-                                </div>
-
-                                <Separator />
-
-                                {/* Typing Delay */}
-                                <div className="space-y-3">
-                                    <FieldLabel
-                                        label="Velocidade de Resposta"
-                                        tooltip="Adiciona uma pausa antes de enviar a resposta, simulando que alguém está digitando. Torna a conversa mais natural."
-                                    />
-                                    <div className="flex justify-between text-[10px] text-muted-foreground px-1">
-                                        <span>⚡ Instantâneo</span>
-                                        <span className="font-mono font-bold text-gray-700">{formData.typingDelay ?? 2}s</span>
-                                        <span>🐢 Lento</span>
-                                    </div>
-                                    <Slider
-                                        value={[formData.typingDelay ?? 2]}
-                                        min={0}
-                                        max={5}
-                                        step={0.5}
-                                        onValueChange={([v]) => onChange('typingDelay', v)}
-                                        className="w-full"
-                                    />
-                                    <p className="text-[10px] text-muted-foreground">
-                                        Respostas instantâneas parecem robóticas. 1-3 segundos é o ideal.
-                                    </p>
-                                </div>
-                            </CollapsibleContent>
-                        </Collapsible>
-                    </div>
-                </TabsContent>
-            </ScrollArea>
-        </Tabs>
+        <div className="flex-1 min-h-0 flex flex-col">
+            <AgentWizard
+                formData={formData}
+                onChange={onChange}
+                agents={agents}
+                onAgentsChange={onAgentsChange}
+            />
+        </div>
     );
 }
 
@@ -364,14 +227,14 @@ export function NodeConfigSheet({ selectedNode, onClose, onUpdateNode, nodes, ed
                                 {formData.label || meta.label}
                             </SheetTitle>
                             <SheetDescription className="text-[10px] uppercase tracking-widest font-bold text-gray-400">
-                                Configuração do Nó
+                                Configuração
                             </SheetDescription>
                         </div>
                     </div>
 
                     {/* Node Name Input */}
                     <div className="mt-3 space-y-1.5">
-                        <FieldLabel label="Nome do nó" tooltip="Um nome para identificar este passo no fluxo. Aparece no canvas." />
+                        <FieldLabel label="Nome do nó" tooltip="Identificação deste passo no fluxo. Aparece no canvas." />
                         <Input
                             value={formData.label || ''}
                             onChange={(e) => handleChange('label', e.target.value)}
@@ -382,16 +245,20 @@ export function NodeConfigSheet({ selectedNode, onClose, onUpdateNode, nodes, ed
                 </SheetHeader>
 
                 {/* ── Body ── */}
-                <div className="flex-1 min-h-0 flex flex-col">
+                <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                     {isAgentType ? (
-                        <AgentSheetContent
-                            formData={formData}
-                            onChange={handleChange}
-                            agents={agents}
-                            onAgentsChange={refreshAgents}
-                        />
+                        <ScrollArea className="h-full">
+                            <div className="h-full">
+                                <AgentSheetContent
+                                    formData={formData}
+                                    onChange={handleChange}
+                                    agents={agents}
+                                    onAgentsChange={refreshAgents}
+                                />
+                            </div>
+                        </ScrollArea>
                     ) : (
-                        <ScrollArea className="flex-1">
+                        <ScrollArea className="h-full">
                             <div className="p-5">
                                 {renderGenericContent()}
                             </div>

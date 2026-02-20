@@ -200,7 +200,14 @@ class AgentNode {
                     lastMessage: history[history.length - 1],
                     turnCount: history.length
                 };
-                if (this.voiceService.shouldUseVoice(dna.voice_config, voiceCtx)) {
+
+                // Allow Node-level Canvas override of the Voice Response Mode
+                const effectiveVoiceConfig = { ...dna.voice_config };
+                if (nodeConfig.data?.response_mode) {
+                    effectiveVoiceConfig.response_mode = nodeConfig.data.response_mode;
+                }
+
+                if (this.voiceService.shouldUseVoice(effectiveVoiceConfig, voiceCtx)) {
                     let targetVoiceId = dna.voice_config.voice_id;
 
                     // FALLBACK: If voice ID is "Cherry" (default placeholder) or invalid, try to find a real enrolled voice

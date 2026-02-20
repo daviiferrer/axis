@@ -15,7 +15,7 @@ class LmntTtsProvider {
      * @returns {Promise<string>} The generated voice_id
      */
     async enrollVoice(apiKey, audioBase64, voiceName) {
-        const client = new Speech(apiKey); // SDK version 2.x usually takes apiKey directly or in config
+        const client = new Speech({ apiKey: apiKey }); // SDK version 2.x requires config object
 
         // Sanitize base64 (remove data header if present)
         let cleanBase64 = audioBase64;
@@ -58,7 +58,7 @@ class LmntTtsProvider {
      * @returns {Promise<string>} Audio as Base64 string
      */
     async synthesize(apiKey, text, voiceId, instruction, options = {}) {
-        const client = new Speech(apiKey);
+        const client = new Speech({ apiKey: apiKey });
 
         try {
             const synthesisOptions = {
@@ -83,7 +83,7 @@ class LmntTtsProvider {
      * @param {string} voiceId 
      */
     async deleteVoice(apiKey, voiceId) {
-        const client = new Speech(apiKey);
+        const client = new Speech({ apiKey: apiKey });
         try {
             await client.voices.delete(voiceId);
             logger.info({ voiceId }, '🗑️ Voice deleted from LMNT');

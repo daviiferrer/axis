@@ -49,7 +49,7 @@ class PromptService {
         });
 
         // === LAYER 3: PERSONA REFRESH (Anti-Drift) ===
-        const personaRefreshLayer = this.#buildPersonaRefreshLayer(agent, campaign, nodeDirective, turnCount);
+        const personaRefreshLayer = this.#buildPersonaRefreshLayer(agent, campaign, nodeConfig, nodeDirective, turnCount);
 
         // === LAYER 4: OBJECTIVES (Middle-Bottom - Node Goals) ===
         const objectivesLayer = nodeConfig
@@ -62,6 +62,9 @@ class PromptService {
         // === LAYER 4.6: HUMAN INTERACTION (Engine Instincts) ===
         const humanLayer = this.#buildHumanInteractionLayer();
 
+        // === LAYER 4.7: CUSTOM TOOLS (Agentic Tool Calling) ===
+        const toolsLayer = this.#buildToolsLayer(nodeConfig?.data?.tools || []);
+
         // === LAYER 5: OVERRIDE (Bottom - Critical Directives) ===
         const criticalSlots = nodeConfig?.data?.criticalSlots || [];
         logger.info({
@@ -73,7 +76,7 @@ class PromptService {
         }, '🎯 SLOT DEBUG: criticalSlots resolved for prompt');
         const overrideLayer = this.#buildOverrideLayer(nodeDirective, lead, criticalSlots, dna);
 
-        // Sandwich Pattern: Security → DNA → Context → Persona Refresh → Objectives → Style → Human → Override
+        // Sandwich Pattern: Security → DNA → Context → Persona Refresh → Objectives → Style → Human → Tools → Override
         return [
             securityLayer,
             dnaLayer,
@@ -82,8 +85,59 @@ class PromptService {
             objectivesLayer,
             styleLayer,
             humanLayer,
+            toolsLayer,
             overrideLayer
         ].filter(Boolean).join('\n\n');
+    }
+
+    /**
+     * Layer 4.7: Custom Tools (Agentic Tool Calling)
+     * Exposes user-defined HTTP/Webhook tools to the AI in JSON schema format.
+     */
+    #buildToolsLayer(tools) {
+        if (!tools || tools.length === 0) return '';
+
+        let xml = `
+<custom_tools priority="critical">
+    <instruction>
+        Você tem acesso a Ferramentas Customizadas (APIs/Webhooks). 
+        SE e SOMENTE SE o lead manifestar a intenção descrita na ferramenta e você precisar obter ou enviar dados, 
+        você DEVE interromper a resposta normal e devolver APENAS o JSON abaixo:
+        
+        \`\`\`json
+        {
+            "tool_call": {
+                "name": "nome_da_ferramenta_aqui",
+                "arguments": {
+                    "param1": "valor obtido na conversa"
+                }
+            },
+            "thought": "O lead pediu X, preciso usar a ferramenta."
+        }
+        \`\`\`
+        
+        Se você enviar "tool_call", o sistema vai processar e te devolver a resposta mágica. NÃO invente os resultados.
+    </instruction>
+    <available_tools>
+`;
+
+        tools.forEach(tool => {
+            xml += `
+        <tool name="${tool.name}" method="${tool.method || 'POST'}">
+            <description>${tool.description}</description>
+        </tool>`;
+        });
+
+        xml += `
+    </available_tools>
+</custom_tools>`;
+
+        // Remind the user to NOT output the regular message body if executing a tool call
+        const structureOverride = `
+    <!-- ALERTA SOBRE FERRAMENTAS -->
+    Se você acionar uma ferramenta (usando "tool_call"), NÃO inclua os campos "messages" ou "crm_actions" no JSON final. Apenas o "thought" e o "tool_call".
+`;
+        return xml + structureOverride;
     }
 
     /**
@@ -117,22 +171,16 @@ class PromptService {
         // --- NEW: BLUEPRINT INJECTION ---
         const roleKey = identity.role || agent?.role || 'DEFAULT';
 
-        // RESOLVE COMPANY NAME (Strict Priority: Node > AgentDNA > Campaign fallback)
-        // Note: campaign.company_name column was removed from DB. Rely on DNA.
-        const nodeCompanyValue = nodeConfig?.data?.company_context?.name;
-        const dnaCompanyValue = dna.business_context?.company_name || dna.identity?.company || agent?.dna_config?.business_context?.company_name || agent?.dna_config?.identity?.company;
-
-        let resolvedCompanyName = nodeCompanyValue || dnaCompanyValue;
+        // RESOLVE COMPANY NAME (Strict Priority: Node > Campaign fallback)
+        // Note: We deliberately exclude agent.dna_config so agents can be reused across companies/nodes
+        const resolvedCompanyName = nodeConfig?.data?.company_context?.name || campaign?.company_name || 'Nossa Empresa';
 
         // Graceful fallback instead of crash — canvas will show visual error
         if (!resolvedCompanyName || resolvedCompanyName === 'NOT_CONFIGURED') {
-            resolvedCompanyName = 'Empresa';
-            logger.warn({ nodeId: nodeConfig?.id, agentId: agent?.id }, '⚠️ COMPANY: Nome da empresa não configurado — usando placeholder. Configure no DNA do agente ou no override do nó.');
+            logger.warn({ nodeId: nodeConfig?.id, agentId: agent?.id }, '⚠️ COMPANY: Nome da empresa não configurado — usando placeholder. Configure no override do nó.');
         }
 
-        const customPlaybook = nodeConfig?.data?.business_context?.custom_context ||
-            nodeConfig?.data?.business_context?.playbook ||
-            agent?.dna_config?.business_context?.custom_context || '';
+        const customPlaybook = nodeDirective || '';
 
         const roleBlueprint = getRoleBlueprint(roleKey, {
             agent,
@@ -181,7 +229,7 @@ ${roleBlueprint}
      * @param {number} turnCount - Current conversation turn count
      * @returns {string} Persona refresh XML or empty string if not needed
      */
-    #buildPersonaRefreshLayer(agent, campaign, nodeDirective, turnCount) {
+    #buildPersonaRefreshLayer(agent, campaign, nodeConfig, nodeDirective, turnCount) {
         // Research suggests refresh after 8 turns, but we start at 6 to be safe
         const REFRESH_THRESHOLD = 6;
         const REFRESH_INTERVAL = 4; // Refresh again every 4 turns after threshold
@@ -195,8 +243,8 @@ ${roleBlueprint}
         }
 
         const agentName = agent?.name || 'Assistente';
-        // FIXED: Use campaign.company_name instead of undefined data.nodeConfig
-        const companyName = campaign?.company_name || agent?.dna_config?.identity?.company || 'Nossa Empresa';
+        // USE NODE CONTEXT over campaign fallback, completely severing DNA ties
+        const companyName = nodeConfig?.data?.company_context?.name || campaign?.company_name || 'Nossa Empresa';
         const tone = agent?.tone || 'profissional';
         const personality = agent?.personality || '';
 
@@ -234,16 +282,14 @@ ${roleBlueprint}
         const agentRole = identity.role || agent?.role || 'Atendimento';
 
         // --- NODE-LOCAL BUSINESS CONTEXT (Prioritized) ---
-        // Prioritize: Node Override > Agent DNA > Fallback
+        // Prioritize: Node Override > Campaign
         const companyName =
             nodeConfig?.data?.company_context?.name ||
-            identity.company ||
-            agent?.dna_config?.identity?.company ||
-            'Empresa (Não Identificada)';
+            campaign?.company_name ||
+            'Nossa Empresa';
 
         const industry =
-            nodeConfig?.data?.company_context?.industry ||
-            agent?.dna_config?.business_context?.industry || // Respected source of truth
+            nodeConfig?.data?.industry_vertical ||
             campaign?.industry_taxonomy?.primary ||
             'Geral';
 
@@ -251,10 +297,8 @@ ${roleBlueprint}
 
         const valueProposition = nodeConfig?.data?.company_context?.value_proposition || '';
 
-        // DETECT PLAYBOOK AND SUPPRESS HARDCODED INDUSTRY CONTEXT IF PRESENT
-        const customPlaybook = nodeConfig?.data?.business_context?.custom_context ||
-            nodeConfig?.data?.business_context?.playbook ||
-            agent?.dna_config?.business_context?.custom_context || '';
+        // DETECT PLAYBOOK
+        const customPlaybook = nodeDirective || '';
 
         const hasPlaybook = customPlaybook && customPlaybook.length > 10;
 

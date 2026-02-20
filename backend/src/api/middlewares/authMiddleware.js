@@ -47,11 +47,26 @@ const createAuthMiddleware = () => async (req, res, next) => {
 
         // 4. Fetch Memberships & Profile
         // We always need the Profile to know System Roles (admin/owner/member)
-        const { data: profile } = await supabase
+        // [FIX] Use ADMIN client to fetch profile to bypass ANY RLS issues.
+        const adminSupabase = factory.createAdminClient();
+
+        logger.info({
+            userId: user.id,
+            supabaseUrl: factory.supabaseUrl,
+            adminKeyPresent: !!factory.adminKey
+        }, '🔍 Attempting to fetch profile with Admin Client');
+
+        const { data: profile, error: profileError } = await adminSupabase
             .from('profiles')
-            .select('id, role, company_id')
+            .select('id, role') // STRICT FIX: Only select existing columns
             .eq('id', user.id)
             .single();
+
+        if (profileError) {
+            logger.error({ error: profileError, userId: user.id }, '❌ Failed to fetch profile with Admin Client');
+        } else {
+            logger.info({ profileId: profile?.id, role: profile?.role }, '✅ Profile found');
+        }
 
         if (profile) {
             req.user.profile = profile;

@@ -128,6 +128,19 @@ export function AppSidebar() {
             ),
         },
         {
+            label: "Configurações",
+            href: "/app/settings/profile",
+            icon: ({ isActive }: { isActive: boolean }) => (
+                <Settings
+                    className={cn(
+                        "h-5 w-5 shrink-0",
+                        isActive ? "text-blue-600 fill-blue-600" : "text-neutral-700 dark:text-neutral-200"
+                    )}
+                    strokeWidth={0.5}
+                />
+            ),
+        },
+        {
             label: "Webhooks",
             href: "/app/settings/webhooks",
             icon: ({ isActive }: { isActive: boolean }) => (

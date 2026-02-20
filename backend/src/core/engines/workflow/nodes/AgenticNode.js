@@ -32,6 +32,21 @@ class AgenticNode extends AgentNode {
         const startTime = Date.now();
         logger.info({ leadId: lead.id }, 'Executing AgenticNode');
 
+        // CRITICAL SAFEGUARD: Prevent execution if system prompt/playbook is empty.
+        // The user explicitly requested this to avoid AI halluciations and flow loops when left blank.
+        const systemPrompt = nodeConfig.data?.systemPrompt || nodeConfig.data?.instruction_override || '';
+        if (!systemPrompt || systemPrompt.trim() === '') {
+            logger.warn({ leadId: lead.id, nodeId: nodeConfig.id }, '🛑 Agentic Node skipped: Playbook prompt is completely empty.');
+
+            // Auto-advance the flow (Skip AI execution)
+            return {
+                status: NodeExecutionStateEnum.EXITED,
+                edge: 'default',
+                continueExecution: true, // Forces immediate transition to next node without waiting for user reply
+                output: { reason: 'Skipped due to empty playbook prompt', ready_to_close: true, slots_satisfied: true }
+            };
+        }
+
         // Tracing disabled
 
         // === SECURITY: Generate Canary Token ===
@@ -212,124 +227,209 @@ class AgenticNode extends AgentNode {
             turnCount,   // <--- For persona refresh mechanism
             ragContext   // <--- RAG context from hybrid search
         };
-        const systemInstruction = await this.promptService.buildStitchedPrompt(contextData);
-
-        // 4. Generate Response with tracing
-        logger.info({ leadId: lead.id, model: targetModel, agentId }, '🧠 Calling Gemini... (Sandwich Pattern Applied)');
 
         let aiResult;
-
-        // CHECK FOR IMAGE DATA (Multimodal)
-        if (lead._imageData) {
-            logger.info({ leadId: lead.id, mimeType: lead._imageData.mimeType }, '🖼️ Using Vision Model for Image Analysis');
-            const mediaItems = [{
-                mimeType: lead._imageData.mimeType,
-                data: lead._imageData.data
-            }];
-
-            aiResult = await this.geminiClient.generateWithVision(
-                targetModel,
-                systemInstruction,
-                "Analise a imagem e responda ao lead de acordo com seu objetivo.",
-                mediaItems,
-                {
-                    companyId: campaign.company_id,
-                    campaignId: campaign.id,
-                    chatId: chat.id,
-                    userId: campaign.user_id,
-                    sessionId: campaign.session_name || campaign.waha_session_name
-                }
-            );
-        } else {
-            // Standard Text Generation
-            aiResult = await this.geminiClient.generateSimple(
-                targetModel,
-                systemInstruction,
-                "Responda ao lead.",
-                {
-                    companyId: campaign.company_id,
-                    campaignId: campaign.id,
-                    chatId: chat.id,
-                    userId: campaign.user_id, // Pass owner for SaaS logging & Key Retrieval
-                    sessionId: campaign.session_name || campaign.waha_session_name
-                }
-            );
-        }
-
         let response;
-        try {
-            // Sanitization: Remove markdown code blocks (Robust JSON fix)
-            let rawText = aiResult.text();
+        let toolCallCount = 0;
+        const MAX_TOOL_CALLS = 2; // Prevent infinite webhook loops
 
-            // Remove {{json}} and {{/json}} markers (some models add these)
-            rawText = rawText.replace(/\{\{json\}\}/gi, '').replace(/\{\{\/json\}\}/gi, '');
+        while (toolCallCount <= MAX_TOOL_CALLS) {
+            const systemInstruction = await this.promptService.buildStitchedPrompt(contextData);
 
-            // Remove {{response}} markers
-            rawText = rawText.replace(/\{\{response\}\}/gi, '');
+            // 4. Generate Response with tracing
+            logger.info({ leadId: lead.id, model: targetModel, agentId, toolLoop: toolCallCount }, '🧠 Calling Gemini...');
 
-            // Remove markdown code blocks
-            if (rawText.includes('```')) {
-                rawText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/g, '');
+            // CHECK FOR IMAGE DATA (Multimodal)
+            if (lead._imageData) {
+                logger.info({ leadId: lead.id, mimeType: lead._imageData.mimeType }, '🖼️ Using Vision Model for Image Analysis');
+                const mediaItems = [{
+                    mimeType: lead._imageData.mimeType,
+                    data: lead._imageData.data
+                }];
+
+                aiResult = await this.geminiClient.generateWithVision(
+                    targetModel,
+                    systemInstruction,
+                    "Analise a imagem e responda ao lead de acordo com seu objetivo.",
+                    mediaItems,
+                    {
+                        companyId: campaign.company_id,
+                        campaignId: campaign.id,
+                        chatId: chat.id,
+                        userId: campaign.user_id,
+                        sessionId: campaign.session_name || campaign.waha_session_name
+                    }
+                );
+            } else {
+                // Standard Text Generation
+                aiResult = await this.geminiClient.generateSimple(
+                    targetModel,
+                    systemInstruction,
+                    "Responda ao lead.",
+                    {
+                        companyId: campaign.company_id,
+                        campaignId: campaign.id,
+                        chatId: chat.id,
+                        userId: campaign.user_id, // Pass owner for SaaS logging & Key Retrieval
+                        sessionId: campaign.session_name || campaign.waha_session_name
+                    }
+                );
             }
-
-            rawText = rawText.trim();
-
-            // Remove leading {{ and trailing }} if present (Gemini sometimes wraps JSON)
-            if (rawText.startsWith('{{') && !rawText.startsWith('{{{')) {
-                rawText = rawText.substring(1); // Remove first {
-            }
-            if (rawText.endsWith('}}') && !rawText.endsWith('}}}')) {
-                rawText = rawText.substring(0, rawText.length - 1); // Remove last }
-            }
-
-            // FIX: Escape literal newlines/tabs inside JSON string values.
-            // Gemini often outputs markdown with real line breaks inside the "response" field,
-            // which are invalid inside JSON strings and cause JSON.parse to fail.
-            rawText = rawText.replace(/(?<=":[ ]*"(?:[^"\\]|\\.)*)(\r?\n)/g, '\\n')
-                .replace(/(?<=":[ ]*"(?:[^"\\]|\\.)*)(\t)/g, '\\t');
 
             try {
-                response = JSON.parse(rawText);
-            } catch (innerErr) {
-                // Second attempt: manually extract response field with regex
-                logger.warn({ innerError: innerErr.message }, 'First JSON.parse failed, attempting regex extraction');
-                const thoughtMatch = rawText.match(/"thought"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-                const responseMatch = rawText.match(/"response"\s*:\s*"([\s\S]*?)"\s*,\s*"(?:ready_to_close|sentiment|crm|qualification)/);
-                const sentimentMatch = rawText.match(/"sentiment_score"\s*:\s*([\d.]+)/);
-                const confidenceMatch = rawText.match(/"confidence_score"\s*:\s*([\d.]+)/);
+                // Sanitization: Remove markdown code blocks (Robust JSON fix)
+                let rawText = aiResult.text();
 
-                if (responseMatch) {
-                    // Clean up the extracted response (un-escape for display)
-                    const extractedResponse = responseMatch[1]
-                        .replace(/\\n/g, '\n')
-                        .replace(/\\t/g, '\t')
-                        .replace(/\\"/g, '"');
+                // Remove {{json}} and {{/json}} markers (some models add these)
+                rawText = rawText.replace(/\{\{json\}\}/gi, '').replace(/\{\{\/json\}\}/gi, '');
 
-                    response = {
-                        thought: thoughtMatch ? thoughtMatch[1] : 'Extracted via regex fallback',
-                        response: extractedResponse,
-                        sentiment_score: sentimentMatch ? parseFloat(sentimentMatch[1]) : 0.5,
-                        confidence_score: confidenceMatch ? parseFloat(confidenceMatch[1]) : 0.5,
-                        qualification_slots: {},
-                        crm_actions: []
-                    };
-                    logger.info({ leadId: lead.id }, '✅ Regex extraction succeeded — response recovered');
-                } else {
-                    throw innerErr; // Let outer catch handle it
+                // Remove {{response}} markers
+                rawText = rawText.replace(/\{\{response\}\}/gi, '');
+
+                // Remove markdown code blocks
+                if (rawText.includes('```')) {
+                    rawText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/g, '');
+                }
+
+                rawText = rawText.trim();
+
+                // Remove leading {{ and trailing }} if present (Gemini sometimes wraps JSON)
+                if (rawText.startsWith('{{') && !rawText.startsWith('{{{')) {
+                    rawText = rawText.substring(1); // Remove first {
+                }
+                if (rawText.endsWith('}}') && !rawText.endsWith('}}}')) {
+                    rawText = rawText.substring(0, rawText.length - 1); // Remove last }
+                }
+
+                // FIX: Escape literal newlines/tabs inside JSON string values.
+                // Gemini often outputs markdown with real line breaks inside the "response" field,
+                // which are invalid inside JSON strings and cause JSON.parse to fail.
+                rawText = rawText.replace(/(?<=":[ ]*"(?:[^"\\]|\\.)*)(\r?\n)/g, '\\n')
+                    .replace(/(?<=":[ ]*"(?:[^"\\]|\\.)*)(\t)/g, '\\t');
+
+                try {
+                    response = JSON.parse(rawText);
+                } catch (innerErr) {
+                    // Second attempt: manually extract response field with regex
+                    logger.warn({ innerError: innerErr.message }, 'First JSON.parse failed, attempting regex extraction');
+                    const thoughtMatch = rawText.match(/"thought"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+                    const responseMatch = rawText.match(/"response"\s*:\s*"([\s\S]*?)"\s*,\s*"(?:ready_to_close|sentiment|crm|qualification)/);
+                    const sentimentMatch = rawText.match(/"sentiment_score"\s*:\s*([\d.]+)/);
+                    const confidenceMatch = rawText.match(/"confidence_score"\s*:\s*([\d.]+)/);
+
+                    if (responseMatch) {
+                        // Clean up the extracted response (un-escape for display)
+                        const extractedResponse = responseMatch[1]
+                            .replace(/\\n/g, '\n')
+                            .replace(/\\t/g, '\t')
+                            .replace(/\\"/g, '"');
+
+                        response = {
+                            thought: thoughtMatch ? thoughtMatch[1] : 'Extracted via regex fallback',
+                            response: extractedResponse,
+                            sentiment_score: sentimentMatch ? parseFloat(sentimentMatch[1]) : 0.5,
+                            confidence_score: confidenceMatch ? parseFloat(confidenceMatch[1]) : 0.5,
+                            qualification_slots: {},
+                            crm_actions: []
+                        };
+                        logger.info({ leadId: lead.id }, '✅ Regex extraction succeeded — response recovered');
+                    } else {
+                        throw innerErr; // Let outer catch handle it
+                    }
+                }
+            } catch (e) {
+                logger.error({ error: e.message, raw: aiResult.text() }, 'Failed to parse AI response');
+                // FALLBACK: Generate safe response instead of failing
+                response = {
+                    thought: 'JSON parse failed, using fallback response',
+                    response: this.#getFallbackMessage(operatingAgent?.language_code || 'pt-BR'),
+                    sentiment_score: 0.5,
+                    confidence_score: 0.3,
+                    qualification_slots: {},
+                    crm_actions: []
+                };
+                logger.warn({ leadId: lead.id }, 'Using fallback response due to JSON parse failure');
+
+                // Extract tool_call if standard parsing fails but tool_call is distinctly present
+                if (aiResult.text().includes('"tool_call"')) {
+                    const toolCallMatch = aiResult.text().match(/"tool_call"\s*:\s*(\{[\s\S]*?\})/);
+                    if (toolCallMatch) {
+                        try {
+                            response = { tool_call: JSON.parse(toolCallMatch[1]) };
+                            logger.info('✅ Recovered tool_call payload explicitly');
+                        } catch (e) { }
+                    }
                 }
             }
-        } catch (e) {
-            logger.error({ error: e.message, raw: aiResult.text() }, 'Failed to parse AI response');
-            // FALLBACK: Generate safe response instead of failing
+
+            // === TOOL CALL INTERCEPTION ===
+            if (response?.tool_call) {
+                toolCallCount++;
+                logger.info({ thought: response.thought, tool: response.tool_call?.name }, "🛠️ AI requested Custom Tool Call");
+
+                const toolDef = (nodeConfig.data?.tools || []).find(t => t.name === response.tool_call.name);
+
+                if (!toolDef || !toolDef.url) {
+                    logger.warn({ requestedTool: response.tool_call.name }, "⚠️ Tool requested by AI does not exist or has no URL");
+                    contextData.chatHistory.push({
+                        role: 'assistant',
+                        content: `[SYSTEM: Tentei usar a ferramenta '${response.tool_call.name}', mas ela não existe ou está desconfigurada. Continue a conversa com o usuário sem ela e responda a solicitacao original.]`
+                    });
+                    continue; // Loop again
+                }
+
+                try {
+                    logger.info({ url: toolDef.url, method: toolDef.method }, "🌐 Executing External Webhook");
+                    const fetchOptions = {
+                        method: toolDef.method || 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    };
+
+                    if (fetchOptions.method !== 'GET') {
+                        fetchOptions.body = JSON.stringify({
+                            ...(response.tool_call.arguments || {}),
+                            metadata: {
+                                lead_id: lead.id,
+                                campaign_id: campaign.id,
+                                agent_id: agentId,
+                                timestamp: new Date().toISOString()
+                            }
+                        });
+                    }
+
+                    const webhookResponse = await fetch(toolDef.url, fetchOptions);
+                    const webhookData = await webhookResponse.text();
+
+                    logger.info({ status: webhookResponse.status }, "✅ Webhook Executed");
+
+                    contextData.chatHistory.push({
+                        role: 'assistant',
+                        content: `[SYSTEM - RESULTADO DA FERRAMENTA '${toolDef.name}':\n${webhookData}\n\n-> INSTRUÇÃO: Entenda o resultado acima e escreva a resposta FINAL para o usuário informando isso.]`
+                    });
+                } catch (err) {
+                    logger.error({ error: err.message }, "❌ Webhook Execution Failed");
+                    contextData.chatHistory.push({
+                        role: 'assistant',
+                        content: `[SYSTEM: Tentei usar a ferramenta '${toolDef.name}', mas a API retornou erro de rede: ${err.message}. Contorne o erro na conversa com o usuario.]`
+                    });
+                }
+
+                continue; // Re-prompt AI with the webhook result
+            }
+
+            // Normal response received, break the loop
+            break;
+        } // End of While Loop
+
+        if (response?.tool_call) {
+            logger.warn({ leadId: lead.id }, '⚠️ Max Tool Call limits reached.');
             response = {
-                thought: 'JSON parse failed, using fallback response',
-                response: this.#getFallbackMessage(operatingAgent?.language_code || 'pt-BR'),
+                thought: 'Max webhook loops reached',
+                response: 'Tive um problema técnico interno para consultar sua solicitação (Limites excedidos).',
                 sentiment_score: 0.5,
-                confidence_score: 0.3,
-                qualification_slots: {},
+                confidence_score: 0.5,
                 crm_actions: []
             };
-            logger.warn({ leadId: lead.id }, 'Using fallback response due to JSON parse failure');
         }
 
         // 4. Guardrails & CTA Injection
