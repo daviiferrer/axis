@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { Mic, MicOff, MessageSquare, Volume2, RefreshCw, Zap, Activity, Play, Trash2, Upload, CheckCircle2 } from 'lucide-react';
 
-export function VoiceConfigTab({ dna, updateDna, agentId }: { dna: any; updateDna: (section: string, key: string, value: any) => void; agentId?: string }) {
+export function VoiceConfigTab({ dna, updateDna, agentId }: { dna: any; updateDna: (section: string, keyOrUpdates: string | Record<string, any>, value?: any) => void; agentId?: string }) {
     const [voices, setVoices] = useState<VoiceClone[]>([]);
     const [loading, setLoading] = useState(false);
     const [enrolling, setEnrolling] = useState(false);
@@ -65,7 +65,7 @@ export function VoiceConfigTab({ dna, updateDna, agentId }: { dna: any; updateDn
         let urlToPlay = voice.sample_url;
         try {
             if (!urlToPlay) {
-                const { audio_base64 } = await agentService.previewVoice(voice.id, "Amostra de voz original.", voice.provider || 'qwen', agentId);
+                const { audio_base64 } = await agentService.previewVoice(voice.voice_id, "Amostra de voz original.", voice.provider || 'qwen', agentId);
                 urlToPlay = `data:audio/mp3;base64,${audio_base64}`;
             }
         } catch (err: any) {
@@ -171,11 +171,11 @@ export function VoiceConfigTab({ dna, updateDna, agentId }: { dna: any; updateDn
         }
     }
 
-    const handleDeleteVoice = async (id: string, provider: string) => {
+    const handleDeleteVoice = async (id: string, providerVoiceId: string, provider: string) => {
         if (!confirm('Tem certeza? Isso apagará a voz permanentemente.')) return;
         try {
             await agentService.deleteVoice(id, provider, agentId);
-            if (voiceConfig.voice_id === id) {
+            if (voiceConfig.voice_id === providerVoiceId) {
                 updateDna('voice_config', 'voice_id', '');
                 updateDna('voice_config', 'enabled', false);
             }
@@ -272,7 +272,15 @@ export function VoiceConfigTab({ dna, updateDna, agentId }: { dna: any; updateDn
                         { id: 'lmnt', label: 'LMNT', desc: 'Alta Qualidade + Emoção' }
                     ].map(p => (
                         <button key={p.id}
-                            onClick={() => updateDna('voice_config', 'provider', p.id)}
+                            onClick={() => {
+                                if (voiceConfig.provider !== p.id) {
+                                    updateDna('voice_config', {
+                                        provider: p.id,
+                                        voice_id: '',
+                                        voice_name: ''
+                                    });
+                                }
+                            }}
                             className={cn(
                                 "flex-1 flex flex-col items-center p-3 rounded-xl border transition-all",
                                 voiceConfig.provider === p.id
@@ -357,43 +365,45 @@ export function VoiceConfigTab({ dna, updateDna, agentId }: { dna: any; updateDn
                     {voices.filter(v => v.provider === voiceConfig.provider || (!v.provider && voiceConfig.provider === 'qwen')).map(voice => (
                         <div key={voice.id}
                             onClick={() => {
-                                updateDna('voice_config', 'voice_id', voice.id);
-                                updateDna('voice_config', 'voice_name', voice.name);
-                                updateDna('voice_config', 'provider', voice.provider || 'qwen');
+                                updateDna('voice_config', {
+                                    voice_id: voice.voice_id,
+                                    voice_name: voice.name,
+                                    provider: voice.provider || 'qwen'
+                                });
                             }}
                             className={cn(
                                 "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all hover:border-indigo-400 relative overflow-hidden group",
-                                voiceConfig.voice_id === voice.id
+                                voiceConfig.voice_id === voice.voice_id
                                     ? "bg-indigo-600 border-indigo-600 ring-4 ring-indigo-600/20 text-white shadow-lg shadow-indigo-200"
                                     : "bg-white border-gray-200 hover:shadow-sm"
                             )}
                         >
                             {/* Visual effect for selected */}
-                            {voiceConfig.voice_id === voice.id && (
+                            {voiceConfig.voice_id === voice.voice_id && (
                                 <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent pointer-events-none"></div>
                             )}
 
                             <div className="flex items-center gap-3 relative z-10 overflow-hidden">
                                 <div className={cn("p-2 rounded-full shrink-0 transition-colors",
-                                    voiceConfig.voice_id === voice.id ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500 group-hover:bg-indigo-50 group-hover:text-indigo-600"
+                                    voiceConfig.voice_id === voice.voice_id ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500 group-hover:bg-indigo-50 group-hover:text-indigo-600"
                                 )}>
-                                    {voiceConfig.voice_id === voice.id ? <CheckCircle2 size={16} /> : <Mic size={16} />}
+                                    {voiceConfig.voice_id === voice.voice_id ? <CheckCircle2 size={16} /> : <Mic size={16} />}
                                 </div>
                                 <div className="truncate">
                                     <div className="flex items-center gap-2">
-                                        <p className={cn("text-xs font-bold truncate", voiceConfig.voice_id === voice.id ? "text-white" : "text-gray-900")}>
+                                        <p className={cn("text-xs font-bold truncate", voiceConfig.voice_id === voice.voice_id ? "text-white" : "text-gray-900")}>
                                             {voice.name}
                                         </p>
                                         <span className={cn(
                                             "text-[8px] px-1.5 py-0.5 rounded border uppercase font-bold tracking-wider",
-                                            voiceConfig.voice_id === voice.id
+                                            voiceConfig.voice_id === voice.voice_id
                                                 ? "bg-white/20 text-white border-white/30"
                                                 : (voice.provider === 'lmnt' ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-blue-50 text-blue-700 border-blue-200")
                                         )}>
                                             {voice.provider || 'qwen'}
                                         </span>
                                     </div>
-                                    <p className={cn("text-[9px] mt-0.5", voiceConfig.voice_id === voice.id ? "text-indigo-100" : "text-gray-400")}>
+                                    <p className={cn("text-[9px] mt-0.5", voiceConfig.voice_id === voice.voice_id ? "text-indigo-100" : "text-gray-400")}>
                                         {voice.id.substring(0, 8)}...
                                     </p>
                                 </div>
@@ -411,9 +421,9 @@ export function VoiceConfigTab({ dna, updateDna, agentId }: { dna: any; updateDn
                                     {previewing === voice.id ? <Activity size={12} className="animate-pulse" /> : <Play size={12} className="ml-0.5" />}
                                 </button>
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteVoice(voice.id, voice.provider || 'qwen'); }}
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteVoice(voice.id, voice.voice_id, voice.provider || 'qwen'); }}
                                     className={cn("p-2 rounded-lg transition-all shadow-sm",
-                                        voiceConfig.voice_id === voice.id ? "bg-white/10 text-indigo-100 hover:bg-red-500 hover:text-white" : "bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                                        voiceConfig.voice_id === voice.voice_id ? "bg-white/10 text-indigo-100 hover:bg-red-500 hover:text-white" : "bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-500"
                                     )}
                                     title="Excluir Voz"
                                 >

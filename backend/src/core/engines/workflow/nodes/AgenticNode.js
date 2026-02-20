@@ -239,6 +239,12 @@ class AgenticNode extends AgentNode {
             // 4. Generate Response with tracing
             logger.info({ leadId: lead.id, model: targetModel, agentId, toolLoop: toolCallCount }, '🧠 Calling Gemini...');
 
+            // We intentionally do NOT use native Gemini tools anymore because it conflicts
+            // with our strict application/json schema forcing the AI into infinite loop hallucinations.
+            // Tools are instead passed cleanly inside the text prompt via PromptService.
+            const customTools = nodeConfig.data?.tools || [];
+            let nativeTools = undefined;
+
             // CHECK FOR IMAGE DATA (Multimodal)
             if (lead._imageData) {
                 logger.info({ leadId: lead.id, mimeType: lead._imageData.mimeType }, '🖼️ Using Vision Model for Image Analysis');
@@ -257,28 +263,50 @@ class AgenticNode extends AgentNode {
                         campaignId: campaign.id,
                         chatId: chat.id,
                         userId: campaign.user_id,
-                        sessionId: campaign.session_name || campaign.waha_session_name
+                        sessionId: campaign.session_name || campaign.waha_session_name,
+                        tools: nativeTools
                     }
                 );
             } else {
                 // Standard Text Generation
+                const generateOptions = {
+                    companyId: campaign.company_id,
+                    campaignId: campaign.id,
+                    chatId: chat.id,
+                    userId: campaign.user_id, // Pass owner for SaaS logging & Key Retrieval
+                    sessionId: campaign.session_name || campaign.waha_session_name,
+                    tools: nativeTools
+                };
+
+                // Gemini API throws 400 if you mix responseMimeType JSON + Tools
+                if (!nativeTools) {
+                    generateOptions.generationConfig = { responseMimeType: "application/json" };
+                }
+
                 aiResult = await this.geminiClient.generateSimple(
                     targetModel,
                     systemInstruction,
-                    "Responda ao lead.",
-                    {
-                        companyId: campaign.company_id,
-                        campaignId: campaign.id,
-                        chatId: chat.id,
-                        userId: campaign.user_id, // Pass owner for SaaS logging & Key Retrieval
-                        sessionId: campaign.session_name || campaign.waha_session_name
-                    }
+                    "Responda ao lead. Se uma ferramenta customizada for útil, acione-a.",
+                    generateOptions
                 );
             }
 
             try {
                 // Sanitization: Remove markdown code blocks (Robust JSON fix)
-                let rawText = aiResult.text();
+                let rawText = '';
+                const functionCalls = (aiResult.functionCalls && typeof aiResult.functionCalls === 'function') ? aiResult.functionCalls() : null;
+
+                if (functionCalls && functionCalls.length > 0) {
+                    const call = functionCalls[0];
+                    logger.info({ leadId: lead.id, functionName: call.name }, '🎣 NATIVE GEMINI FUNCTION CALL INTERCEPTED');
+                    rawText = JSON.stringify({
+                        tool_call: { name: call.name, arguments: call.args || {} },
+                        thought: call.args?.reason || "Usando ferramenta conectada.",
+                        response: null
+                    });
+                } else {
+                    rawText = aiResult.text();
+                }
 
                 // Remove {{json}} and {{/json}} markers (some models add these)
                 rawText = rawText.replace(/\{\{json\}\}/gi, '').replace(/\{\{\/json\}\}/gi, '');
@@ -306,6 +334,20 @@ class AgenticNode extends AgentNode {
                 // which are invalid inside JSON strings and cause JSON.parse to fail.
                 rawText = rawText.replace(/(?<=":[ ]*"(?:[^"\\]|\\.)*)(\r?\n)/g, '\\n')
                     .replace(/(?<=":[ ]*"(?:[^"\\]|\\.)*)(\t)/g, '\\t');
+
+                // FIX: Convert Python-like booleans and None to valid JSON
+                rawText = rawText
+                    .replace(/:\s*None\b/g, ': null')
+                    .replace(/:\s*False\b/g, ': false')
+                    .replace(/:\s*True\b/g, ': true');
+
+                // Try to find the JSON boundaries before parsing (handles cases where AI prepends text)
+                const firstBrace = rawText.indexOf('{');
+                const lastBrace = rawText.lastIndexOf('}');
+
+                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                    rawText = rawText.slice(firstBrace, lastBrace + 1);
+                }
 
                 try {
                     response = JSON.parse(rawText);
@@ -402,15 +444,48 @@ class AgenticNode extends AgentNode {
 
                     logger.info({ status: webhookResponse.status }, "✅ Webhook Executed");
 
+                    logger.info({ status: webhookResponse.status }, "✅ Webhook Executed");
+
+                    // The Gemini SDK requires a STRICT alternating sequence of:
+                    // 1. Model requesting the tool (functionCall)
+                    // 2. User/Function supplying the result (functionResponse)
+
+                    // We must push the AI's internal decision to the history manually
+                    // because our JSON engine interception skipped the native history appending
                     contextData.chatHistory.push({
-                        role: 'assistant',
-                        content: `[SYSTEM - RESULTADO DA FERRAMENTA '${toolDef.name}':\n${webhookData}\n\n-> INSTRUÇÃO: Entenda o resultado acima e escreva a resposta FINAL para o usuário informando isso.]`
+                        role: 'model',
+                        parts: [{
+                            functionCall: {
+                                name: response.tool_call.name,
+                                args: response.tool_call.arguments || {}
+                            }
+                        }]
+                    });
+
+                    // Followed immediately by the result
+                    contextData.chatHistory.push({
+                        role: 'function',
+                        parts: [{
+                            functionResponse: {
+                                name: response.tool_call.name,
+                                response: {
+                                    result: webhookData
+                                }
+                            }
+                        }]
                     });
                 } catch (err) {
                     logger.error({ error: err.message }, "❌ Webhook Execution Failed");
                     contextData.chatHistory.push({
-                        role: 'assistant',
-                        content: `[SYSTEM: Tentei usar a ferramenta '${toolDef.name}', mas a API retornou erro de rede: ${err.message}. Contorne o erro na conversa com o usuario.]`
+                        role: 'function',
+                        parts: [{
+                            functionResponse: {
+                                name: response.tool_call.name,
+                                response: {
+                                    error: `API Network Error: ${err.message}`
+                                }
+                            }
+                        }]
                     });
                 }
 
@@ -641,19 +716,10 @@ class AgenticNode extends AgentNode {
                 values: Object.fromEntries(criticalSlots.map(s => [s, persistedSlots[s] || 'unknown']))
             }, '🕵️ Critical Slots Check');
 
-            // CRITICAL: If slots are satisfied, EXIT BEFORE sending response
+            // CRITICAL: If slots are satisfied, mark ready to close but allow final message to be sent
             if (slotsSatisfied) {
-                logger.info({ leadId: lead.id }, '✅ All critical slots filled. Skipping AI response and auto-completing node.');
-                return {
-                    status: NodeExecutionStateEnum.EXITED,
-                    edge: 'default',
-                    continueExecution: true, // No message was sent, don't wait for user reply
-                    output: {
-                        ...response,
-                        ready_to_close: true,
-                        conversation_ended: false
-                    }
-                };
+                logger.info({ leadId: lead.id }, '✅ All critical slots filled. Triggering auto-completion after response.');
+                response.ready_to_close = true;
             }
         }
 
@@ -662,7 +728,8 @@ class AgenticNode extends AgentNode {
         const classifiedSentiment = this._classifySentiment(response.sentiment_score);
 
         // 6. Voice Synthesis (DETERMINISTIC)
-        if (this.voiceService && dna.voice_config) {
+        const responseMode = nodeConfig.data?.response_mode || 'dna_default';
+        if (this.voiceService && dna.voice_config && responseMode !== 'text_only') {
             try {
                 const voiceCtx = {
                     ...contextData,
@@ -674,15 +741,18 @@ class AgenticNode extends AgentNode {
 
                 if (this.voiceService.shouldUseVoice(dna.voice_config, voiceCtx)) {
                     let targetVoiceId = dna.voice_config.voice_id;
+                    const provider = dna.voice_config.provider || 'qwen';
 
                     // Qwen Fallback Fix for "Cherry" / Invalid IDs
                     if (!targetVoiceId || targetVoiceId === 'Cherry' || targetVoiceId.startsWith('default-')) {
-                        logger.warn({ leadId: lead.id, invalidVoice: targetVoiceId }, '⚠️ (Agentic) Invalid Voice ID. Resolving fallback...');
+                        logger.warn({ leadId: lead.id, invalidVoice: targetVoiceId, provider }, '⚠️ (Agentic) Invalid Voice ID. Resolving fallback...');
                         try {
                             const voices = await this.voiceService.listVoices(campaign.user_id, agentId);
-                            if (voices && voices.length > 0) {
-                                targetVoiceId = voices[0].voice_id;
-                                logger.info({ leadId: lead.id, resolvedVoice: targetVoiceId }, '🎙️ (Agentic) Fallback to latest enrolled voice');
+                            const providerVoices = voices.filter(v => v.provider === provider || (!v.provider && provider === 'qwen'));
+
+                            if (providerVoices && providerVoices.length > 0) {
+                                targetVoiceId = providerVoices[0].voice_id;
+                                logger.info({ leadId: lead.id, resolvedVoice: targetVoiceId, provider }, '🎙️ (Agentic) Fallback to latest enrolled voice');
                             } else {
                                 throw new Error('No enrolled voices found for fallback');
                             }
@@ -692,12 +762,19 @@ class AgenticNode extends AgentNode {
                         }
                     }
 
-                    logger.info({ leadId: lead.id, voiceId: targetVoiceId }, '🎙️ Voice triggered (Agentic)');
+                    logger.info({ leadId: lead.id, voiceId: targetVoiceId, provider }, '🎙️ Voice triggered (Agentic)');
                     // Use finalizedText which has passed guardrails
                     const audio = await this.voiceService.synthesize(
                         finalizedText || response.response,
                         targetVoiceId,
-                        dna.voice_config.voice_instruction
+                        dna.voice_config.voice_instruction,
+                        provider, // Pass the provider
+                        {
+                            userId: campaign.user_id, // Pass userId for LMNT key retrieval
+                            leadId: lead.id,
+                            agentId: operatingAgent.id,
+                            voiceConfig: dna.voice_config
+                        }
                     );
                     if (audio) response.audio_base64 = audio;
                 }
@@ -765,6 +842,32 @@ class AgenticNode extends AgentNode {
                     sentiment: classifiedSentiment,
                     response: finalizedText,
                     conversation_ended: true
+                }
+            };
+        }
+
+        // 9. Determine Next Action (EXIT if done)
+        if (response.ready_to_close || slotsSatisfied || response.conversation_ended) {
+            logger.info({ leadId: lead.id }, '✅ Ending Node Conversation Loop (ready to close or slots filled)');
+            return {
+                status: NodeExecutionStateEnum.EXITED,
+                edge: 'default',
+                output: {
+                    // Classification for Campaign FSM to read
+                    intent: classifiedIntent,
+                    sentiment: classifiedSentiment,
+
+                    // Slots Data
+                    slots_satisfied: slotsSatisfied,
+                    qualification_slots: response.qualification_slots,
+                    sentiment_score: response.sentiment_score,
+                    confidence_score: response.confidence_score,
+                    thought: response.thought,
+                    response: finalizedText,
+                    crm_actions: response.crm_actions || [],
+
+                    ready_to_close: true,
+                    conversation_ended: false
                 }
             };
         }

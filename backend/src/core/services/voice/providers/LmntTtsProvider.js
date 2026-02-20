@@ -28,10 +28,13 @@ class LmntTtsProvider {
         try {
             logger.info({ voiceName, size: audioBuffer.length }, '🎙️ Enrolling voice on LMNT...');
 
+            // Build a File object from the raw buffer for the FormData payload
+            const audioFile = new File([audioBuffer], "sample.mp3", { type: "audio/mpeg" });
+
             // Correct SDK usage for version 2.x
             const voice = await client.voices.create({
                 name: voiceName,
-                files: [audioBuffer],
+                files: [audioFile],
                 type: 'instant'
             });
 
@@ -62,15 +65,21 @@ class LmntTtsProvider {
 
         try {
             const synthesisOptions = {
-                ...options
+                text: text,
+                voice: voiceId,
+                format: 'mp3',
+                language: options.language || 'pt',
             };
+            if (options.speed !== undefined) synthesisOptions.speed = options.speed;
+            if (options.temperature !== undefined) synthesisOptions.temperature = options.temperature;
+            if (options.seed !== undefined) synthesisOptions.seed = options.seed;
 
             logger.debug({ voiceId, options: synthesisOptions }, '🗣️ Synthesizing with LMNT');
 
-            const response = await client.speech.generate(text, voiceId, synthesisOptions);
-
-            const audioBuffer = response.audio || response;
-            return Buffer.from(audioBuffer).toString('base64');
+            // SDK v2 requires a single object payload
+            const response = await client.speech.generateDetailed(synthesisOptions);
+            const audioBuffer = response.audio; // generateDetailed returns { audio: base64_string, durations: [...] }
+            return audioBuffer;
         } catch (error) {
             logger.error({ err: error.message, voiceId }, '❌ LMNT synthesis failed');
             throw error;

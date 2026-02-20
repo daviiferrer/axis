@@ -201,25 +201,32 @@ class AgentNode {
                     turnCount: history.length
                 };
 
-                // Allow Node-level Canvas override of the Voice Response Mode
-                const effectiveVoiceConfig = { ...dna.voice_config };
+                // Allow Node-level Canvas override of the Voice config
+                // The frontend wizard stores changes to DNA in nodeConfig.data.dna
+                const nodeLocalVoiceConfig = nodeConfig.data?.dna?.voice_config || {};
+                const effectiveVoiceConfig = { ...dna.voice_config, ...nodeLocalVoiceConfig };
+
                 if (nodeConfig.data?.response_mode) {
                     effectiveVoiceConfig.response_mode = nodeConfig.data.response_mode;
                 }
 
                 if (this.voiceService.shouldUseVoice(effectiveVoiceConfig, voiceCtx)) {
-                    let targetVoiceId = dna.voice_config.voice_id;
+                    let targetVoiceId = effectiveVoiceConfig.voice_id;
+                    const provider = effectiveVoiceConfig.provider || 'qwen';
 
                     // FALLBACK: If voice ID is "Cherry" (default placeholder) or invalid, try to find a real enrolled voice
                     if (!targetVoiceId || targetVoiceId === 'Cherry' || targetVoiceId.startsWith('default-')) {
-                        logger.warn({ leadId: lead.id, invalidVoice: targetVoiceId }, '⚠️ Invalid Voice ID detected. Attempting to resolve latest enrolled voice...');
+                        logger.warn({ leadId: lead.id, invalidVoice: targetVoiceId, provider }, '⚠️ Invalid Voice ID detected. Attempting to resolve latest enrolled voice...');
                         try {
-                            const voices = await this.voiceService.listVoices(campaign.user_id, agentId);
-                            if (voices && voices.length > 0) {
-                                targetVoiceId = voices[0].voice_id; // Use latest voice
-                                logger.info({ leadId: lead.id, resolvedVoice: targetVoiceId }, '🎙️ Resolved to latest enrolled voice');
+                            const voices = await this.voiceService.listVoices(campaign.user_id, primaryAgent.id);
+                            // Filter by provider to avoid sending mismatched voice IDs
+                            const providerVoices = voices.filter(v => v.provider === provider || (!v.provider && provider === 'qwen'));
+
+                            if (providerVoices && providerVoices.length > 0) {
+                                targetVoiceId = providerVoices[0].voice_id; // Use latest voice for this provider
+                                logger.info({ leadId: lead.id, resolvedVoice: targetVoiceId, provider }, '🎙️ Resolved to latest enrolled voice');
                             } else {
-                                logger.warn({ leadId: lead.id }, '❌ No enrolled voices found for fallback. Voice synthesis skipped.');
+                                logger.warn({ leadId: lead.id, provider }, '❌ No enrolled voices found for fallback for this provider. Voice synthesis skipped.');
                                 throw new Error('No enrolled voices available');
                             }
                         } catch (err) {
@@ -228,11 +235,18 @@ class AgentNode {
                         }
                     }
 
-                    logger.info({ leadId: lead.id, voiceId: targetVoiceId }, '🎙️ Voice triggered');
+                    logger.info({ leadId: lead.id, voiceId: targetVoiceId, provider }, '🎙️ Voice triggered');
                     const audio = await this.voiceService.synthesize(
                         response.response,
                         targetVoiceId,
-                        dna.voice_config.voice_instruction
+                        effectiveVoiceConfig.voice_instruction,
+                        provider, // Provider
+                        {
+                            userId: campaign.user_id, // For LMNT API key lookup
+                            leadId: lead.id,
+                            agentId: primaryAgent.id,
+                            voiceConfig: effectiveVoiceConfig
+                        }
                     );
                     if (audio) response.audio_base64 = audio;
                 }
