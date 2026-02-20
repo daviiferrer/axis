@@ -20,8 +20,7 @@ class SupabaseClientFactory {
         }
 
         if (!this.anonKey) {
-            console.warn('⚠️ [SupabaseClientFactory] Missing SUPABASE_ANON_KEY. Falling back to Admin Key for user clients (SECURITY RISK).');
-            this.anonKey = this.adminKey;
+            throw new Error('❌ [SupabaseClientFactory] Missing SUPABASE_ANON_KEY. Cannot start safely (RLS Security Risk).');
         }
     }
 

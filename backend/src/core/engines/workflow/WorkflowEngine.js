@@ -50,10 +50,20 @@ class WorkflowEngine {
         }
 
         // Fallback to polling mode
-        logger.info('🚀 WorkflowEngine started (Polling Mode - setInterval)');
-        this.runnerIntervalId = setInterval(async () => {
-            await this.pulse();
-        }, 10000);
+        logger.info('🚀 WorkflowEngine started (Polling Mode - Recursive Timeout)');
+
+        const runPulse = async () => {
+            try {
+                await this.pulse();
+            } catch (err) {
+                logger.error({ error: err.message }, 'Pulse Loop Error');
+            } finally {
+                // Schedule next pulse only after current one finishes
+                this.runnerIntervalId = setTimeout(runPulse, 10000);
+            }
+        };
+
+        runPulse();
 
         // NEW: Timer Recovery Loop - processes expired DelayNode timers
         // Runs every 15 seconds to check for workflows waiting on timers
@@ -259,11 +269,12 @@ class WorkflowEngine {
         // Standardize phone (remove non-digits)
         let cleanPhone = phone.replace(/\D/g, '');
 
-        // FIX: Standardize BR Country Code logic to match WahaChattingController
-        // If length is 10 or 11 (DD+Num), assume BR and prepend 55
-        if (cleanPhone.length >= 10 && cleanPhone.length <= 11) {
-            cleanPhone = '55' + cleanPhone;
-        }
+        // FIX: Removed naive '55' prepending for 10/11 digit numbers.
+        // This was breaking US numbers (10 digits) by turning them into invalid BR numbers.
+        // We now expect the input 'phone' to contain the DDI or be handled by the frontend/Waha.
+        // if (cleanPhone.length >= 10 && cleanPhone.length <= 11) {
+        //     cleanPhone = '55' + cleanPhone;
+        // }
 
         // Try to acquire distributed lock first (Redis), fallback to in-memory
         let lock = null;

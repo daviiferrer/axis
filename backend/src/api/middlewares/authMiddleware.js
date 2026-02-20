@@ -11,7 +11,7 @@ const createAuthMiddleware = () => async (req, res, next) => {
             return res.status(401).json({ error: 'Missing Authorization Header' });
         }
 
-        const token = authHeader.replace('Bearer ', '');
+        const token = authHeader.replace(/^Bearer\s+/i, '');
         // console.log('[Auth] Token received ending in:', token.slice(-5)); // Debugging log
 
         // 1. Resolve Factory from Container (Scope)
@@ -55,14 +55,11 @@ const createAuthMiddleware = () => async (req, res, next) => {
 
         if (profile) {
             req.user.profile = profile;
-        }
-
-        // 5. User Context (Simplified - No Company/Membership Logic)
-        // We simply trust the user is the OWNER of their own data.
-        if (req.user.profile) {
-            req.user.role = (req.user.profile.role || 'OWNER').toUpperCase();
+            req.user.role = (profile.role || 'MEMBER').toUpperCase();
         } else {
-            req.user.role = 'OWNER'; // Default to Owner if no profile role
+            // STRICT: No profile = No Access to resource-heavy actions
+            logger.warn({ userId: user.id }, 'User has no profile. Denying high-privilege operations.');
+            req.user.role = 'GUEST';
         }
 
         logger.debug({ userId: user.id, role: req.user.role }, 'Auth successful');

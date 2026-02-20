@@ -63,11 +63,19 @@ async function bootstrap() {
     });
 
     // 3. Middlewares
+    app.set('trust proxy', 1); // Trust first proxy (Nginx) for Rate Limiting
     app.use(helmet());
     app.use(cors({
         origin: process.env.CORS_ORIGIN || "*"
     }));
-    app.use(express.json({ limit: '50mb' }));
+    // Dynamic JSON Limit (2MB default, 50MB for uploads/voice/import)
+    app.use((req, res, next) => {
+        if (req.path.includes('/voice-enroll') || req.path.includes('/upload') || req.path.includes('/import')) {
+            express.json({ limit: '50mb' })(req, res, next);
+        } else {
+            express.json({ limit: '2mb' })(req, res, next);
+        }
+    });
 
     // Metrics Middleware (Native - low overhead)
     const { metricsMiddleware, getMetrics } = require('./api/middlewares/metricsMiddleware');
@@ -80,6 +88,11 @@ async function bootstrap() {
     const socketService = container.resolve('socketService');
     const supabaseForSocket = container.resolve('supabaseClient');
     socketService.initialize(io, supabaseForSocket);
+
+    // Simple Health Check (Moved to Top for Reliability)
+    app.get('/health', (req, res) => res.status(200).send('OK'));
+
+    // ... Lazy Controller Implementation ... (Code continues below)
 
     // 4. Resolve Controllers for Router
     // CRITICAL FIX: We cannot resolve Scoped Controllers (depending on Scoped Services) 
@@ -105,7 +118,8 @@ async function bootstrap() {
                         return res.status(404).json({ error: 'Endpoint Not Found' });
                     }
 
-                    return controller[prop](req, res, next);
+                    // Wrap in Promise.resolve to catch async errors (Express 4 unhandled rejection fix)
+                    return Promise.resolve(controller[prop](req, res, next)).catch(next);
                 };
             }
         });
@@ -184,8 +198,8 @@ async function bootstrap() {
     // 7. Start Engine & Server
     await controllers.workflowEngine.start();
 
-    // Simple Health Check for Docker (Bypasses Router/DI)
-    app.get('/health', (req, res) => res.status(200).send('OK'));
+    // Health check moved to top
+
 
     const PORT = process.env.PORT || 8000;
     server.listen(PORT, '0.0.0.0', () => {
