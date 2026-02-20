@@ -82,10 +82,8 @@ export function CampaignListItem({ campaign, onUpdate }: CampaignListItemProps) 
                             <span className="flex h-2 w-2 rounded-full bg-green-500" title="Conectado" />
                         )}
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
-                        <span className="capitalize">{campaign.type === 'outbound' ? 'Ativa' : 'Receptiva'}</span>
-                        <span>•</span>
-                        <span>{new Date(campaign.created_at).toLocaleDateString()}</span>
+                    <div className="flex text-xs text-gray-500 mt-0.5">
+                        {new Date(campaign.created_at).toLocaleDateString()}
                     </div>
                 </div>
             </div>

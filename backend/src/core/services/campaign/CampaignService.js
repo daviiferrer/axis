@@ -80,13 +80,20 @@ class CampaignService {
 
     async listCampaigns(scopedClient = null) {
         const client = scopedClient || this.supabase;
-        const { data, error } = await client
+        const { data: campaigns, error } = await client
             .from('campaigns')
             .select('*')
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return data;
+
+        if (campaigns) {
+            await Promise.all(campaigns.map(async (camp) => {
+                camp.stats = await this.getCampaignStats(camp.id);
+            }));
+        }
+
+        return campaigns;
     }
 
     async createCampaign(userId, campaignData, scopedClient = null) {

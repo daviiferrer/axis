@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/overlay/dropdown-menu"
 import { MoreVertical, Play, Pause, Trash2, GitFork, PhoneOutgoing, ArrowDownLeft, Clock, Settings, Moon } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { toast } from "sonner"
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
@@ -54,6 +54,12 @@ export function CampaignCard({ campaign, onUpdate, index = 0 }: CampaignCardProp
     const router = useRouter()
     const [isLoading, setIsLoading] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
+    const [currentTime, setCurrentTime] = useState(Date.now())
+
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(Date.now()), 60000)
+        return () => clearInterval(timer)
+    }, [])
 
     const handleStatusToggle = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -90,15 +96,12 @@ export function CampaignCard({ campaign, onUpdate, index = 0 }: CampaignCardProp
     const withinHours = useMemo(() => {
         if (!hasBH) return true;
         return isWithinBusinessHours(campaign.settings!.businessHours);
-    }, [campaign.settings, hasBH]);
+    }, [campaign.settings, hasBH, currentTime]);
 
     // Real operating status: active AND within business hours
     const isOperating = isActive && withinHours;
     const isOutsideHours = isActive && !withinHours && hasBH && campaign.settings!.businessHours.enabled;
 
-    // Inbound if it has a Trigger Node with a session name
-    const isInbound = (campaign.graph?.nodes || []).some((n: any) => n.type === 'trigger' && n.data?.sessionName);
-    const isOutbound = !isInbound;
 
     return (
         <>
@@ -130,14 +133,6 @@ export function CampaignCard({ campaign, onUpdate, index = 0 }: CampaignCardProp
                                             ? "bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.4)]"
                                             : "bg-gray-300"
                                 )} />
-                                <div className={cn(
-                                    "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
-                                    isOutbound ? "bg-purple-50 text-purple-700" : "bg-blue-50 text-blue-700"
-                                )}>
-                                    {isOutbound ? <PhoneOutgoing size={10} /> : <ArrowDownLeft size={10} />}
-                                    {isOutbound ? 'Ativa (Out)' : 'Receptiva (In)'}
-                                </div>
-
                                 {/* Outside hours badge */}
                                 {isOutsideHours && (
                                     <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-[10px] font-bold uppercase tracking-wider">

@@ -462,6 +462,16 @@ class WorkflowEngine {
                 return;
             }
 
+            // NEW: Enforce Business Hours
+            if (campaigns && !this.isBusinessHours(campaigns)) {
+                logger.info({
+                    phone: cleanPhone,
+                    campaignId: campaigns.id,
+                    campaignName: campaigns.name,
+                }, '🌙 Campaign is OUTSIDE BUSINESS HOURS. Skipping AI processing.');
+                return;
+            }
+
             logger.info({
                 leadCampaignId: lead.campaign_id,
                 campaignsType: typeof campaigns,
