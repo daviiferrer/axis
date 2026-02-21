@@ -177,10 +177,26 @@ function FlowBuilderCanvasInner({ campaignId, initialFlow, campaign: initialCamp
 
                     setNodes((nds) =>
                         nds.map((node) => {
-                            const activeCount = activeStats[node.id] || 0;
-                            const errorCount = errorStats[node.id] || 0;
+                            const activeNodeData = activeStats[node.id] || { count: 0, leads: [] };
+                            const errorNodeData = errorStats[node.id] || { count: 0, leads: [] };
+
+                            const activeCount = activeNodeData.count || 0;
+                            const activeLeadsList = activeNodeData.leads || [];
+
+                            const errorCount = errorNodeData.count || 0;
+                            const errorLeadsList = errorNodeData.leads || [];
+
                             if (node.data.activeLeads !== activeCount || node.data.errorLeads !== errorCount) {
-                                return { ...node, data: { ...node.data, activeLeads: activeCount, errorLeads: errorCount } };
+                                return {
+                                    ...node,
+                                    data: {
+                                        ...node.data,
+                                        activeLeads: activeCount,
+                                        activeLeadsList: activeLeadsList,
+                                        errorLeads: errorCount,
+                                        errorLeadsList: errorLeadsList
+                                    }
+                                };
                             }
                             return node;
                         })
@@ -200,15 +216,46 @@ function FlowBuilderCanvasInner({ campaignId, initialFlow, campaign: initialCamp
         // Lead moved to a new node
         const onLeadUpdate = (data: any) => {
             if (data.campaignId !== campaignId) return;
+
+            const newLeadProfile = {
+                id: data.leadId,
+                name: data.metadata?.leadName || 'Lead',
+                phone: data.metadata?.leadPhone,
+                profile_picture_url: data.metadata?.profile_picture_url
+            };
+
             setNodes((nds) =>
                 nds.map((node) => {
                     // Increment count on destination node
                     if (node.id === data.current_node_id) {
-                        return { ...node, data: { ...node.data, activeLeads: Number(node.data.activeLeads || 0) + 1 } };
+                        const currentList = Array.isArray(node.data.activeLeadsList) ? [...node.data.activeLeadsList] : [];
+                        // Avoid duplicates
+                        const filtered = currentList.filter(l => l.id !== newLeadProfile.id);
+                        filtered.unshift(newLeadProfile); // Add to beginning
+                        const newList = filtered.slice(0, 5); // Keep max 5
+
+                        return {
+                            ...node,
+                            data: {
+                                ...node.data,
+                                activeLeads: Number(node.data.activeLeads || 0) + 1,
+                                activeLeadsList: newList
+                            }
+                        };
                     }
                     // Decrement count on source node
                     if (data.previous_node_id && node.id === data.previous_node_id) {
-                        return { ...node, data: { ...node.data, activeLeads: Math.max(0, Number(node.data.activeLeads || 0) - 1) } };
+                        const currentList = Array.isArray(node.data.activeLeadsList) ? [...node.data.activeLeadsList] : [];
+                        const newList = currentList.filter(l => l.id !== newLeadProfile.id); // Remove from source list
+
+                        return {
+                            ...node,
+                            data: {
+                                ...node.data,
+                                activeLeads: Math.max(0, Number(node.data.activeLeads || 0) - 1),
+                                activeLeadsList: newList
+                            }
+                        };
                     }
                     return node;
                 })

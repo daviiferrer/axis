@@ -299,7 +299,9 @@ class WahaChattingController {
                     body: msg.body,
                     timestamp: new Date(msg.created_at).getTime() / 1000,
                     fromMe: msg.from_me,
-                    hasMedia: false, // TODO: Enhance schema for media
+                    hasMedia: msg.type !== null && msg.type !== undefined,
+                    mediaUrl: msg.media_url || null,
+                    mediaType: msg.type || null,
                     _data: {},
                     author: msg.author,
                     isAi: msg.is_ai,

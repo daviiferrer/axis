@@ -131,6 +131,43 @@ class LeadController {
         }
     }
 
+    async bulkDelete(req, res) {
+        try {
+            const { leadIds } = req.body;
+            const userId = req.user.id; // Usually available from auth middleware
+
+            if (!Array.isArray(leadIds) || leadIds.length === 0) {
+                return res.status(400).json({ error: 'leadIds array is required' });
+            }
+
+            const scopedClient = getRequestClient(req, this.supabase);
+            const result = await this.leadService.deleteLeads(leadIds, userId, scopedClient);
+
+            res.json({ success: true, message: `Deleted ${result.count} leads`, count: result.count });
+        } catch (error) {
+            logger.error({ err: error }, 'Bulk Delete Error');
+            res.status(500).json({ error: 'Failed to delete leads' });
+        }
+    }
+
+    async bulkReprocess(req, res) {
+        try {
+            const { leadIds, newCampaignId } = req.body;
+
+            if (!Array.isArray(leadIds) || leadIds.length === 0) {
+                return res.status(400).json({ error: 'leadIds array is required' });
+            }
+
+            const scopedClient = getRequestClient(req, this.supabase);
+            const result = await this.leadService.reprocessLeads(leadIds, newCampaignId, scopedClient);
+
+            res.json({ success: true, message: `Reprocessed ${result.count} leads`, count: result.count });
+        } catch (error) {
+            logger.error({ err: error }, 'Bulk Reprocess Error');
+            res.status(500).json({ error: 'Failed to reprocess leads' });
+        }
+    }
+
 
     async getPresence(req, res) {
         // ... Logic for presence check

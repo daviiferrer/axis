@@ -4,6 +4,7 @@ import React, { ReactNode, memo } from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
 import { cn } from '@/lib/utils';
 import { LucideIcon } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 // ============================================================================
 // BASE NODE: The foundation for all premium flow nodes
@@ -149,25 +150,63 @@ export const BaseNode = memo(({
                 />
             )}
 
-            {/* ERROR BADGE (Left) */}
+            {/* ERROR LEADS AVATAR GROUP (Above Header, Left aligned) */}
             {((data?.errorLeads as number) || 0) > 0 && (
-                <div className="absolute -top-3 left-4 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-600 text-white shadow-sm border-[1.5px] border-white z-50 animate-in fade-in zoom-in duration-300">
-                    <span className="relative flex h-1.5 w-1.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span>
-                    </span>
-                    <span className="text-[10px] font-bold">{data.errorLeads as number}</span>
+                <div className="absolute -top-10 left-4 z-50 flex items-end animate-in fade-in zoom-in duration-300">
+                    <div className="flex -space-x-2">
+                        {(data?.errorLeadsList as any[] || []).map((lead, idx) => (
+                            <div key={lead.id} className="relative group/avatar">
+                                <Avatar className="h-8 w-8 border-2 border-white shadow-sm ring-2 ring-red-500/20">
+                                    <AvatarImage src={lead.profile_picture_url || ''} />
+                                    <AvatarFallback className="text-[10px] bg-red-100 text-red-700 font-medium">
+                                        {lead.name?.substring(0, 2).toUpperCase() || 'ER'}
+                                    </AvatarFallback>
+                                </Avatar>
+                                {/* Tooltip on hover */}
+                                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-lg opacity-0 group-hover/avatar:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+                                    {lead.name || lead.phone || 'Unknown'}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    {/* Remaining Count */}
+                    {((data?.errorLeads as number) > (data?.errorLeadsList as any[] || []).length) && (
+                        <div className="h-8 w-8 rounded-full bg-red-50 border-2 border-white shadow-sm flex items-center justify-center text-[10px] font-bold text-red-600 -ml-2 z-10 ring-2 ring-red-500/20">
+                            +{(data?.errorLeads as number) - (data?.errorLeadsList as any[] || []).length}
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* ACTIVE LEADS BADGE (Right) */}
+            {/* ACTIVE LEADS AVATAR GROUP (Above Header, Right aligned) */}
             {((data?.activeLeads as number) || 0) > 0 && (
-                <div className="absolute -top-3 right-4 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-600 text-white shadow-sm border-[1.5px] border-white z-50 animate-in fade-in zoom-in duration-300">
-                    <span className="relative flex h-1.5 w-1.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span>
-                    </span>
-                    <span className="text-[10px] font-bold">{data.activeLeads as number}</span>
+                <div className="absolute -top-10 right-4 z-50 flex flex-col items-center animate-in fade-in zoom-in duration-300">
+                    <div className="flex -space-x-2">
+                        {(data?.activeLeadsList as any[] || []).map((lead, idx) => (
+                            <div key={lead.id} className="relative group/avatar cursor-help">
+                                <Avatar className="h-8 w-8 border-2 border-white shadow-sm ring-2 ring-blue-500/20 relative">
+                                    <AvatarImage src={lead.profile_picture_url || ''} />
+                                    <AvatarFallback className="text-[10px] bg-blue-50 text-blue-700 font-medium">
+                                        {lead.name?.substring(0, 2).toUpperCase() || 'U'}
+                                    </AvatarFallback>
+                                </Avatar>
+
+                                {/* Status Indicator */}
+                                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-blue-500 border border-white" />
+
+                                {/* Tooltip on hover */}
+                                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-lg opacity-0 group-hover/avatar:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+                                    {lead.name || lead.phone || 'Unknown'}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    {/* Remaining Count */}
+                    {((data?.activeLeads as number) > (data?.activeLeadsList as any[] || []).length) && (
+                        <div className="absolute -right-4 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-[9px] font-bold text-gray-600 z-10">
+                            +{(data?.activeLeads as number) - (data?.activeLeadsList as any[] || []).length}
+                        </div>
+                    )}
                 </div>
             )}
 

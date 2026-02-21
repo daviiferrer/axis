@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import { Loader2, Users, Play, Search, Filter, MoreHorizontal, CheckSquare, Square } from "lucide-react";
+import { Loader2, Users, Play, Search, Filter, MoreHorizontal, CheckSquare, Square, Trash2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -27,6 +27,8 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import api from "@/services/api";
 
@@ -37,10 +39,16 @@ export default function ContactsPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
     const [isTriggering, setIsTriggering] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isReprocessing, setIsReprocessing] = useState(false);
+    const [showReprocessModal, setShowReprocessModal] = useState(false);
+    const [campaigns, setCampaigns] = useState<any[]>([]);
+    const [selectedCampaignId, setSelectedCampaignId] = useState<string>("keep");
 
     useEffect(() => {
         if (session?.user) {
             fetchLeads();
+            fetchCampaigns();
         }
     }, [session]);
 
@@ -59,6 +67,17 @@ export default function ContactsPage() {
             toast.error("Erro ao carregar contatos.");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchCampaigns = async () => {
+        try {
+            const { data, error } = await supabase.from("campaigns").select("id, name");
+            if (!error && data) {
+                setCampaigns(data);
+            }
+        } catch (e) {
+            console.error("Failed to fetch campaigns", e);
         }
     };
 
@@ -90,6 +109,46 @@ export default function ContactsPage() {
             toast.error("Erro ao disparar fluxo.");
         } finally {
             setIsTriggering(false);
+        }
+    };
+
+    const handleBulkDelete = async (ids = selectedLeads) => {
+        if (ids.length === 0) return;
+        if (!confirm(`Tem certeza que deseja excluir ${ids.length} lead(s)? Isso não pode ser desfeito.`)) return;
+
+        try {
+            setIsDeleting(true);
+            await api.delete('/leads/bulk-delete', { data: { leadIds: ids } });
+            toast.success(`${ids.length} lead(s) excluído(s) com sucesso!`);
+            setSelectedLeads([]);
+            fetchLeads();
+        } catch (error) {
+            console.error("Bulk delete error:", error);
+            toast.error("Erro ao excluir leads.");
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const confirmBulkReprocess = async (ids = selectedLeads) => {
+        if (ids.length === 0) return;
+
+        try {
+            setIsReprocessing(true);
+            const payload = {
+                leadIds: ids,
+                newCampaignId: selectedCampaignId !== "keep" ? selectedCampaignId : undefined
+            };
+            await api.post('/leads/bulk-reprocess', payload);
+            toast.success(`${ids.length} lead(s) reprocessado(s) com sucesso!`);
+            setShowReprocessModal(false);
+            setSelectedLeads([]);
+            fetchLeads();
+        } catch (error) {
+            console.error("Bulk reprocess error:", error);
+            toast.error("Erro ao reprocessar leads.");
+        } finally {
+            setIsReprocessing(false);
         }
     };
 
@@ -135,14 +194,34 @@ export default function ContactsPage() {
                 </div>
                 <div className="flex gap-2">
                     {selectedLeads.length > 0 && (
-                        <Button
-                            onClick={handleBulkTrigger}
-                            disabled={isTriggering}
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                            {isTriggering ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-                            Rodar Fluxo ({selectedLeads.length})
-                        </Button>
+                        <>
+                            <Button
+                                onClick={() => handleBulkDelete()}
+                                disabled={isDeleting}
+                                variant="destructive"
+                                className="text-white"
+                            >
+                                {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                                Excluir ({selectedLeads.length})
+                            </Button>
+                            <Button
+                                onClick={() => setShowReprocessModal(true)}
+                                disabled={isReprocessing}
+                                variant="outline"
+                                className="border-primary text-primary hover:bg-primary/5"
+                            >
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Reprocessar ({selectedLeads.length})
+                            </Button>
+                            <Button
+                                onClick={handleBulkTrigger}
+                                disabled={isTriggering}
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                                {isTriggering ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                                Rodar Fluxo ({selectedLeads.length})
+                            </Button>
+                        </>
                     )}
                 </div>
             </div>
@@ -237,6 +316,21 @@ export default function ContactsPage() {
                                             >
                                                 Parar IA
                                             </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                                onClick={() => {
+                                                    setSelectedLeads([lead.id]);
+                                                    setShowReprocessModal(true);
+                                                }}
+                                            >
+                                                Reprocessar
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                className="text-red-600"
+                                                onClick={() => handleBulkDelete([lead.id])}
+                                            >
+                                                Excluir Lead
+                                            </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </TableCell>
@@ -250,6 +344,40 @@ export default function ContactsPage() {
                     </div>
                 )}
             </div>
+
+            <Dialog open={showReprocessModal} onOpenChange={setShowReprocessModal}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Reprocessar Leads</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <p className="text-sm text-gray-500">
+                            Isso apagará a memória da inteligência artificial e resetará o status do lead para "Novo".
+                        </p>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Campanha de Destino</label>
+                            <Select value={selectedCampaignId} onValueChange={setSelectedCampaignId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione uma campanha" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="keep">Manter na campanha original</SelectItem>
+                                    {campaigns.map(c => (
+                                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowReprocessModal(false)}>Cancelar</Button>
+                        <Button onClick={() => confirmBulkReprocess()} disabled={isReprocessing}>
+                            {isReprocessing ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
+                            Confirmar Reprocessamento
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

@@ -390,7 +390,7 @@ class GeminiClient {
     async _logUsage(metrics, context = {}) {
         if (!this.settingsService?.supabase) return; // Need supabase client access
 
-        const { companyId, campaignId, chatId, userId, sessionId } = context;
+        const { companyId, campaignId, chatId, userId, sessionId, leadId } = context;
         if (!userId && !companyId) return; // Need an owner
 
         try {
@@ -406,16 +406,22 @@ class GeminiClient {
 
             const logEntry = {
                 user_id: isUUID(userId) ? userId : null,
-                session_id: isUUID(sessionId) ? sessionId : null,
+                company_id: isUUID(companyId) ? companyId : null,
                 campaign_id: isUUID(campaignId) ? campaignId : null,
-                chat_id: isUUID(chatId) ? chatId : null,
+                lead_id: isUUID(leadId) ? leadId : null,
                 model: metrics.model,
+                provider: 'gemini',
                 tokens_input: metrics.prompt_tokens || 0,
                 tokens_output: metrics.completion_tokens || 0,
-                cost: cost
+                cost_usd: cost,
+                purpose: 'chat_response',
+                metadata: {
+                    session_id: isUUID(sessionId) ? sessionId : null,
+                    chat_id: isUUID(chatId) ? chatId : null,
+                }
             };
 
-            const { error } = await this.settingsService.supabase.from('ai_usage_logs').insert(logEntry);
+            const { error } = await this.settingsService.supabase.from('usage_events').insert(logEntry);
 
             if (error) {
                 logger.error({ error: error.message, model: metrics.model }, 'Supabase AI usage insert failed');

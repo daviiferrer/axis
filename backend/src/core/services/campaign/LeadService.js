@@ -165,7 +165,7 @@ class LeadService {
         // 1. Active Leads Stats (Leads currently in a node, no error)
         const { data: activeData, error: activeError } = await client
             .from('leads')
-            .select('current_node_id')
+            .select('id, name, phone, profile_picture_url, current_node_id')
             .eq('campaign_id', campaignId)
             .in('status', ['new', 'contacted', 'negotiating', 'pending', 'prospecting'])
             .not('current_node_id', 'is', null)
@@ -180,7 +180,7 @@ class LeadService {
         // 2. Error Leads Stats (Leads stuck in error state)
         const { data: errorData, error: errStats } = await client
             .from('leads')
-            .select('current_node_id')
+            .select('id, name, phone, profile_picture_url, current_node_id')
             .eq('campaign_id', campaignId)
             // We care about errors regardless of status, but typically they are active
             .not('current_node_id', 'is', null)
@@ -190,12 +190,25 @@ class LeadService {
             logger.error({ err: errStats }, 'getFlowStats (Error) Error');
         }
 
-        // Helper to aggregate counts
+        // Helper to aggregate arrays instead of counts
         const aggregate = (list) => {
             const stats = {};
             (list || []).forEach(lead => {
                 if (lead.current_node_id) {
-                    stats[lead.current_node_id] = (stats[lead.current_node_id] || 0) + 1;
+                    if (!stats[lead.current_node_id]) {
+                        stats[lead.current_node_id] = { count: 0, leads: [] };
+                    }
+                    stats[lead.current_node_id].count += 1;
+
+                    // Keep max 5 profiles to avoid frontend overload
+                    if (stats[lead.current_node_id].leads.length < 5) {
+                        stats[lead.current_node_id].leads.push({
+                            id: lead.id,
+                            name: lead.name,
+                            phone: lead.phone,
+                            profile_picture_url: lead.profile_picture_url
+                        });
+                    }
                 }
             });
             return stats;
@@ -258,6 +271,58 @@ class LeadService {
         if (newStatus === 'lost' || newRank > currentRank) {
             await this.updateLeadStatus(leadId, newStatus);
         }
+    }
+
+    /**
+     * Delete multiple leads
+     */
+    async deleteLeads(leadIds, userId, scopedClient = null) {
+        const client = scopedClient || this.supabase;
+
+        const { data, error } = await client
+            .from('leads')
+            .delete()
+            .in('id', leadIds)
+            .select();
+
+        if (error) {
+            logger.error({ err: error }, 'deleteLeads error');
+            throw error;
+        }
+
+        return { count: data.length };
+    }
+
+    /**
+     * Reprocess leads (reset state, optionally change campaign)
+     */
+    async reprocessLeads(leadIds, newCampaignId, scopedClient = null) {
+        const client = scopedClient || this.supabase;
+
+        const updatePayload = {
+            current_node_id: null,
+            node_state: null,
+            status: 'new',
+            score: 0,
+            updated_at: new Date().toISOString()
+        };
+
+        if (newCampaignId) {
+            updatePayload.campaign_id = newCampaignId;
+        }
+
+        const { data, error } = await client
+            .from('leads')
+            .update(updatePayload)
+            .in('id', leadIds)
+            .select();
+
+        if (error) {
+            logger.error({ err: error }, 'reprocessLeads error');
+            throw error;
+        }
+
+        return { count: data.length };
     }
 }
 

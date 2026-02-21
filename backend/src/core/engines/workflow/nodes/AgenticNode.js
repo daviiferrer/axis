@@ -264,7 +264,8 @@ class AgenticNode extends AgentNode {
                         chatId: chat.id,
                         userId: campaign.user_id,
                         sessionId: campaign.session_name || campaign.waha_session_name,
-                        tools: nativeTools
+                        tools: nativeTools,
+                        leadId: lead.id
                     }
                 );
             } else {
@@ -275,7 +276,8 @@ class AgenticNode extends AgentNode {
                     chatId: chat.id,
                     userId: campaign.user_id, // Pass owner for SaaS logging & Key Retrieval
                     sessionId: campaign.session_name || campaign.waha_session_name,
-                    tools: nativeTools
+                    tools: nativeTools,
+                    leadId: lead.id
                 };
 
                 // Gemini API throws 400 if you mix responseMimeType JSON + Tools
@@ -771,6 +773,8 @@ class AgenticNode extends AgentNode {
                         provider, // Pass the provider
                         {
                             userId: campaign.user_id, // Pass userId for LMNT key retrieval
+                            companyId: campaign.company_id,
+                            campaignId: campaign.id,
                             leadId: lead.id,
                             agentId: operatingAgent.id,
                             voiceConfig: dna.voice_config

@@ -2,6 +2,7 @@ const logger = require('../../../shared/Logger').createModuleLogger('voice-servi
 const EmotionalStateService = require('../ai/EmotionalStateService');
 const QwenTtsProvider = require('./providers/QwenTtsProvider');
 const LmntTtsProvider = require('./providers/LmntTtsProvider');
+const ModelPricingService = require('../ai/ModelPricing');
 
 class VoiceService {
     constructor({ settingsService, supabaseClient }) {
@@ -81,7 +82,14 @@ class VoiceService {
             };
         }
 
-        return provider.synthesize(apiKey, text, voiceId, instruction, synthesisOptions);
+        const audioBase64 = await provider.synthesize(apiKey, text, voiceId, instruction, synthesisOptions);
+
+        if (audioBase64) {
+            // Track TTS usage for billing
+            this._logUsage(provider.name, text.length, options);
+        }
+
+        return audioBase64;
     }
 
     // =========================================
@@ -321,6 +329,52 @@ class VoiceService {
     async previewVoice(voiceId, text, providerName, options = {}) {
         const previewText = text || 'Olá! Esta é uma prévia da minha voz clonada. Como você está?';
         return this.synthesize(previewText, voiceId, '', providerName, options); // use synthesize method
+    }
+
+    // =========================================
+    // Billing & Tracking
+    // =========================================
+
+    /**
+     * Logs TTS Usage to Supabase (Async - Fire & Forget)
+     */
+    async _logUsage(providerName, characterCount, context = {}) {
+        if (!this.settingsService?.supabase) return;
+
+        const { companyId, campaignId, userId, leadId } = context;
+        if (!userId && !companyId) return; // Need an owner
+
+        try {
+            const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+            // Calculate Cost using 2026 Real Pricing
+            // For TTS, we use character count as tokens_input
+            const cost = ModelPricingService.calculateCost(providerName, characterCount, 0);
+
+            const logEntry = {
+                user_id: isUUID(userId) ? userId : null,
+                company_id: isUUID(companyId) ? companyId : null,
+                campaign_id: isUUID(campaignId) ? campaignId : null,
+                lead_id: isUUID(leadId) ? leadId : null,
+                model: providerName, // lmnt or qwen
+                provider: providerName,
+                tokens_input: characterCount,
+                tokens_output: 0,
+                cost_usd: cost,
+                purpose: 'voice_synthesis',
+                metadata: {}
+            };
+
+            const { error } = await this.settingsService.supabase.from('usage_events').insert(logEntry);
+
+            if (error) {
+                logger.error({ error: error.message, provider: providerName }, 'Supabase TTS usage insert failed');
+            } else {
+                logger.debug({ provider: providerName, cost, characters: characterCount }, 'Voice TTS usage logged successfully');
+            }
+        } catch (e) {
+            logger.error({ error: e.message }, 'Failed to log Voice TTS usage');
+        }
     }
 }
 

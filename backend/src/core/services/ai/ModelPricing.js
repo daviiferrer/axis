@@ -23,6 +23,8 @@ const PRICING_REGISTRY = {
     // Fallbacks for older/other models
     'gemini-1.5-flash': { input: 0.075, output: 0.30, name: 'Gemini 1.5 Flash' },
     'gemini-1.5-pro': { input: 3.50, output: 10.50, name: 'Gemini 1.5 Pro' },
+    'lmnt': { input: 10.00, output: 0, name: 'LMNT Voice' },
+    'qwen': { input: 2.00, output: 0, name: 'Qwen Voice' },
     'default': { input: 0.10, output: 0.40, name: 'Default Model' }
 };
 

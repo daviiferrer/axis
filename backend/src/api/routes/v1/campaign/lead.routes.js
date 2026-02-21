@@ -13,6 +13,9 @@ function createLeadRouter(leadController) {
     router.post('/import', upload.single('file'), (req, res) => leadController.importLeads(req, res));
     router.patch('/:id/stop', (req, res) => leadController.stopLead(req, res));
     router.post('/:id/trigger', (req, res) => leadController.triggerAi(req, res));
+    router.post('/bulk-trigger', (req, res) => leadController.bulkTriggerAi(req, res));
+    router.delete('/bulk-delete', (req, res) => leadController.bulkDelete(req, res));
+    router.post('/bulk-reprocess', (req, res) => leadController.bulkReprocess(req, res));
 
     return router;
 }

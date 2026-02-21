@@ -106,12 +106,16 @@ function ChatList({
     session,
     selectedChatId,
     onSelectChat,
-    statusFilter = 'ALL'
+    statusFilter = 'ALL',
+    campaignFilter = 'ALL',
+    sessionFilter = 'ALL'
 }: {
     session: string,
     selectedChatId: string | null,
     onSelectChat: (chat: WahaChat) => void,
-    statusFilter?: 'ALL' | 'PROSPECTING' | 'QUALIFIED' | 'FINISHED'
+    statusFilter?: 'ALL' | 'PROSPECTING' | 'QUALIFIED' | 'FINISHED',
+    campaignFilter?: string,
+    sessionFilter?: string
 }) {
     // Fetch ALL chats regardless of session - session filter is optional now
     const { data: chats, error, isLoading, mutate: mutateChats } = useSWR(
@@ -249,10 +253,12 @@ function ChatList({
         )
     }
 
-    // Filter chats based on status
+    // Filter chats based on status, campaign, and session
     const filteredChats = chats?.filter(chat => {
-        if (statusFilter === 'ALL') return true;
-        return chat.status === statusFilter;
+        if (statusFilter !== 'ALL' && chat.status !== statusFilter) return false;
+        if (campaignFilter !== 'ALL' && chat.campaignName !== campaignFilter) return false;
+        if (sessionFilter !== 'ALL' && chat.sessionName !== sessionFilter) return false;
+        return true;
     }) || [];
 
     const handleSelectChat = async (chat: WahaChat) => {
@@ -433,6 +439,10 @@ export default function ChatsPage() {
         return null
     })
     const [selectedChat, setSelectedChat] = useState<WahaChat | null>(null)
+    const [activeStatusTab, setActiveStatusTab] = useState<'ALL' | 'PROSPECTING' | 'QUALIFIED' | 'FINISHED'>('ALL')
+    const [activeCampaignFilter, setActiveCampaignFilter] = useState<string>('ALL');
+    const [activeSessionFilter, setActiveSessionFilter] = useState<string>('ALL');
+
     const { data: sessions, mutate: refreshSessions } = useSWR('/sessions', () => wahaService.getSessions(true), {
         revalidateOnFocus: false,
         revalidateOnReconnect: false,
@@ -493,19 +503,22 @@ export default function ChatsPage() {
         }
     }
 
-    const { data: messages } = useSWR(
+    const { data: messages, isLoading: isMessagesLoading } = useSWR(
         currentSession && selectedChat ? `/messages/${selectedChat.id}` : null,
         () => wahaService.getMessages(currentSession!, selectedChat!.id),
         {
             refreshInterval: 0, // Socket handles real-time updates
-            revalidateOnFocus: false,
-            keepPreviousData: true
+            revalidateOnFocus: false
+            // Keep previous data removed to prevent flashing old messages in a new chat
         }
     )
 
+    // Global query for filters
+    const { data: globalChats } = useSWR('/chats/all', () => wahaService.getChats(), { refreshInterval: 0, revalidateOnFocus: false });
+    const uniqueCampaigns = Array.from(new Set(globalChats?.map(c => c.campaignName).filter(Boolean))) as string[];
+    const uniqueSessions = Array.from(new Set(globalChats?.map(c => c.sessionName).filter(Boolean))) as string[];
 
 
-    const [activeStatusTab, setActiveStatusTab] = useState<'ALL' | 'PROSPECTING' | 'QUALIFIED' | 'FINISHED'>('ALL')
 
     return (
         <div className="h-full w-full flex flex-row bg-background overflow-hidden relative">
@@ -538,12 +551,32 @@ export default function ChatsPage() {
                         ))}
                     </div>
 
-                    <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                        <Input
-                            placeholder="Buscar conversa..."
-                            className="pl-9 bg-gray-50 border-gray-100 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-300 h-10 transition-all duration-300 font-inter"
-                        />
+                    <div className="flex flex-col gap-2 mb-1">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                            <Input
+                                placeholder="Buscar conversa..."
+                                className="pl-9 bg-gray-50 border-gray-100 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-300 h-10 transition-all duration-300 font-inter"
+                            />
+                        </div>
+                        <div className="flex gap-2">
+                            <select
+                                value={activeCampaignFilter}
+                                onChange={(e) => setActiveCampaignFilter(e.target.value)}
+                                className="flex-1 bg-gray-50 border border-gray-100 text-gray-600 text-[11px] font-medium h-8 rounded-lg px-2 focus:ring-2 outline-none focus:ring-blue-100 focus:border-blue-300 hover:bg-gray-100 transition-colors"
+                            >
+                                <option value="ALL">Campanhas</option>
+                                {uniqueCampaigns.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <select
+                                value={activeSessionFilter}
+                                onChange={(e) => setActiveSessionFilter(e.target.value)}
+                                className="flex-1 bg-gray-50 border border-gray-100 text-gray-600 text-[11px] font-medium h-8 rounded-lg px-2 focus:ring-2 outline-none focus:ring-blue-100 focus:border-blue-300 hover:bg-gray-100 transition-colors"
+                            >
+                                <option value="ALL">Sessões</option>
+                                {uniqueSessions.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -553,6 +586,8 @@ export default function ChatsPage() {
                         selectedChatId={selectedChat?.id || null}
                         onSelectChat={setSelectedChat}
                         statusFilter={activeStatusTab}
+                        campaignFilter={activeCampaignFilter}
+                        sessionFilter={activeSessionFilter}
                     />
                 </div>
             </div>
@@ -576,6 +611,14 @@ export default function ChatsPage() {
                         </div>
                         <h3 className="font-mono text-xl font-bold text-gray-900 mb-2">Pronto para conversar</h3>
                         <p className="text-gray-500 max-w-sm">Selecione uma conversa da lista para iniciar o atendimento.</p>
+                    </div>
+                ) : !messages && isMessagesLoading ? (
+                    <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-gray-50/10">
+                        <div className="size-16 relative flex items-center justify-center mb-6">
+                            <div className="absolute inset-0 bg-blue-100 rounded-2xl animate-pulse" />
+                            <Loader2 className="size-6 text-blue-600 animate-spin relative z-10" />
+                        </div>
+                        <h3 className="font-mono text-lg font-bold text-gray-900/60 mb-2">Carregando conversa...</h3>
                     </div>
                 ) : (
                     <ChatWindow
@@ -837,7 +880,38 @@ function ChatWindow({
 
                                     {/* Text body */}
                                     {msg.body && !(['[📷 Imagem recebida]', '[AUDIO_MESSAGE]'].includes(msg.body) && msg.hasMedia) && (
-                                        <p className="text-[13px] font-normal leading-relaxed whitespace-pre-wrap break-words">{msg.body}</p>
+                                        <div className="text-[14px] font-normal leading-relaxed whitespace-pre-wrap break-words">
+                                            {msg.body.split('\n').map((line, i) => {
+                                                if (line.trim().startsWith('> **Agent Thought**:')) {
+                                                    return (
+                                                        <div key={`a-${i}`} className="my-2 p-2.5 rounded-xl bg-orange-50/80 border border-orange-100 flex flex-col gap-1.5 shadow-sm">
+                                                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-orange-600 uppercase tracking-wider">
+                                                                <Loader2 className="size-3 animate-spin" />
+                                                                Pensamento da IA
+                                                            </div>
+                                                            <div className="text-xs text-orange-800 italic leading-snug">{line.replace('> **Agent Thought**:', '').trim()}</div>
+                                                        </div>
+                                                    );
+                                                }
+                                                if (line.trim().startsWith('> [Classification]:')) {
+                                                    const classTxt = line.replace('> [Classification]:', '').trim();
+                                                    return (
+                                                        <div key={`c-${i}`} className="my-1 border-t border-black/5 pt-2 mt-2 flex flex-wrap gap-1.5">
+                                                            {classTxt.split(',').map((part, pi) => {
+                                                                const [key, val] = part.split('=').map(s => s.trim());
+                                                                return (
+                                                                    <span key={pi} className="px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-indigo-50 border border-indigo-100 text-indigo-700 uppercase tracking-wider">
+                                                                        {key}: {val}
+                                                                    </span>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    );
+                                                }
+                                                if (line.trim() === '---') return <div key={`hr-${i}`} className="h-px bg-black/5 my-2" />;
+                                                return <p key={`p-${i}`} className="min-h-[14px]">{line}</p>;
+                                            })}
+                                        </div>
                                     )}
                                     <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
                                         <span className="text-[10px] text-gray-500">

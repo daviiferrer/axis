@@ -6,10 +6,12 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
 import { AnimatedLogo } from "@/components/brand/animated-logo";
+import { useAuth } from "@/context/AuthContext";
 
 export function DynamicHeader() {
     const { scrollY } = useScroll();
     const [isScrolled, setIsScrolled] = useState(false);
+    const { user, loading } = useAuth();
 
     useMotionValueEvent(scrollY, "change", (latest) => {
         const previous = scrollY.getPrevious() ?? 0;
@@ -40,15 +42,27 @@ export function DynamicHeader() {
                         <Link href="#pricing" className="hover:text-blue-600 transition-colors">Preços</Link>
                     </div>
 
-                    <Link
-                        href="/auth/login"
-                        className={cn(
-                            "rounded-full text-sm font-bold transition-all duration-300 border",
-                            "bg-blue-600 text-white border-blue-600 px-5 py-2 shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:scale-105"
-                        )}
-                    >
-                        Login
-                    </Link>
+                    {(!loading && user) ? (
+                        <Link
+                            href="/app"
+                            className={cn(
+                                "rounded-full text-sm font-bold transition-all duration-300 border flex items-center gap-2",
+                                "bg-slate-900 text-white border-slate-900 px-5 py-2 shadow-lg hover:bg-slate-800 hover:scale-105"
+                            )}
+                        >
+                            Acessar Dashboard
+                        </Link>
+                    ) : (
+                        <Link
+                            href="/auth/login"
+                            className={cn(
+                                "rounded-full text-sm font-bold transition-all duration-300 border",
+                                "bg-blue-600 text-white border-blue-600 px-5 py-2 shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:scale-105"
+                            )}
+                        >
+                            Login
+                        </Link>
+                    )}
                 </nav>
             </div>
         </motion.header>
