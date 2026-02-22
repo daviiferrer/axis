@@ -151,14 +151,37 @@ class ChatService {
         // Ignore status updates or system messages without content
         if (!payload.from) return null;
 
+        // Resolve JID Normalization FIRST to have a clean 'from'
+        const normalizedFrom = await this.jidService.normalizePayload(payload);
+        if (normalizedFrom) {
+            logger.info({ original: payload.from, normalized: normalizedFrom }, '🔄 JID Normalized');
+            payload.from = normalizedFrom;
+            if (payload.key) payload.key.remoteJid = normalizedFrom; // Update key if present
+        }
+
+        const { from, to, _data, id } = payload;
+        let { fromMe } = payload;
+
+        // ROBUSTNESS: Force fromMe check from deep WAHA properties early
+        if (fromMe === undefined && _data) {
+            fromMe = _data.id?.fromMe || _data.key?.fromMe || _data.Info?.IsFromMe || false;
+            logger.debug({ fromMe, _data }, 'Resolved fromMe from _data properties');
+        }
+
+        // --- CRITICAL FIX: EARLY EXIT FOR BOT MESSAGES ---
+        // If the message is from the bot (outbound echo), we save it but skip AI processing (STT/Vision/Trigger)
+        if (fromMe) {
+            logger.debug({ from, to }, '⏩ Skipping AI processing (STT/Vision) for outgoing message (fromMe=true)');
+        }
+
         // Voice/Audio Message Support
-        const isVoiceMessage = payload.hasMedia && (payload.media?.mimetype?.includes('audio') || payload._data?.type === 'audio' || payload._data?.type === 'ptt');
+        const isVoiceMessage = !fromMe && payload.hasMedia && (payload.media?.mimetype?.includes('audio') || payload._data?.type === 'audio' || payload._data?.type === 'ptt');
 
         // Image/Photo Message Support
-        const isImageMessage = payload.hasMedia && (payload.media?.mimetype?.includes('image') || payload._data?.type === 'image');
+        const isImageMessage = !fromMe && payload.hasMedia && (payload.media?.mimetype?.includes('image') || payload._data?.type === 'image');
 
         // Document Message Support
-        const isDocumentMessage = payload.hasMedia && !isVoiceMessage && !isImageMessage && (
+        const isDocumentMessage = !fromMe && payload.hasMedia && !isVoiceMessage && !isImageMessage && (
             payload.media?.mimetype?.includes('application') ||
             payload.media?.mimetype?.includes('pdf') ||
             payload._data?.type === 'document'
@@ -321,34 +344,14 @@ class ChatService {
         // If still no body, ignore the message
         if (!body) return null;
 
-        // PRE-PROCESSING: Normalize JID (LID -> Phone JID)
-        // If message is from a Linked Device (LID), we try to resolve the real phone number JID.
-        // This prevents duplicate chats (one for LID, one for Phone).
-        const normalizedFrom = await this.jidService.normalizePayload(payload);
-        if (normalizedFrom) {
-            logger.info({ original: payload.from, normalized: normalizedFrom }, '🔄 JID Normalized');
-            payload.from = normalizedFrom;
-            if (payload.key) payload.key.remoteJid = normalizedFrom; // Update key if present
-        }
-
-        const { from, to, fromMe, hasMedia, media, _data, id } = payload;
-        // body is already declared above (line 157) for audio processing
+        // Standardize JID to @s.whatsapp.net for internal consistency
+        // Note: from/to are raw, we use them mainly for chatId resolution
 
         // Groups are still ignored as per request
         if (from.endsWith('@g.us') || to?.endsWith('@g.us') || payload.participant) {
             logger.info({ from, to }, '🚫 Group message ignored');
             return null;
         }
-
-        // ROBUSTNESS: Force fromMe check from deep WAHA properties
-        // Sometimes payload.fromMe is undefined in certain events, leading to False Positives.
-        if (fromMe === undefined && _data) {
-            fromMe = _data.id?.fromMe || _data.key?.fromMe || _data.Info?.IsFromMe || false;
-            logger.debug({ fromMe, _data }, 'Resolved fromMe from _data properties');
-        }
-
-        // NOTE: LID-based JIDs (e.g. 4925...@lid) can be real users or the bot.
-        // We rely on fromMe flag (handled above) rather than JID suffix.
 
 
         // Fix: logic to resolve chatId robustly

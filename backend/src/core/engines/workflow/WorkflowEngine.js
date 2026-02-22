@@ -71,7 +71,18 @@ class WorkflowEngine {
             this.timerRecoveryIntervalId = setInterval(async () => {
                 await this.processExpiredTimers();
             }, 15000);
-            logger.info('⏰ Timer Recovery Loop started (15s interval)');
+
+            // NEW: Lead Recycling Loop - processes stale workflow instances
+            // Runs every 15 minutes to recover zombie leads (default: 48 hours inactive)
+            this.staleRecoveryIntervalId = setInterval(async () => {
+                try {
+                    await this.stateCheckpointService.recycleStaleInstances(48);
+                } catch (e) {
+                    logger.error({ err: e.message }, 'Failed to run stale recovery loop');
+                }
+            }, 15 * 60 * 1000);
+
+            logger.info('⏰ Timer Recovery Loop (15s) and Stale Recovery Loop (15m) started');
         }
     }
 
@@ -731,6 +742,18 @@ class WorkflowEngine {
                         await this.leadService.transitionToNode(lead.id, entryNode.id);
                         lead.current_node_id = entryNode.id;
                         currentNodeId = entryNode.id;
+
+                        // NEW: Emit realtime event for Lead Entry
+                        if (this.campaignSocket) {
+                            this.campaignSocket.emitLeadUpdate(lead.id, {
+                                current_node_id: entryNode.id,
+                                previous_node_id: null,
+                                metadata: {
+                                    leadName: lead.name,
+                                    leadPhone: lead.phone
+                                }
+                            }, fullCampaign.id);
+                        }
                     } else {
                         logger.error({ leadId: lead.id }, 'No entry node found');
                         break;
@@ -889,10 +912,8 @@ class WorkflowEngine {
                         await this._transitionLegacy(lead, next.id, fullCampaign.id);
                         lead.current_node_id = next.id;
 
-                        // If we just executed an agentic node, we usually stop and wait for reply
-                        // UNLESS the node didn't send a message (e.g. slots satisfied → auto-exit).
-                        // In that case, continueExecution=true means "proceed to next node immediately".
-                        if (!result.continueExecution && (node.type === 'agentic' || node.type === 'agent' || node.type === 'broadcast')) break;
+                        // Allow any node that transitioned to proceed immediately
+                        // if (!result.continueExecution && (node.type === 'agentic' || node.type === 'agent' || node.type === 'broadcast')) break;
 
                         continue;
                     }
@@ -1006,6 +1027,7 @@ class WorkflowEngine {
     }
 
     async _transitionLegacy(lead, nextNodeId, campaignId) {
+        const previousNodeId = lead.current_node_id;
         await this.leadService.transitionToNode(lead.id, nextNodeId, campaignId);
 
         // SYNC FIX: Update workflow_instance to match lead state
@@ -1024,7 +1046,14 @@ class WorkflowEngine {
         }
 
         if (this.campaignSocket) {
-            this.campaignSocket.emitLeadUpdate(lead.id, { current_node_id: nextNodeId }, campaignId);
+            this.campaignSocket.emitLeadUpdate(lead.id, {
+                current_node_id: nextNodeId,
+                previous_node_id: previousNodeId || null,
+                metadata: {
+                    leadName: lead.name,
+                    leadPhone: lead.phone
+                }
+            }, campaignId);
         }
     }
 
@@ -1192,11 +1221,13 @@ class WorkflowEngine {
         const tz = bh?.timezone || 'America/Sao_Paulo';
         const start = bh?.start ?? 8;
         const end = bh?.end ?? 20;
-        const workDays = bh?.workDays ?? [1, 2, 3, 4, 5]; // Mon-Fri
+
+        // NEW: Default includes Saturday [1-6] based on user feedback/context
+        const workDays = bh?.workDays ?? [1, 2, 3, 4, 5, 6];
 
         // Get current time in the campaign's timezone
-        let now;
         try {
+            const now = new Date();
             const formatter = new Intl.DateTimeFormat('en-US', {
                 timeZone: tz,
                 hour: 'numeric',
@@ -1204,21 +1235,28 @@ class WorkflowEngine {
                 weekday: 'short',
                 hour12: false
             });
-            const parts = formatter.formatToParts(new Date());
+            const parts = formatter.formatToParts(now);
             const hourPart = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
             const weekdayStr = parts.find(p => p.type === 'weekday')?.value || '';
 
             // Map weekday string to JS day number (0=Sun, 1=Mon, ..., 6=Sat)
             const dayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-            const dayNum = dayMap[weekdayStr] ?? new Date().getDay();
+            const dayNum = dayMap[weekdayStr] ?? now.getDay();
 
             const isWorkDay = workDays.includes(dayNum);
             const isWorkingHour = hourPart >= start && hourPart < end;
+
+            if (!isWorkDay) {
+                logger.debug({ campaignId: campaign?.id, dayNum, workDays }, '🌙 Outside business hours: Not a work day');
+            } else if (!isWorkingHour) {
+                logger.debug({ campaignId: campaign?.id, hour: hourPart, start, end }, '🌙 Outside business hours: Not working hours');
+            }
+
             return isWorkDay && isWorkingHour;
         } catch (e) {
             // Fallback to server time if timezone fails
             logger.warn({ tz, error: e.message }, 'Failed to parse timezone, falling back to server time');
-            now = new Date();
+            const now = new Date();
             const day = now.getDay();
             const hour = now.getHours();
             return workDays.includes(day) && hour >= start && hour < end;
@@ -1269,9 +1307,24 @@ class WorkflowEngine {
             if (nextNodeId) {
                 await this._transitionTo(instance, nextNodeId);
             } else {
-                // End of flow
+                // End of flow: Clean up lead presence from the node so it disappears from UI
                 await this._updateState(instanceId, { status: CampaignStatusEnum.COMPLETED });
-                logger.info({ instanceId }, 'FSM: Campaign completed - no more nodes');
+
+                // Remove it from the node in the DB so it doesn't linger in stats
+                await this.leadService.transitionToNode(instance.lead_id, null);
+
+                // Notify frontend to remove the avatar
+                if (this.campaignSocket) {
+                    this.campaignSocket.emitLeadUpdate(instance.lead_id, {
+                        current_node_id: null,
+                        previous_node_id: currentNodeId,
+                        metadata: {
+                            isCompleted: true
+                        }
+                    }, instance.campaign_id);
+                }
+
+                logger.info({ instanceId, leadId: instance.lead_id, lastNodeId: currentNodeId }, 'FSM: Campaign completed - lead removed from flow');
             }
         } else if (event.type === EventTypeEnum.USER_REPLY) {
             // USER_REPLY: Re-execute current node with new context
@@ -1294,15 +1347,7 @@ class WorkflowEngine {
         await this._updateState(instance.id, {
             current_node_id: nodeId,
             node_state: NodeExecutionStateEnum.ENTERED
-        });
-
-        // Emit real-time event to frontend canvas
-        if (this.campaignSocket) {
-            this.campaignSocket.emitLeadUpdate(instance.lead_id, {
-                current_node_id: nodeId,
-                previous_node_id: previousNodeId || null
-            }, instance.campaign_id);
-        }
+        }, instance.lead_id);
 
         const campaign = instance.campaigns;
         const graph = campaign.strategy_graph || campaign.graph || { nodes: [], edges: [] };
@@ -1320,7 +1365,7 @@ class WorkflowEngine {
             return;
         }
 
-        // Fetch full lead
+        // Fetch full lead first before emitting update
         const { data: lead } = await this.supabase
             .from('leads')
             .select('*')
@@ -1331,6 +1376,23 @@ class WorkflowEngine {
             logger.error({ leadId: instance.lead_id }, 'FSM: Lead not found');
             return;
         }
+
+        // Emit real-time event to frontend canvas (WITH METADATA)
+        if (this.campaignSocket) {
+            this.campaignSocket.emitLeadUpdate(instance.lead_id, {
+                current_node_id: nodeId,
+                previous_node_id: previousNodeId || null,
+                metadata: {
+                    leadName: lead.name,
+                    leadPhone: lead.phone,
+                    profile_picture_url: lead.profile_picture_url,
+                    slots: lead.custom_fields?.qualification || {},
+                    sentiment: lead.temperature || 0,
+                    intentScore: lead.intent_score || 0
+                }
+            }, instance.campaign_id);
+        }
+
 
         try {
             logger.info({ instanceId: instance.id, nodeId, nodeType: nodeConfig.type }, 'FSM: Executing node');
@@ -1366,7 +1428,28 @@ class WorkflowEngine {
                 });
                 logger.info({ instanceId: instance.id }, 'FSM: Node awaiting async (e.g., user reply)');
             } else {
-                logger.warn({ instanceId: instance.id, nodeId }, 'FSM: No transition resolved and not awaiting async');
+                logger.info({ instanceId: instance.id, nodeId }, 'FSM: End of flow reached (EXITED or no transition). Marking completed.');
+
+                // Finalize the workflow instance in the database (sets completed_at)
+                if (this.checkpointService && this.checkpointService.markCompleted) {
+                    await this.checkpointService.markCompleted(instance.id);
+                }
+
+                // Also update lead's current_node_id to null so it doesn't stay tied to the last node
+                await this.leadService.transitionToNode(instance.lead_id, null, campaign.id);
+
+                // Try to emit real-time event to clear avatar from canvas
+                if (this.campaignSocket) {
+                    this.campaignSocket.emitLeadUpdate(instance.lead_id, {
+                        current_node_id: null,
+                        previous_node_id: nodeId,
+                        metadata: {
+                            leadName: lead.name,
+                            leadPhone: lead.phone,
+                            isCompleted: true
+                        }
+                    }, instance.campaign_id);
+                }
             }
         } catch (e) {
             logger.error({ instanceId: instance.id, nodeId, error: e.message, stack: e.stack }, 'FSM: Node Execution Failed');
@@ -1377,11 +1460,16 @@ class WorkflowEngine {
         }
     }
 
-    async _updateState(instanceId, updates) {
+    async _updateState(instanceId, updates, leadId = null) {
         await this.supabase.from('workflow_instances').update({
             ...updates,
             updated_at: new Date().toISOString()
         }).eq('id', instanceId);
+
+        // SYNC FIX: Update leads table as well so stats are populated correctly!
+        if (updates.current_node_id && leadId) {
+            await this.leadService.transitionToNode(leadId, updates.current_node_id);
+        }
     }
 
     _findNextNode(graph, currentNodeId, edgeLabel = 'default') {

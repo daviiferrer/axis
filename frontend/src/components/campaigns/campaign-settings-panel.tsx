@@ -54,7 +54,7 @@ const DEFAULT_SETTINGS: CampaignSettings = {
         start: 8,
         end: 20,
         timezone: 'America/Sao_Paulo',
-        workDays: [1, 2, 3, 4, 5],
+        workDays: [1, 2, 3, 4, 5, 6],
     },
 };
 
@@ -117,20 +117,21 @@ export function CampaignSettingsPanel({ campaignId, open, onClose }: CampaignSet
                 <>
                     {/* Backdrop */}
                     <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
+                        initial={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+                        animate={{ opacity: 1, backdropFilter: 'blur(12px)' }}
+                        exit={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+                        transition={{ duration: 0.3 }}
+                        className="fixed inset-0 z-30 bg-slate-900/20"
                         onClick={onClose}
                     />
 
                     {/* Panel */}
                     <motion.div
-                        initial={{ x: '100%', opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        exit={{ x: '100%', opacity: 0 }}
+                        initial={{ scale: 0.95, opacity: 0, y: 20, x: '-50%' }}
+                        animate={{ scale: 1, opacity: 1, y: '-50%', x: '-50%' }}
+                        exit={{ scale: 0.95, opacity: 0, y: 20, x: '-50%' }}
                         transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-                        className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-white shadow-2xl border-l border-gray-100 flex flex-col"
+                        className="fixed left-1/2 top-1/2 z-40 w-full max-w-xl max-h-[85vh] bg-white/95 backdrop-blur-3xl shadow-2xl rounded-2xl border border-gray-100 flex flex-col overflow-hidden"
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between p-6 border-b border-gray-100">

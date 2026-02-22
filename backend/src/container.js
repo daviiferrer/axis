@@ -65,7 +65,7 @@ const WorkflowEngine = require('./core/engines/workflow/WorkflowEngine');
 const TriggerService = require('./core/services/automation/TriggerService');
 const JidNormalizationService = require('./core/services/waha/JidNormalizationService');
 const AgentService = require('./core/services/agents/AgentService');
-const AgentGraphEngine = require('./core/engines/graph/AgentGraphEngine');
+
 const ModelService = require('./core/services/ai/ModelService');
 const SocketService = require('./shared/SocketService');
 const NodeFactory = require('./core/engines/workflow/NodeFactory');
@@ -160,7 +160,7 @@ function configureContainer() {
         // This is safe for background processing as it bypasses RLS.
         // BEWARE: Do not inject 'req.scoped' services that rely on 'req.user' here.
         workflowEngine: asClass(WorkflowEngine).singleton(),
-        agentGraphEngine: asClass(AgentGraphEngine).singleton(),
+
 
         // GLOBAL ALIAS for Singletons that strictly need an admin client (like Engines)
         // This is a tradeoff. Engines run globally, so they get the Admin details.

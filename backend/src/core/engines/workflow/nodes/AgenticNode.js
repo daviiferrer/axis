@@ -285,10 +285,10 @@ class AgenticNode extends AgentNode {
                     generateOptions.generationConfig = { responseMimeType: "application/json" };
                 }
 
-                aiResult = await this.geminiClient.generateSimple(
+                aiResult = await this.geminiClient.generateContent(
                     targetModel,
                     systemInstruction,
-                    "Responda ao lead. Se uma ferramenta customizada for útil, acione-a.",
+                    history, // 🔥 FIX: Pass historical native chat instead of flat prompt
                     generateOptions
                 );
             }
@@ -616,37 +616,27 @@ class AgenticNode extends AgentNode {
             }
         }
 
-        // 5.3. Persist qualification_slots SCOPED to current criticalSlots only
+        // 5.3. Persist qualification_slots — ADDITIVE MERGE across nodes
+        // Slots collected by previous nodes are PRESERVED. Current node adds/updates its own.
         const aiSlots = response.qualification_slots || {};
         const existingQualification = lead.custom_fields?.qualification || {};
         const configuredSlots = nodeConfig.data?.criticalSlots || [];
         let slotsUpdated = false;
 
-        // Start fresh: only keep slots that are in the CURRENT config
-        const mergedSlots = {};
+        // ADDITIVE: Start from ALL previously collected slots, then overlay current node's data
+        const mergedSlots = { ...existingQualification };
         for (const slotName of configuredSlots) {
-            // Priority: new AI value > existing persisted value > nothing
             const aiValue = aiSlots[slotName];
-            const existingValue = existingQualification[slotName];
             if (aiValue && aiValue !== 'unknown' && aiValue !== null) {
-                mergedSlots[slotName] = aiValue;
-            } else if (existingValue && existingValue !== 'unknown' && existingValue !== null) {
-                mergedSlots[slotName] = existingValue;
+                if (aiValue !== existingQualification[slotName]) {
+                    slotsUpdated = true;
+                }
+                mergedSlots[slotName] = aiValue; // New AI value overwrites
             }
         }
 
-        // Check if any NEW data was extracted this turn
-        for (const slotName of configuredSlots) {
-            const aiValue = aiSlots[slotName];
-            if (aiValue && aiValue !== 'unknown' && aiValue !== null && aiValue !== existingQualification[slotName]) {
-                slotsUpdated = true;
-                break;
-            }
-        }
-
-        // Always persist scoped slots (also cleans up stale data from old configs)
-        const needsCleanup = Object.keys(existingQualification).some(k => !configuredSlots.includes(k));
-        if (slotsUpdated || needsCleanup) {
+        // Persist if any new data was extracted
+        if (slotsUpdated) {
             const updatedCustomFields = {
                 ...(lead.custom_fields || {}),
                 qualification: mergedSlots
@@ -662,9 +652,10 @@ class AgenticNode extends AgentNode {
                 leadId: lead.id,
                 slots: mergedSlots,
                 configuredSlots,
+                totalSlots: Object.keys(mergedSlots).length,
                 filled: configuredSlots.filter(s => mergedSlots[s]),
                 missing: configuredSlots.filter(s => !mergedSlots[s])
-            }, '💾 Qualification slots persisted to lead');
+            }, '💾 Qualification slots persisted (additive merge)');
 
             // 5.4. Update Lead Score (dynamic, based on slot fill percentage + sentiment)
             if (this.leadService) {
@@ -776,6 +767,7 @@ class AgenticNode extends AgentNode {
                             companyId: campaign.company_id,
                             campaignId: campaign.id,
                             leadId: lead.id,
+                            chatId: chat.id, // Pass UUID for accurate logging
                             agentId: operatingAgent.id,
                             voiceConfig: dna.voice_config
                         }

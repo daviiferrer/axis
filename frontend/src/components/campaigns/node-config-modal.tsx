@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     X, Zap, Clock, GitBranch, MessageSquare, CornerUpRight, ExternalLink, Users, Flag, Bot, Brain,
-    Split, CheckCircle, Filter, ArrowLeft, ArrowRight, MousePointer2, RefreshCw
+    Split, CheckCircle, Filter, ArrowLeft, ArrowRight, MousePointer2, RefreshCw, MessageSquareText
 } from 'lucide-react';
 import { Node, Edge } from '@xyflow/react';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import { campaignService } from '@/services/campaign';
 import {
     TriggerConfig, DelayConfig, SplitConfig, ActionConfig,
     BroadcastConfig, LogicConfig, GotoConfig, GotoCampaignConfig,
-    HandoffConfig, ClosingConfig, AgentConfig
+    HandoffConfig, ClosingConfig, AgentConfig, ChatbotConfig
 } from './node-configs';
 import { FollowUpConfig } from './node-configs/followup-config';
 
@@ -33,6 +33,7 @@ const NODE_META: Record<string, { icon: React.ReactNode; color: string; label: s
     split: { icon: <Split className="w-5 h-5" />, color: 'text-pink-600 bg-pink-50', label: 'Split A/B' },
     action: { icon: <MessageSquare className="w-5 h-5" />, color: 'text-sky-600 bg-sky-50', label: 'Ação' },
     broadcast: { icon: <MessageSquare className="w-5 h-5" />, color: 'text-sky-600 bg-sky-50', label: 'Broadcast' },
+    chatbot: { icon: <MessageSquareText className="w-5 h-5" />, color: 'text-rose-600 bg-rose-50', label: 'Chatbot Determinístico' },
     logic: { icon: <GitBranch className="w-5 h-5" />, color: 'text-slate-600 bg-slate-50', label: 'Condição IF/ELSE' },
     goto: { icon: <CornerUpRight className="w-5 h-5" />, color: 'text-cyan-600 bg-cyan-50', label: 'Goto' },
     goto_campaign: { icon: <ExternalLink className="w-5 h-5" />, color: 'text-indigo-600 bg-indigo-50', label: 'Ir para Campanha' },
@@ -151,6 +152,8 @@ export function NodeConfigModal({ selectedNode, onClose, onUpdateNode, nodes, ed
                 return <ActionConfig formData={formData} onChange={handleChange} />;
             case 'broadcast':
                 return <BroadcastConfig formData={formData} onChange={handleChange} />;
+            case 'chatbot':
+                return <ChatbotConfig formData={formData} onChange={handleChange} />;
             case 'logic':
                 return <LogicConfig formData={formData} onChange={handleChange} />;
             case 'goto':

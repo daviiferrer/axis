@@ -353,24 +353,21 @@ class VoiceService {
 
             const logEntry = {
                 user_id: isUUID(userId) ? userId : null,
-                company_id: isUUID(companyId) ? companyId : null,
                 campaign_id: isUUID(campaignId) ? campaignId : null,
-                lead_id: isUUID(leadId) ? leadId : null,
+                chat_id: isUUID(options.chatId) ? options.chatId : null,
                 model: providerName, // lmnt or qwen
-                provider: providerName,
                 tokens_input: characterCount,
                 tokens_output: 0,
-                cost_usd: cost,
-                purpose: 'voice_synthesis',
-                metadata: {}
+                cost: cost,
+                created_at: new Date().toISOString()
             };
 
-            const { error } = await this.settingsService.supabase.from('usage_events').insert(logEntry);
+            const { error } = await this.settingsService.supabase.from('ai_usage_logs').insert(logEntry);
 
             if (error) {
-                logger.error({ error: error.message, provider: providerName }, 'Supabase TTS usage insert failed');
+                logger.error({ error: error.message, provider: providerName }, 'Supabase TTS usage insert failed (ai_usage_logs)');
             } else {
-                logger.debug({ provider: providerName, cost, characters: characterCount }, 'Voice TTS usage logged successfully');
+                logger.debug({ provider: providerName, cost, characters: characterCount }, 'Voice TTS usage logged successfully in ai_usage_logs');
             }
         } catch (e) {
             logger.error({ error: e.message }, 'Failed to log Voice TTS usage');

@@ -7,6 +7,7 @@ import {
     getSmoothStepPath,
     EdgeLabelRenderer
 } from '@xyflow/react';
+import { useNodeStatus } from '../node-validation-context';
 
 // ============================================================================
 // ANIMATED EDGE: Premium edge with flow direction animation
@@ -25,7 +26,10 @@ export function AnimatedEdge({
     markerEnd,
     label,
     selected,
+    source,
 }: EdgeProps) {
+    const sourceStatus = useNodeStatus(source);
+    const isError = sourceStatus.state === 'ERROR';
     const [edgePath, labelX, labelY] = getSmoothStepPath({
         sourceX,
         sourceY,
@@ -56,21 +60,24 @@ export function AnimatedEdge({
                 markerEnd={markerEnd}
                 style={{
                     strokeWidth: 3,
-                    stroke: selected ? '#6366f1' : '#94a3b8',
+                    stroke: isError ? '#ef4444' : selected ? '#6366f1' : '#94a3b8',
+                    strokeDasharray: isError ? '4 4' : 'none',
                     ...style,
                 }}
             />
 
             {/* Animated flow indicator */}
-            <path
-                d={edgePath}
-                fill="none"
-                strokeWidth={3}
-                stroke="url(#flow-gradient)"
-                strokeLinecap="round"
-                strokeDasharray="8 12"
-                className="animate-flow"
-            />
+            {!isError && (
+                <path
+                    d={edgePath}
+                    fill="none"
+                    strokeWidth={3}
+                    stroke="url(#flow-gradient)"
+                    strokeLinecap="round"
+                    strokeDasharray="8 12"
+                    className="animate-flow"
+                />
+            )}
 
             {/* Edge label if provided */}
             {label && (

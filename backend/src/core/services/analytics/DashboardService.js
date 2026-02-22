@@ -11,7 +11,7 @@ class DashboardService {
 
     /**
      * TIER 1: OverviewStats
-     * Aggregates Health, Costs (usage_events), and Core Lead Conversion
+     * Aggregates Health, Costs (ai_usage_logs), and Core Lead Conversion
      */
     async getOverview(companyId) {
         // Parallel fetch for speed
@@ -181,18 +181,18 @@ class DashboardService {
     // --- Private Helpers ---
 
     async getCostSummary(companyId) {
-        // Try to query usage_events if exists
+        // Try to query ai_usage_logs
         try {
             const today = new Date().toISOString().split('T')[0];
             const { data, error } = await this.supabase
-                .from('usage_events')
-                .select('cost_usd, tokens_total')
+                .from('ai_usage_logs')
+                .select('cost, tokens_total')
                 .eq('user_id', companyId)
                 .gte('created_at', today);
 
             if (error) throw error;
 
-            const totalUsd = data.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
+            const totalUsd = data.reduce((sum, e) => sum + (e.cost || 0), 0);
             const totalTokens = data.reduce((sum, e) => sum + (e.tokens_total || 0), 0);
 
             // Mock trend for now
@@ -247,7 +247,7 @@ class DashboardService {
     async getTokenUsage(companyId) {
         try {
             const { data } = await this.supabase
-                .from('usage_events')
+                .from('ai_usage_logs')
                 .select('model, tokens_total')
                 .eq('user_id', companyId);
 

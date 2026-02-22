@@ -15,7 +15,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Settings, MessageSquare, Smartphone, Megaphone, Bot, CreditCard, Webhook, Shield, Calendar, ChevronsUpDown, Kanban as KanbanIcon, Users } from "lucide-react";
+import { LogOut, Settings, MessageSquare, Smartphone, Megaphone, Bot, CreditCard, Webhook, Shield, Calendar, ChevronsUpDown, Kanban as KanbanIcon, Users, BarChart3 } from "lucide-react";
 
 export function AppSidebar() {
     const { user, signOut } = useAuth();
@@ -48,6 +48,19 @@ export function AppSidebar() {
     };
 
     const links = [
+        {
+            label: "Dashboard",
+            href: "/app/dashboard",
+            icon: ({ isActive }: { isActive: boolean }) => (
+                <BarChart3
+                    className={cn(
+                        "h-5 w-5 shrink-0",
+                        isActive ? "text-blue-600 fill-blue-600" : "text-neutral-700 dark:text-neutral-200"
+                    )}
+                    strokeWidth={0.5}
+                />
+            ),
+        },
         {
             label: "Conversas",
             href: "/app/chats",

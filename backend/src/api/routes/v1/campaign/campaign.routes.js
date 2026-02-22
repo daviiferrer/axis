@@ -14,10 +14,10 @@ function createCampaignRouter(campaignController, authMiddleware, riskMiddleware
     // Delete Campaign
     router.delete('/:id', rbac(Resources.CAMPAIGN, Actions.DELETE), (req, res) => campaignController.deleteCampaign(req, res));
 
-    // Flow Builder Endpoints
     router.get('/:id/flow', rbac(Resources.CAMPAIGN, Actions.READ), (req, res) => campaignController.getFlow(req, res));
     router.put('/:id/flow', rbac(Resources.CAMPAIGN, Actions.UPDATE), (req, res) => campaignController.saveFlow(req, res));
     router.post('/:id/publish', rbac(Resources.CAMPAIGN, Actions.UPDATE), riskMiddleware, (req, res) => campaignController.publishFlow(req, res));
+    router.get('/:id/flow-stats', rbac(Resources.CAMPAIGN, Actions.READ), (req, res) => campaignController.getFlowStats(req, res));
 
     // Campaign Settings
     router.get('/:id/settings', rbac(Resources.CAMPAIGN, Actions.READ), (req, res) => campaignController.getSettings(req, res));

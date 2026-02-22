@@ -391,7 +391,7 @@ class GeminiClient {
         if (!this.settingsService?.supabase) return; // Need supabase client access
 
         const { companyId, campaignId, chatId, userId, sessionId, leadId } = context;
-        if (!userId && !companyId) return; // Need an owner
+        if (!userId && !companyId && !campaignId) return; // Need an owner or campaign context
 
         try {
             // UUID Validation regex
@@ -404,29 +404,25 @@ class GeminiClient {
                 metrics.completion_tokens || 0
             );
 
+            // ADAPTED TO ai_usage_logs TABLE
             const logEntry = {
                 user_id: isUUID(userId) ? userId : null,
-                company_id: isUUID(companyId) ? companyId : null,
                 campaign_id: isUUID(campaignId) ? campaignId : null,
-                lead_id: isUUID(leadId) ? leadId : null,
+                chat_id: isUUID(chatId) ? chatId : null,
+                session_id: isUUID(sessionId) ? sessionId : null,
                 model: metrics.model,
-                provider: 'gemini',
                 tokens_input: metrics.prompt_tokens || 0,
                 tokens_output: metrics.completion_tokens || 0,
-                cost_usd: cost,
-                purpose: 'chat_response',
-                metadata: {
-                    session_id: isUUID(sessionId) ? sessionId : null,
-                    chat_id: isUUID(chatId) ? chatId : null,
-                }
+                cost: cost, // In ai_usage_logs it's 'cost', not 'cost_usd'
+                created_at: new Date().toISOString()
             };
 
-            const { error } = await this.settingsService.supabase.from('usage_events').insert(logEntry);
+            const { error } = await this.settingsService.supabase.from('ai_usage_logs').insert(logEntry);
 
             if (error) {
-                logger.error({ error: error.message, model: metrics.model }, 'Supabase AI usage insert failed');
+                logger.error({ error: error.message, model: metrics.model }, 'Supabase AI usage insert failed (ai_usage_logs)');
             } else {
-                logger.debug({ model: metrics.model, cost }, 'AI usage logged successfully');
+                logger.debug({ model: metrics.model, cost }, 'AI usage logged successfully in ai_usage_logs');
             }
         } catch (e) {
             logger.error({ error: e.message }, 'Failed to log AI usage');

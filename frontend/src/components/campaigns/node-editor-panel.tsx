@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Node } from '@xyflow/react';
-import { X, Save, Settings, AlertTriangle, MessageSquare, Clock, Split, GitBranch, ArrowRight, Flag, Brain, Bot, MousePointerClick, Hourglass, CornerUpRight, ExternalLink, Users, CheckCircle2, XCircle, Archive, Megaphone, Globe, Tag, Building2, Scale, Smartphone, Car, Plus } from 'lucide-react';
+import { X, Save, Settings, AlertTriangle, MessageSquare, Clock, Split, GitBranch, ArrowRight, Flag, Brain, Bot, MousePointerClick, Hourglass, CornerUpRight, ExternalLink, Users, CheckCircle2, XCircle, Archive, Megaphone, Globe, Tag, Building2, Scale, MessageSquareText, Smartphone, Car, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -97,7 +97,7 @@ export function NodeEditorPanel({ selectedNode, onClose, onUpdateNode }: NodeEdi
                 {/* Header */}
                 <div className="p-5 border-b border-gray-100/50 bg-white/50 flex items-center justify-between backdrop-blur-md">
                     <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${getNodeColor(type)} bg-opacity-10 text-opacity-100`}>
+                        <div className={`p - 2 rounded - lg ${getNodeColor(type)} bg - opacity - 10 text - opacity - 100`}>
                             {getNodeIcon(type)}
                         </div>
                         <div className="flex flex-col">
@@ -166,7 +166,7 @@ export function NodeEditorPanel({ selectedNode, onClose, onUpdateNode }: NodeEdi
                                             <ToggleGroupItem
                                                 key={source}
                                                 value={source}
-                                                aria-label={`Toggle ${source}`}
+                                                aria-label={`Toggle ${source} `}
                                                 className="h-8 px-3 text-xs capitalize data-[state=on]:bg-blue-100 data-[state=on]:text-blue-700 data-[state=on]:border-blue-200"
                                             >
                                                 {source}
@@ -512,10 +512,10 @@ export function NodeEditorPanel({ selectedNode, onClose, onUpdateNode }: NodeEdi
                                                 <button
                                                     key={status.value}
                                                     onClick={() => handleChange('finalStatus', status.value)}
-                                                    className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all ${isSelected
+                                                    className={`flex items - center gap - 2 p - 3 rounded - xl border - 2 transition - all ${isSelected
                                                         ? `${status.color} ring-2 ring-offset-2 ring-gray-300`
                                                         : 'bg-white border-gray-200 hover:border-gray-300'
-                                                        }`}
+                                                        } `}
                                                 >
                                                     <Icon className="w-4 h-4" />
                                                     <span className="text-sm font-medium">{status.label}</span>
@@ -580,88 +580,125 @@ export function NodeEditorPanel({ selectedNode, onClose, onUpdateNode }: NodeEdi
 
                                 {/* Qualification Specific: Critical Slots */}
                                 {(type === 'qualification' || type === 'agent' || type === 'agentic') && (
-                                    <div className="p-4 rounded-xl bg-green-50/50 border border-green-100 space-y-3">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <Flag className="w-4 h-4 text-green-600" />
-                                            <Label className="text-sm font-semibold text-green-900">Slots de Qualificação</Label>
-                                        </div>
-                                        <p className="text-[11px] text-gray-500 leading-tight">
-                                            Dados que o agente deve coletar do lead. Adicione presets ou crie slots personalizados.
-                                        </p>
-
-                                        {/* Selected Slots as Chips */}
-                                        {(formData.criticalSlots?.length > 0) && (
-                                            <div className="flex flex-wrap gap-1.5 pt-1">
-                                                {(formData.criticalSlots || []).map((slot: string) => (
-                                                    <Badge key={slot} variant="secondary" className="bg-green-100 text-green-700 border border-green-200 px-2 py-0.5 text-[11px] font-medium gap-1 hover:bg-green-200 transition-colors">
-                                                        {slot}
-                                                        <button onClick={() => handleChange('criticalSlots', (formData.criticalSlots || []).filter((s: string) => s !== slot))} className="ml-0.5 hover:text-red-600 transition-colors">
-                                                            <X className="w-3 h-3" />
-                                                        </button>
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        {/* Preset Quick-Add Buttons */}
-                                        <div className="space-y-1.5 pt-2">
-                                            <Label className="text-[10px] text-gray-400 uppercase tracking-wider">Presets Rápidos</Label>
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {['nome', 'telefone', 'email', 'empresa', 'cargo', 'budget', 'authority', 'need', 'timeline'].map(preset => {
-                                                    const isSelected = (formData.criticalSlots || []).includes(preset);
-                                                    return (
-                                                        <button
-                                                            key={preset}
-                                                            disabled={isSelected}
-                                                            onClick={() => {
-                                                                if (!isSelected) {
-                                                                    handleChange('criticalSlots', [...(formData.criticalSlots || []), preset]);
-                                                                }
-                                                            }}
-                                                            className={`h-7 px-2.5 text-[11px] capitalize rounded-lg border transition-all ${isSelected
-                                                                ? 'bg-green-50 text-green-400 border-green-100 cursor-not-allowed opacity-50'
-                                                                : 'bg-white text-gray-600 border-gray-200 hover:border-green-400 hover:text-green-700 hover:bg-green-50'
-                                                                }`}
-                                                        >
-                                                            {isSelected ? '✓ ' : '+ '}{preset}
-                                                        </button>
-                                                    );
-                                                })}
+                                    <div className="p-4 rounded-xl bg-green-50/50 border border-green-100 space-y-4">
+                                        <div className="flex items-start justify-between">
+                                            <div>
+                                                <Label className="text-sm font-bold text-green-950">Dados a Coletar (Slots)</Label>
+                                                <p className="text-[11px] text-green-700 mt-1 max-w-[90%] leading-snug">
+                                                    Formatos restritos (números, listas) para exatidão na IA e suporte em **Nós Condicionais**.
+                                                </p>
                                             </div>
                                         </div>
 
-                                        {/* Custom Slot Input */}
-                                        <div className="flex gap-2 pt-2">
-                                            <Input
-                                                placeholder="Slot personalizado..."
-                                                className="h-8 text-xs rounded-lg bg-white/80 flex-1"
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        const val = (e.target as HTMLInputElement).value.trim().toLowerCase().replace(/\s+/g, '_');
-                                                        if (val && !(formData.criticalSlots || []).includes(val)) {
-                                                            handleChange('criticalSlots', [...(formData.criticalSlots || []), val]);
-                                                            (e.target as HTMLInputElement).value = '';
-                                                        }
-                                                    }
-                                                }}
-                                            />
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-8 px-2 rounded-lg border-green-200 text-green-600 hover:bg-green-50"
-                                                onClick={(e) => {
-                                                    const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
-                                                    const val = input?.value?.trim().toLowerCase().replace(/\s+/g, '_');
-                                                    if (val && !(formData.criticalSlots || []).includes(val)) {
-                                                        handleChange('criticalSlots', [...(formData.criticalSlots || []), val]);
-                                                        input.value = '';
-                                                    }
-                                                }}
-                                            >
-                                                <Plus className="w-4 h-4" />
-                                            </Button>
-                                        </div>
-                                        <p className="text-[10px] text-gray-400">Pressione Enter ou clique + para adicionar</p>
+                                        {/* Helper to parse existing slots */}
+                                        {(() => {
+                                            const currentSlots = Array.isArray(formData.criticalSlots)
+                                                ? formData.criticalSlots.map((s: any) => typeof s === 'string' ? { name: s, type: 'string' } : s)
+                                                : [];
+
+                                            // The state for new slot inputs is complex to hold purely inline, so we will use simple prompts/inputs via a tiny component logic or a controlled approach.
+                                            // Since we can't easily add full hooks here, we will render a simplified "Add Slot" UI that dispatches to handleChange.
+                                            return (
+                                                <div className="space-y-3">
+                                                    {/* Existing Slots */}
+                                                    {(currentSlots.length > 0) && (
+                                                        <div className="space-y-1.5">
+                                                            <Label className="text-[10px] uppercase font-bold text-green-800 tracking-wider">Ativos neste nó</Label>
+                                                            {currentSlots.map((slot: any) => (
+                                                                <div key={slot.name} className="flex flex-col bg-white border border-green-200 rounded-lg p-2 shadow-sm group">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="font-mono text-xs font-semibold text-green-950 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
+                                                                                {slot.name}
+                                                                            </span>
+                                                                            <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-normal bg-gray-50 text-gray-600 border-gray-200">
+                                                                                {slot.type === 'enum' ? 'Lista' : slot.type === 'number' ? 'Número' : slot.type === 'boolean' ? 'Sim/Não' : 'Texto'}
+                                                                            </Badge>
+                                                                        </div>
+                                                                        <button onClick={() => handleChange('criticalSlots', currentSlots.filter((s: any) => s.name !== slot.name))} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5">
+                                                                            <X className="w-3 h-3" />
+                                                                        </button>
+                                                                    </div>
+                                                                    {slot.type === 'enum' && slot.options && (
+                                                                        <div className="mt-1.5 flex flex-wrap gap-1">
+                                                                            {slot.options.map((opt: string) => (
+                                                                                <span key={opt} className="text-[9px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">
+                                                                                    {opt}
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Add New Slot (Simplified for panel) */}
+                                                    <div className="bg-white border border-green-100/80 shadow-sm rounded-xl p-3 space-y-2 relative">
+                                                        <Label className="text-[10px] font-bold text-green-800">Adicionar Rápido (Texto Livre)</Label>
+                                                        <div className="flex gap-2">
+                                                            <Input
+                                                                placeholder="ex: modelo_carro"
+                                                                className="h-8 text-xs rounded-lg bg-gray-50/50 flex-1 border-gray-200"
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        const val = (e.target as HTMLInputElement).value.trim().toLowerCase().replace(/\s+/g, '_');
+                                                                        if (val && !currentSlots.some((s: any) => s.name === val)) {
+                                                                            handleChange('criticalSlots', [...currentSlots, { name: val, type: 'string' }]);
+                                                                            (e.target as HTMLInputElement).value = '';
+                                                                        }
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="h-8 px-2 rounded-lg border-green-200 text-green-600 hover:bg-green-50"
+                                                                onClick={(e) => {
+                                                                    const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
+                                                                    const val = input?.value?.trim().toLowerCase().replace(/\s+/g, '_');
+                                                                    if (val && !currentSlots.some((s: any) => s.name === val)) {
+                                                                        handleChange('criticalSlots', [...currentSlots, { name: val, type: 'string' }]);
+                                                                        input.value = '';
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <Plus className="w-4 h-4" />
+                                                            </Button>
+                                                        </div>
+                                                        <p className="text-[9px] text-gray-400 leading-tight">Para Tipos Avançados (Listas, Números), edite no <b>Configurar Bot</b>.</p>
+                                                    </div>
+
+                                                    {/* Suggestion Presets */}
+                                                    {currentSlots.length === 0 && (
+                                                        <div className="space-y-1.5 pt-2">
+                                                            <div className="flex flex-wrap gap-1.5">
+                                                                {['nome', 'telefone', 'email'].map(preset => {
+                                                                    const isSelected = currentSlots.some((s: any) => s.name === preset);
+                                                                    return (
+                                                                        <button
+                                                                            key={preset}
+                                                                            disabled={isSelected}
+                                                                            onClick={() => {
+                                                                                if (!isSelected) {
+                                                                                    handleChange('criticalSlots', [...currentSlots, { name: preset, type: 'string' }]);
+                                                                                }
+                                                                            }}
+                                                                            className={`h-7 px-2 text-[10px] uppercase font-bold rounded-lg border transition-all ${isSelected
+                                                                                ? 'bg-green-50 text-green-400 border-green-100 cursor-not-allowed opacity-50'
+                                                                                : 'bg-white text-gray-600 border-gray-200 hover:border-green-400 hover:text-green-700 hover:bg-green-50'
+                                                                                }`}
+                                                                        >
+                                                                            {isSelected ? '✓ ' : '+ '}{preset}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 )}
 
@@ -762,7 +799,7 @@ export function NodeEditorPanel({ selectedNode, onClose, onUpdateNode }: NodeEdi
                                                     <ToggleGroupItem
                                                         key={cta.value}
                                                         value={cta.value}
-                                                        aria-label={`Toggle ${cta.label}`}
+                                                        aria-label={`Toggle ${cta.label} `}
                                                         className="h-8 px-3 text-xs data-[state=on]:bg-blue-100 data-[state=on]:text-blue-700 data-[state=on]:border-blue-200 hover:bg-white hover:text-blue-600"
                                                     >
                                                         {cta.label}
@@ -1054,6 +1091,7 @@ function getNodeIcon(type: string | undefined) {
         case 'trigger': return <ArrowRight className="w-4 h-4 text-amber-600" />;
         case 'action': return <MousePointerClick className="w-4 h-4 text-blue-600" />;
         case 'broadcast': return <Megaphone className="w-4 h-4 text-orange-600" />;
+        case 'chatbot': return <MessageSquareText className="w-4 h-4 text-rose-600" />;
         case 'delay': return <Hourglass className="w-4 h-4 text-amber-600" />;
         case 'split': return <Split className="w-4 h-4 text-pink-600" />;
         case 'logic': return <GitBranch className="w-4 h-4 text-slate-600" />;
@@ -1071,6 +1109,7 @@ function getNodeColor(type: string | undefined) {
         case 'trigger': return 'text-amber-600 bg-amber-600';
         case 'action': return 'text-blue-600 bg-blue-600';
         case 'broadcast': return 'text-orange-600 bg-orange-600';
+        case 'chatbot': return 'text-rose-600 bg-rose-600';
         case 'delay': return 'text-amber-600 bg-amber-600';
         case 'split': return 'text-pink-600 bg-pink-600';
         case 'logic': return 'text-slate-600 bg-slate-600';

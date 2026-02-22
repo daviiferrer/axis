@@ -163,24 +163,35 @@ class LeadService {
         const client = scopedClient || this.supabase;
 
         // 1. Active Leads Stats (Leads currently in a node, no error)
+        // Joined with 'chats' to get profile_pic_url
         const { data: activeData, error: activeError } = await client
             .from('leads')
-            .select('id, name, phone, profile_picture_url, current_node_id')
+            .select(`
+                id, name, phone, current_node_id,
+                chats (profile_pic_url)
+            `)
             .eq('campaign_id', campaignId)
             .in('status', ['new', 'contacted', 'negotiating', 'pending', 'prospecting'])
-            .not('current_node_id', 'is', null)
-            // Filter out errors (node_state->error is NOT true)
-            .or('node_state.is.null,node_state->>error.neq.true');
+            .not('current_node_id', 'is', null);
 
         if (activeError) {
             logger.error({ err: activeError }, 'getFlowStats (Active) Error');
             return { active: {}, error: {} };
         }
 
+        // Filter out errors in JS to completely avoid PostgREST JSON null quirks
+        const validActiveData = (activeData || []).filter(lead => {
+            if (!lead.node_state) return true;
+            return lead.node_state.error !== true && lead.node_state.error !== 'true';
+        });
+
         // 2. Error Leads Stats (Leads stuck in error state)
         const { data: errorData, error: errStats } = await client
             .from('leads')
-            .select('id, name, phone, profile_picture_url, current_node_id')
+            .select(`
+                id, name, phone, current_node_id,
+                chats (profile_pic_url)
+            `)
             .eq('campaign_id', campaignId)
             // We care about errors regardless of status, but typically they are active
             .not('current_node_id', 'is', null)
@@ -200,13 +211,16 @@ class LeadService {
                     }
                     stats[lead.current_node_id].count += 1;
 
-                    // Keep max 5 profiles to avoid frontend overload
-                    if (stats[lead.current_node_id].leads.length < 5) {
+                    // Keep max 10 profiles for canvas/sidebar preview
+                    if (stats[lead.current_node_id].leads.length < 10) {
+                        // Extract profile pic from joined chats table
+                        const profile_picture_url = lead.chats?.[0]?.profile_pic_url || null;
+
                         stats[lead.current_node_id].leads.push({
                             id: lead.id,
                             name: lead.name,
                             phone: lead.phone,
-                            profile_picture_url: lead.profile_picture_url
+                            profile_picture_url
                         });
                     }
                 }
@@ -215,7 +229,7 @@ class LeadService {
         };
 
         return {
-            active: aggregate(activeData),
+            active: aggregate(validActiveData),
             error: aggregate(errorData)
         };
     }

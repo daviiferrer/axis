@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     MessageSquare,
+    MessageSquareText,
     Bot,
     Zap,
     Clock,
@@ -51,6 +52,7 @@ export function NodePickerOverlay({ isOpen, onClose, onAddNode, position }: Node
             title: "Comunicação",
             items: [
                 { type: 'action', label: 'Enviar Mensagem', icon: MessageSquare, color: 'text-blue-500', bg: 'bg-blue-500/10', desc: 'WhatsApp, E-mail' },
+                { type: 'chatbot', label: 'Chatbot Determinístico', icon: MessageSquareText, color: 'text-rose-500', bg: 'bg-rose-500/10', desc: 'Respostas exatas e menus' },
                 { type: 'broadcast', label: 'Disparo em Massa', icon: Megaphone, color: 'text-indigo-500', bg: 'bg-indigo-500/10', desc: 'Campanhas Ativas' },
                 { type: 'followup', label: 'Follow-Up', icon: RefreshCw, color: 'text-teal-500', bg: 'bg-teal-500/10', desc: 'Reengajamento automático' },
                 { type: 'handoff', label: 'Transbordo Humano', icon: Users, color: 'text-rose-500', bg: 'bg-rose-500/10', desc: 'Atendimento Manual' }

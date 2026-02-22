@@ -43,6 +43,10 @@ export interface Campaign {
         ai_cost?: number;
         roi?: number;
     };
+    metrics?: {
+        total_leads?: number;
+        converted_leads?: number;
+    };
     settings?: CampaignSettings;
 }
 
@@ -111,6 +115,11 @@ export const campaignService = {
     publishFlow: async (id: string) => {
         const response = await api.post(`/${id}/publish`);
         return response.data.flow;
+    },
+
+    getFlowStats: async (id: string) => {
+        const response = await api.get(`/${id}/flow-stats`);
+        return response.data;
     },
 
     // Settings

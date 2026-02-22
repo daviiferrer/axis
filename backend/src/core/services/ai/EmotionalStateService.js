@@ -39,20 +39,47 @@ class EmotionalStateService {
         }
     }
 
-    async updatePadVector(leadId, agentId, sentimentScore, confidence) {
+    async updatePadVector(leadId, agentId, sentimentScore, confidence, messageMeta = {}) {
         try {
             const current = await this.getPadVector(leadId, agentId) || { ...DEFAULT_PAD };
 
+            // --- PLEASURE: Derived from sentiment score (how happy the lead is) ---
             const targetPleasure = sentimentScore;
             const newPleasure = (current.pleasure * this.DECAY_FACTOR) + (targetPleasure * (1 - this.DECAY_FACTOR));
+
+            // --- AROUSAL: Derived from response speed & message length ---
+            // Short, fast replies = HIGH arousal (excited or frustrated)
+            // Long, slow replies = LOW arousal (thoughtful or disengaged)
+            const replySpeedMs = messageMeta.replySpeedMs || null;
+            let targetArousal = current.arousal;
+            if (replySpeedMs !== null) {
+                // Under 10s = high arousal (0.8), over 5min = low arousal (0.2)
+                const speedFactor = Math.max(0.1, Math.min(0.9, 1 - (replySpeedMs / (5 * 60 * 1000))));
+                targetArousal = speedFactor;
+            }
+            const msgLength = messageMeta.messageLength || 0;
+            if (msgLength > 0 && msgLength < 20) {
+                targetArousal = Math.min(1, targetArousal + 0.1); // Very short = more aroused
+            }
+            const newArousal = (current.arousal * this.DECAY_FACTOR) + (targetArousal * (1 - this.DECAY_FACTOR));
+
+            // --- DOMINANCE: Derived from lead's assertiveness ---
+            // Low confidence in AI response = lead is dominating the conversation
+            // High confidence = AI is in control (low dominance from lead)
+            let targetDominance = current.dominance;
+            if (confidence !== undefined && confidence !== null) {
+                // Invert: high AI confidence = low lead dominance, low AI confidence = high lead dominance
+                targetDominance = 1 - confidence;
+            }
+            const newDominance = (current.dominance * this.DECAY_FACTOR) + (targetDominance * (1 - this.DECAY_FACTOR));
 
             await this.supabase
                 .from('leads')
                 .update({
                     emotional_state: {
                         pleasure: this.#clamp(newPleasure),
-                        arousal: current.arousal,
-                        dominance: current.dominance
+                        arousal: this.#clamp(newArousal),
+                        dominance: this.#clamp(newDominance)
                     },
                     updated_at: new Date().toISOString()
                 })

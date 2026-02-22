@@ -11,11 +11,15 @@ const spaceGrotesk = Space_Grotesk({
     subsets: ["latin"],
     variable: "--font-space-grotesk",
     weight: ["500", "700"],
+    preload: false,
+    display: 'swap',
 });
 const dmSans = DM_Sans({
     subsets: ["latin"],
     variable: "--font-dm-sans",
     weight: ["300", "400", "500", "700"],
+    preload: false,
+    display: 'swap',
 });
 
 export const metadata: Metadata = {

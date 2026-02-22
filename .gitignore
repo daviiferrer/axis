@@ -34,6 +34,10 @@ Thumbs.db
 .parcel-cache/
 .next/
 out/
+frontend/build.log
+frontend/ts_error.log
+frontend/tsc_output.txt
+
 
 # Production secrets
 .env.production

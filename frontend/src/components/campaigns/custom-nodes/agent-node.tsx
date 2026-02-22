@@ -38,52 +38,25 @@ const ROLE_MAP: Record<string, { label: string; color: string }> = {
 // ============================================================================
 // CONFIG VALIDATION: Checks node config for errors to display on canvas
 // ============================================================================
-function useNodeErrors(data: AgentNodeData): string[] {
-    return useMemo(() => {
-        const errors: string[] = [];
-        if (!data.agentId && !data.agentName) {
-            errors.push('Nenhum agente selecionado');
-        }
-        if (data.configErrors && data.configErrors.length > 0) {
-            errors.push(...data.configErrors);
-        }
-        return errors;
-    }, [data.agentId, data.agentName, data.configErrors]);
-}
-
-// ============================================================================
 // AGENT NODE: Compact version — badges only, details in sidebar Sheet
 // ============================================================================
 
 export const AgentNode = memo(({ data: rawData, isConnectable, selected }: NodeProps) => {
     const data = rawData as AgentNodeData;
-    const errors = useNodeErrors(data);
-    const hasErrors = errors.length > 0;
 
     // Derived visuals
     const roleInfo = ROLE_MAP[data.role?.toUpperCase() || ''] || null;
     const slotCount = data.criticalSlots?.length || 0;
     const hasVoice = !!data.voice_enabled;
 
-    // Override presets to red when there are config errors
-    const nodePreset = hasErrors
-        ? {
-            gradientFrom: 'from-red-50',
-            gradientTo: 'to-red-100/60',
-            iconColor: 'text-red-600',
-            accentColor: '!bg-red-500',
-        }
-        : NODE_PRESETS.agent;
-
     return (
         <BaseNode
-            {...nodePreset}
-            icon={hasErrors ? CircleAlert : Bot}
+            {...NODE_PRESETS.agent}
+            icon={Bot}
             title={data.label || data.agentName || 'Agente IA'}
-            subtitle={hasErrors ? 'Erro' : 'Agente IA'}
+            subtitle={roleInfo ? roleInfo.label : 'Agente IA'}
             showInputHandle={true}
             showOutputHandle={true}
-            hasError={hasErrors}
             selected={selected}
             isConnectable={isConnectable}
             data={data}
@@ -123,11 +96,7 @@ export const AgentNode = memo(({ data: rawData, isConnectable, selected }: NodeP
 
             {/* ── Status line ── */}
             <div className="mt-1.5">
-                {hasErrors ? (
-                    <p className="text-[10px] text-red-600 font-medium truncate">
-                        ⚠ {errors[0]}
-                    </p>
-                ) : data.agentName ? (
+                {data.agentName ? (
                     <div className="flex items-center gap-1.5">
                         <span className="flex h-1.5 w-1.5 rounded-full bg-green-500 shrink-0" />
                         <p className="text-[10px] text-gray-500 truncate">

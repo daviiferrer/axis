@@ -408,6 +408,56 @@ class StateCheckpointService {
 
         return count;
     }
+
+    /**
+     * Recycle instances stuck waiting for user reply for too long.
+     * Marks them as RECYCLED so they can re-enter the flow if they return.
+     * 
+     * @param {number} hoursStale - Threshold to declare instance stale
+     */
+    async recycleStaleInstances(hoursStale = 48) {
+        const cutoffDate = new Date();
+        cutoffDate.setHours(cutoffDate.getHours() - hoursStale);
+
+        // Find stuck instances
+        const { data: staleInstances, error: selectError } = await this.supabase
+            .from('workflow_instances')
+            .select('*')
+            .eq('waiting_for', 'USER_REPLY')
+            .eq('execution_state', 'AWAITING_ASYNC')
+            .is('completed_at', null)
+            .lt('updated_at', cutoffDate.toISOString());
+
+        if (selectError) {
+            logger.error({ err: selectError.message }, 'Failed to query stale instances');
+            return 0;
+        }
+
+        if (!staleInstances || staleInstances.length === 0) {
+            return 0;
+        }
+
+        const instanceIds = staleInstances.map(i => i.id);
+
+        // Mark as recycled (which is functionally completed)
+        const { error: updateError } = await this.supabase
+            .from('workflow_instances')
+            .update({
+                execution_state: 'RECYCLED',
+                completed_at: new Date().toISOString(),
+                waiting_for: null,
+                last_error: 'Recycled due to inactivity'
+            })
+            .in('id', instanceIds);
+
+        if (updateError) {
+            logger.error({ err: updateError.message }, 'Failed to recycle stale instances');
+            return 0;
+        }
+
+        logger.info({ recycledCount: instanceIds.length, hoursStale }, '♻️ Recycled stale workflow instances');
+        return instanceIds.length;
+    }
 }
 
 module.exports = StateCheckpointService;

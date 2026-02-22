@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     Accordion,
     AccordionContent,
@@ -258,7 +258,7 @@ export function AgentWizard({ formData, onChange, agents, onAgentsChange }: Agen
                         <div className="space-y-6 animate-in fade-in slide-in-from-left-2">
                             <div className="space-y-2">
                                 <Label className="text-xs text-gray-500 pl-1">Agente Ativo</Label>
-                                <Select value={formData.agentId || ''} onValueChange={handleSelectAgent}>
+                                <Select value={formData.agentId || undefined} onValueChange={handleSelectAgent}>
                                     <SelectTrigger className="h-14 rounded-xl bg-white border-gray-200">
                                         <div className="flex items-center gap-3">
                                             <div className="p-1.5 bg-indigo-50 rounded-lg">
@@ -271,12 +271,21 @@ export function AgentWizard({ formData, onChange, agents, onAgentsChange }: Agen
                                         </div>
                                     </SelectTrigger>
                                     <SelectContent className="max-h-64">
-                                        {agents.map(a => (
-                                            <SelectItem key={a.id} value={a.id}>
-                                                <span className="font-medium">{a.name}</span>
-                                                <span className="block text-[10px] text-gray-400">{a.model} • {a.dna_config?.identity?.role || 'sdr'}</span>
-                                            </SelectItem>
-                                        ))}
+                                        {agents.length === 0 ? (
+                                            <div className="p-4 text-center">
+                                                <p className="text-xs text-gray-500 mb-2">Nenhum agente encontrado</p>
+                                                <Button size="sm" variant="outline" onClick={handleCreateNew} className="h-7 text-[10px] rounded-lg">
+                                                    Criar Primeiro Agente
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            agents.map(a => (
+                                                <SelectItem key={a.id} value={a.id}>
+                                                    <span className="font-medium">{a.name}</span>
+                                                    <span className="block text-[10px] text-gray-400">{a.model} • {a.dna_config?.identity?.role || 'sdr'}</span>
+                                                </SelectItem>
+                                            ))
+                                        )}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -678,19 +687,60 @@ function AgentMissionSettings({ formData, onChange }: { formData: any; onChange:
 
     // Slot Logic
     const [slotInput, setSlotInput] = useState('');
-    const currentSlots = Array.isArray(formData.criticalSlots) ? formData.criticalSlots : [];
+    const [slotType, setSlotType] = useState('string');
+    const [slotOptions, setSlotOptions] = useState('');
+
+    // Helper to normalize legacy string array into typed object array [{name, type, options}]
+    const currentSlots = useMemo(() => {
+        if (!Array.isArray(formData.criticalSlots)) return [];
+        return formData.criticalSlots.map((s: any) => {
+            if (typeof s === 'string') return { name: s, type: 'string' };
+            return s;
+        });
+    }, [formData.criticalSlots]);
 
     const addSlot = () => {
         if (!slotInput.trim()) return;
-        const newSlot = slotInput.trim().toLowerCase().replace(/\s+/g, '_');
-        if (!currentSlots.includes(newSlot)) {
-            onChange('criticalSlots', [...currentSlots, newSlot]);
+        const normalizedName = slotInput.trim().toLowerCase().replace(/\s+/g, '_');
+
+        // Validation for enum type
+        if (slotType === 'enum') {
+            const opts = slotOptions.split(',').map(o => o.trim()).filter(Boolean);
+            if (opts.length === 0) {
+                // Prevent saving enum without options (fool-proof)
+                alert("Por favor, informe as opções permitidas separadas por vírgula para o tipo Lista.");
+                return;
+            }
         }
+
+        // Check if slot name already exists
+        if (currentSlots.some((s: any) => s.name === normalizedName)) {
+            alert("Um slot com este nome já existe.");
+            return;
+        }
+
+        const newSlot: any = { name: normalizedName, type: slotType };
+        if (slotType === 'enum') {
+            newSlot.options = slotOptions.split(',').map(o => o.trim()).filter(Boolean);
+        }
+
+        onChange('criticalSlots', [...currentSlots, newSlot]);
+
+        // Reset form
         setSlotInput('');
+        setSlotType('string');
+        setSlotOptions('');
     };
 
-    const removeSlot = (slotToRemove: string) => {
-        onChange('criticalSlots', currentSlots.filter((s: string) => s !== slotToRemove));
+    const removeSlot = (slotNameToRemove: string) => {
+        onChange('criticalSlots', currentSlots.filter((s: any) => s.name !== slotNameToRemove));
+    };
+
+    const typeLabels: Record<string, string> = {
+        'string': 'Texto Livre',
+        'number': 'Número',
+        'boolean': 'Sim/Não',
+        'enum': 'Lista Fechada'
     };
 
     return (
@@ -721,49 +771,123 @@ function AgentMissionSettings({ formData, onChange }: { formData: any; onChange:
                 </div>
             </div>
 
-            {/* CRITICAL SLOTS (Restored) */}
-            <div className={cn("p-3 rounded-xl border space-y-3", "bg-emerald-50/50 border-emerald-100")}>
-                <div className="flex items-center justify-between">
+            {/* CRITICAL SLOTS (Typed) */}
+            <div className={cn("p-4 rounded-xl border space-y-4", "bg-emerald-50/50 border-emerald-200")}>
+                <div className="flex items-start justify-between">
                     <div>
-                        <Label className="text-xs font-semibold text-emerald-900">Slots Obrigatórios</Label>
-                        <p className="text-[10px] text-emerald-600 mt-0.5">
-                            Dados que a IA deve capturar.
+                        <Label className="text-sm font-bold text-emerald-950">Dados a Coletar (Slots)</Label>
+                        <p className="text-[11px] text-emerald-700 mt-1 max-w-[90%] leading-snug">
+                            Defina formatos restritos (números, listas) para garantir que a IA extraia com exatidão e **não quebre seus blocos de Lógica (If/Else)**.
                         </p>
                     </div>
                 </div>
 
-                <div className="bg-white/80 border border-emerald-100 rounded-xl p-2">
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                        {currentSlots.map((slot: string) => (
-                            <span key={slot} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-medium">
-                                {slot}
-                                <button onClick={() => removeSlot(slot)} className="hover:text-emerald-900"><X size={10} /></button>
-                            </span>
-                        ))}
+                {/* Form to add new slot */}
+                <div className="bg-white border border-emerald-100/80 shadow-sm rounded-xl p-3 space-y-3">
+                    <div className="grid grid-cols-[2fr_1fr] gap-2">
+                        <div className="space-y-1">
+                            <Label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Nome do Dado</Label>
+                            <Input
+                                placeholder="ex: modelo_carro"
+                                value={slotInput}
+                                onChange={(e) => setSlotInput(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_'))}
+                                className="h-8 text-xs bg-gray-50/50 border-gray-200"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Tipo (Formato)</Label>
+                            <Select value={slotType} onValueChange={setSlotType}>
+                                <SelectTrigger className="h-8 text-xs bg-gray-50/50 border-gray-200 shadow-none">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="string" className="text-xs">
+                                        <div className="flex flex-col"><span className="font-semibold text-gray-900">Texto</span><span className="text-[9px] text-gray-500">Qualquer frase</span></div>
+                                    </SelectItem>
+                                    <SelectItem value="number" className="text-xs">
+                                        <div className="flex flex-col"><span className="font-semibold text-gray-900">Número</span><span className="text-[9px] text-gray-500">Força matemática (ex: 500)</span></div>
+                                    </SelectItem>
+                                    <SelectItem value="boolean" className="text-xs">
+                                        <div className="flex flex-col"><span className="font-semibold text-gray-900">Sim/Não</span><span className="text-[9px] text-gray-500">Respostas booleanas</span></div>
+                                    </SelectItem>
+                                    <SelectItem value="enum" className="text-xs">
+                                        <div className="flex flex-col"><span className="font-semibold text-emerald-700">Lista (Recomendado)</span><span className="text-[9px] text-gray-500">Restringe a opções fixas</span></div>
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <Input
-                            placeholder="Ex: email, telefone..."
-                            value={slotInput}
-                            onChange={(e) => setSlotInput(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSlot(); } }}
-                            className="h-7 border-0 bg-transparent p-0 text-xs focus-visible:ring-0 placeholder:text-gray-400"
-                        />
-                        <button onClick={addSlot} disabled={!slotInput.trim()} className="text-emerald-600 hover:text-emerald-700">
-                            <Plus size={14} />
-                        </button>
-                    </div>
+
+                    {slotType === 'enum' && (
+                        <div className="space-y-1 animate-in slide-in-from-top-1 fade-in">
+                            <Label className="text-[10px] uppercase font-bold text-indigo-500 tracking-wider flex items-center gap-1">
+                                <AlertCircle size={10} /> Opções Permitidas (Separe por vírgula)
+                            </Label>
+                            <Input
+                                placeholder="ex: suv, hatch, sedan"
+                                value={slotOptions}
+                                onChange={(e) => setSlotOptions(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSlot(); } }}
+                                className="h-8 text-xs bg-indigo-50/30 border-indigo-200 focus-visible:ring-indigo-500/20"
+                            />
+                        </div>
+                    )}
+
+                    <Button
+                        onClick={addSlot}
+                        disabled={!slotInput.trim() || (slotType === 'enum' && !slotOptions.trim())}
+                        className="w-full h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm mt-1"
+                    >
+                        <Plus size={14} className="mr-1" /> Adicionar Filtro Rigoroso
+                    </Button>
                 </div>
 
+                {/* List of existing slots */}
+                {currentSlots.length > 0 && (
+                    <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider ml-1">Ativos neste nó</Label>
+                        <div className="space-y-1.5">
+                            {currentSlots.map((slot: any) => (
+                                <div key={slot.name} className="flex flex-col bg-white border border-emerald-100 rounded-lg p-2 shadow-sm group">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-mono text-xs font-semibold text-emerald-950 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                                                {slot.name}
+                                            </span>
+                                            <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-normal bg-gray-50text-gray-600 border-gray-200">
+                                                {typeLabels[slot.type] || 'Texto'}
+                                            </Badge>
+                                        </div>
+                                        <button onClick={() => removeSlot(slot.name)} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5">
+                                            <Trash2 size={12} />
+                                        </button>
+                                    </div>
+                                    {slot.type === 'enum' && slot.options && (
+                                        <div className="mt-1.5 flex flex-wrap gap-1">
+                                            {slot.options.map((opt: string) => (
+                                                <span key={opt} className="text-[9px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">
+                                                    {opt}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Suggestions */}
-                <div className="flex flex-wrap gap-1">
-                    {['email', 'telefone', 'nome', 'cpf'].map(s => (
-                        <button key={s} onClick={() => { if (!currentSlots.includes(s)) onChange('criticalSlots', [...currentSlots, s]) }}
-                            className="text-[9px] px-2 py-0.5 bg-white border border-emerald-100 rounded text-emerald-600 hover:bg-emerald-50">
-                            + {s}
-                        </button>
-                    ))}
-                </div>
+                {currentSlots.length === 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                        {['email', 'telefone', 'nome'].map(s => (
+                            <button key={s} onClick={() => { onChange('criticalSlots', [...currentSlots, { name: s, type: 'string' }]) }}
+                                className="text-[10px] px-2 py-1 bg-white border border-emerald-100 rounded-md text-emerald-700 shadow-sm hover:bg-emerald-50 transition-colors font-medium">
+                                + Add {s}
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Allowed CTAs */}

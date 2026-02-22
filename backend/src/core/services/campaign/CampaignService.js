@@ -2,6 +2,8 @@
  * CampaignService - Core Service for Campaign Management
  */
 const logger = require('../../../shared/Logger').createModuleLogger('campaign-service');
+const LeadService = require('./LeadService');
+
 class CampaignService {
     constructor({ supabaseClient }) {
         this.supabase = supabaseClient;
@@ -258,10 +260,10 @@ class CampaignService {
      */
     async getCampaignStats(campaignId) {
         try {
-            // 1. Leads Stats (Count + Revenue)
+            // Leads Stats (Count + Revenue using 'deal_value' column)
             const { data: leads, error: leadsError } = await this.supabase
                 .from('leads')
-                .select('status, revenue')
+                .select('status, deal_value')
                 .eq('campaign_id', campaignId);
 
             if (leadsError) {
@@ -273,8 +275,8 @@ class CampaignService {
             const active = leads.filter(l => l.status === 'new' || l.status === 'contacted' || l.status === 'negotiating').length;
             const converted = leads.filter(l => l.status === 'converted').length;
 
-            // Sum Revenue (defaults to 0 if null)
-            const revenue = leads.reduce((sum, lead) => sum + (Number(lead.revenue) || 0), 0);
+            // Sum Revenue (using deal_value column)
+            const revenue = leads.reduce((sum, lead) => sum + (Number(lead.deal_value) || 0), 0);
 
             // 2. AI Cost Stats
             const { data: usageLogs, error: usageError } = await this.supabase
@@ -310,7 +312,8 @@ class CampaignService {
         }
     }
     async getFlowStats(campaignId, scopedClient) {
-        return this.leadService.getFlowStats(campaignId, scopedClient);
+        const leadService = new LeadService({ supabaseClient: this.supabase });
+        return leadService.getFlowStats(campaignId, scopedClient);
     }
 }
 

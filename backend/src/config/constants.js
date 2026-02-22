@@ -31,7 +31,7 @@ module.exports = {
     MAX_WORKFLOW_STEPS: 5,
 
     /** Maximum messages to load from chat history */
-    MAX_HISTORY_MESSAGES: 50,
+    MAX_HISTORY_MESSAGES: 15,
 
     /** Maximum retries for failed operations */
     MAX_RETRIES: 3,

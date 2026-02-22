@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import {
     MessageSquare,
+    MessageSquareText,
     Bot,
     Zap,
     Clock,
@@ -59,6 +60,7 @@ export function NodePalette() {
             icon: MessageSquare,
             items: [
                 { type: 'action', label: 'Mensagem', icon: MessageSquare, color: 'text-blue-600', bg: 'bg-blue-50/50', border: 'border-blue-100', desc: 'Envia uma mensagem automática' },
+                { type: 'chatbot', label: 'Chatbot Determinístico', icon: MessageSquareText, color: 'text-rose-600', bg: 'bg-rose-50/50', border: 'border-rose-100', desc: 'Respostas exatas e menus fixos' },
                 { type: 'broadcast', label: 'Disparo em Massa', icon: Megaphone, color: 'text-sky-600', bg: 'bg-sky-50/50', border: 'border-sky-100', desc: 'Envia para vários leads de uma vez' },
                 { type: 'followup', label: 'Follow-Up', icon: RefreshCw, color: 'text-teal-600', bg: 'bg-teal-50/50', border: 'border-teal-100', desc: 'Recontata o lead após um tempo' },
                 { type: 'handoff', label: 'Transbordo', icon: Users, color: 'text-rose-600', bg: 'bg-rose-50/50', border: 'border-rose-100', desc: 'Transfere para atendimento humano' }
