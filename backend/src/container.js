@@ -29,6 +29,9 @@ const EmbeddingService = require('./core/services/rag/EmbeddingService');
 const HybridSearchService = require('./core/services/rag/HybridSearchService');
 const VoiceService = require('./core/services/voice/VoiceService');
 const TranscriptionService = require('./core/services/voice/TranscriptionService');
+const ApifyClientWrapper = require('./core/services/extraction/ApifyClient');
+const LeadTransformerService = require('./core/services/extraction/LeadTransformerService');
+const OutboundDispatcherService = require('./core/services/automation/OutboundDispatcherService');
 
 // --- Controllers ---
 const SettingsController = require('./api/controllers/system/SettingsController');
@@ -125,6 +128,7 @@ function configureContainer() {
         csvParserService: asClass(CsvParserService).singleton(),
         emotionalStateService: asClass(EmotionalStateService).singleton(),
         guardrailService: asClass(GuardrailService).singleton(),
+        outboundDispatcherService: asClass(OutboundDispatcherService).singleton(),
 
         // Durable Execution Services
         stateCheckpointService: asClass(StateCheckpointService).singleton(),
@@ -143,6 +147,8 @@ function configureContainer() {
         hybridSearchService: asClass(HybridSearchService).singleton(),
         voiceService: asClass(VoiceService).singleton(),
         transcriptionService: asClass(TranscriptionService).singleton(),
+        apifyClient: asClass(ApifyClientWrapper).scoped(),
+        leadTransformerService: asClass(LeadTransformerService).singleton(),
 
         // Singletons (Stateful/Global)
         // Singletons (Stateful/Global)

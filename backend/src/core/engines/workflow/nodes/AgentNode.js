@@ -289,7 +289,8 @@ class AgentNode {
 
         // 1. Reading Time
         if (isFirstMessage) {
-            totalDelay += 1000; // Base reaction
+            const rawReadMs = config.read_ms ?? config.reading_speed_ms ?? 1000;
+            totalDelay += Math.max(0, rawReadMs); // Bound to prevent negative values
         }
 
         // 2. Typing Time
@@ -334,43 +335,26 @@ class AgentNode {
         const paragraphs = text.split(/\n\s*\n/);
 
         const finalChunks = [];
-        const MAX_CHUNK_KEY = strategy?.max_chunk || 150; // Target max length per bubble
-
+        const rawMaxChunk = strategy?.max_chunk || 150;
+        const MAX_CHUNK_KEY = Math.max(10, rawMaxChunk); // Target max length per bubble, min 10
+        
         for (const paragraph of paragraphs) {
-            // If paragraph is short enough, keep it valid
+            // Normal Chunking logic
             if (paragraph.length <= MAX_CHUNK_KEY) {
                 finalChunks.push(paragraph.trim());
                 continue;
             }
 
             // 3. Split by Sentence Endings (. ? !)
-            // \b ensures we don't split on "Sra." or "Dr." loosely (basic check)
-            // This regex tries to capture the punctuation with the sentence
             const sentences = paragraph.match(/[^.!?\n]+[.!?]+|[^.!?\n]+$/g) || [paragraph];
-
             let currentBuffer = "";
 
             for (const sentence of sentences) {
                 const trimmed = sentence.trim();
                 if (!trimmed) continue;
 
-                // Check matches for greeting-like short phrases to force separation
-                // e.g., "Opa, Davi!" or "Tudo bem?"
-                const isShortGreeting = trimmed.length < 30 && /^(ol[áa]|oi|opa|e aí|tudo bem|bom dia|boa tarde|boa noite)/i.test(trimmed);
-
-                if (isShortGreeting) {
-                    if (currentBuffer) {
-                        finalChunks.push(currentBuffer.trim());
-                        currentBuffer = "";
-                    }
-                    finalChunks.push(trimmed);
-                    continue;
-                }
-
                 if ((currentBuffer + " " + trimmed).length > MAX_CHUNK_KEY) {
-                    if (currentBuffer) {
-                        finalChunks.push(currentBuffer.trim());
-                    }
+                    if (currentBuffer) finalChunks.push(currentBuffer.trim());
                     currentBuffer = trimmed;
                 } else {
                     currentBuffer = currentBuffer ? currentBuffer + " " + trimmed : trimmed;

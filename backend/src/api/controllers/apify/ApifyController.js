@@ -35,14 +35,14 @@ const ACTOR_CATALOG = {
 };
 
 class ApifyController {
-    constructor(supabase, settingsService) {
+    constructor({ supabase, settingsService }) {
         this.supabase = supabase;
         this.settingsService = settingsService;
     }
 
-    async getClient(userId) {
-        const token = await this.settingsService.getProviderKey(userId, 'apify');
-        if (!token) throw new Error('Apify API Token not configured');
+    async getClient() {
+        const token = await this.settingsService.getApifyToken();
+        if (!token) throw new Error('Apify API Token not configured in system settings');
         return new ApifyClient({ token });
     }
 
@@ -76,7 +76,7 @@ class ApifyController {
             logger.info({ actorKey, actorId: actor.id, campaignId }, 'Starting extraction');
 
             // Get dynamic client
-            const client = await this.getClient(req.user?.id);
+            const client = await this.getClient();
 
             // Start the actor run
             const run = await client.actor(actor.id).start(input, {
@@ -96,6 +96,7 @@ class ApifyController {
                     campaign_id: campaignId,
                     status: 'running',
                     input: input,
+                    user_id: req.user?.id, // Added for RLS
                     started_at: new Date().toISOString()
                 });
 
@@ -123,8 +124,9 @@ class ApifyController {
     async getRunStatus(req, res) {
         try {
             const { runId } = req.params;
+            const client = await this.getClient();
 
-            const run = await this.client.run(runId).get();
+            const run = await client.run(runId).get();
 
             res.json({
                 success: true,
@@ -148,8 +150,9 @@ class ApifyController {
         try {
             const { datasetId } = req.params;
             const { limit = 100, offset = 0 } = req.query;
+            const client = await this.getClient();
 
-            const dataset = await this.client.dataset(datasetId).listItems({
+            const dataset = await client.dataset(datasetId).listItems({
                 limit: parseInt(limit),
                 offset: parseInt(offset)
             });
@@ -172,8 +175,9 @@ class ApifyController {
     async abortRun(req, res) {
         try {
             const { runId } = req.params;
+            const client = await this.getClient();
 
-            await this.client.run(runId).abort();
+            await client.run(runId).abort();
 
             // Update database
             await this.supabase

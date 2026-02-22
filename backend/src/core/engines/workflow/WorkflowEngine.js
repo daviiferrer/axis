@@ -897,7 +897,13 @@ class WorkflowEngine {
                     }
 
                     // 5. Hierarchy of Scopes (Action/Transition Logic)
-                    const actionLabel = result.action || (result.response?.crm_actions?.[0]);
+                    let actionLabel = result.action;
+                    const crmAction = result.response?.crm_actions?.[0];
+
+                    if (!actionLabel && crmAction) {
+                        actionLabel = typeof crmAction === 'object' ? crmAction.action : crmAction;
+                    }
+
                     let next = this._getNextNode(node.id, graph, actionLabel);
 
                     // 6. Semantic Routing / Fallback

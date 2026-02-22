@@ -1,5 +1,5 @@
 class ProspectController {
-    constructor(apifyClient, leadService, supabase) {
+    constructor({ apifyClient, leadService, supabase }) {
         this.apifyClient = apifyClient;
         this.leadService = leadService;
         this.supabase = supabase;
@@ -10,7 +10,7 @@ class ProspectController {
             const { searchTerms, location, maxResults, userId } = req.body;
             if (!userId) return res.status(400).json({ error: 'User ID is required' });
 
-            const runId = await this.apifyClient.startGmapsSearch(userId, searchTerms, location, maxResults);
+            const runId = await this.apifyClient.startGmapsSearch(searchTerms, location, maxResults);
             res.json({ success: true, runId });
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -23,7 +23,7 @@ class ProspectController {
             const { userId } = req.query;
             if (!userId) return res.status(400).json({ error: 'User ID is required' });
 
-            const results = await this.apifyClient.getRunResults(userId, runId);
+            const results = await this.apifyClient.getRunResults(runId);
 
             // Logic to save items to prospects table is inside apifyClient.getRunResults 
             // or should be here for consistency with "Controller calls Service"
@@ -47,8 +47,8 @@ class ProspectController {
 
     async stop(req, res) {
         try {
-            const { runId, userId } = req.body;
-            await this.apifyClient.stopRun(userId, runId);
+            const { runId } = req.body;
+            await this.apifyClient.stopRun(runId);
             res.json({ success: true, message: 'Search stopped' });
         } catch (error) {
             res.status(500).json({ error: error.message });

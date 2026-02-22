@@ -88,6 +88,8 @@ export interface DNAConfig {
     };
     chronemics: {
         base_latency_ms?: number;
+        wpm?: number;
+        read_ms?: number;
         burstiness?: number | string;
         latency_profile?: string;
     };

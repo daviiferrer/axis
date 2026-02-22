@@ -4,9 +4,10 @@
 const logger = require('../../../shared/Logger').createModuleLogger('trigger-service');
 
 class TriggerService {
-    constructor({ supabaseClient, workflowEngine }) {
+    constructor({ supabaseClient, workflowEngine, outboundDispatcherService }) {
         this.supabase = supabaseClient;
         this.workflowEngine = workflowEngine;
+        this.outboundDispatcherService = outboundDispatcherService;
         this.aiDebounceTimers = new Map();
         this.AI_DEBOUNCE_MS = 3000;
     }
@@ -74,90 +75,71 @@ class TriggerService {
     }
 
     /**
-     * Called when new leads are imported from Apify extraction
-     * Checks for active campaigns and starts auto-engagement
+     * Called when new leads are imported from Apify extraction.
+     * Imports leads as 'new' status. The OutboundDispatcherService 
+     * will pick them up and trickle them into the workflow periodically.
      */
     async onNewLeadsImported(campaignId, leads) {
-        logger.info({ campaignId, count: leads.length }, '📥 New leads imported - checking for auto-engagement');
+        logger.info({ campaignId, count: leads.length }, '📥 New leads imported - Storing for controlled dispatch');
 
         try {
-            // Get campaign details
+            // 1. Get campaign details helper
             const { data: campaign, error } = await this.supabase
                 .from('campaigns')
-                .select('*, agents(*)')
+                .select('id, entry_node_id, auto_engage, status')
                 .eq('id', campaignId)
                 .single();
 
             if (error || !campaign) {
-                logger.warn({ campaignId }, 'Campaign not found for auto-engagement');
+                logger.warn({ campaignId }, 'Campaign not found for import');
                 return;
             }
 
-            // Check if campaign has auto-engage enabled
-            if (!campaign.auto_engage || campaign.status !== 'active') {
-                logger.info({ campaignId }, 'Auto-engagement disabled or campaign not active');
-                return;
-            }
-
-            // Get leads that are ready (have phone numbers)
-            const readyLeads = leads.filter(l => l.status === 'ready' && l.phone);
-
-            if (readyLeads.length === 0) {
-                logger.info({ campaignId }, 'No leads ready for engagement');
-                return;
-            }
-
-            logger.info({ campaignId, readyCount: readyLeads.length }, '🚀 Starting auto-engagement');
-
-            // Import leads to campaign_leads table
-            const campaignLeads = readyLeads.map(lead => ({
+            // 2. Map leads to database format
+            const campaignLeads = leads.map(lead => ({
                 campaign_id: campaignId,
                 phone: lead.phone,
                 name: lead.name,
                 company: lead.company,
-                metadata: {
+                source: lead.source || 'outbound', // Explicitly set the source column
+                custom_fields: {
                     source: lead.source,
-                    title: lead.title,
-                    email: lead.email,
+                    rating: lead.rating,
+                    reviews: lead.reviews,
+                    address: lead.address,
                     website: lead.website,
                     linkedin_url: lead.linkedin_url
                 },
-                status: 'new',
-                current_node_id: campaign.entry_node_id || null
+                status: 'new', // Dispatcher will pick these up
+                current_node_id: campaign.entry_node_id || null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
             }));
 
+            // 3. Batch insert to 'leads' table (using upsert logic for phone/campaign_id)
             const { error: insertError } = await this.supabase
                 .from('leads')
-                .insert(campaignLeads);
+                .upsert(campaignLeads, { onConflict: 'campaign_id, phone', ignoreDuplicates: true });
 
             if (insertError) {
-                logger.error({ error: insertError.message }, 'Failed to import leads to campaign');
+                logger.error({ error: insertError.message }, 'Failed to store new leads');
                 return;
             }
 
-            // Trigger workflow for first batch (respect rate limits)
-            const batchSize = campaign.batch_size || 10;
-            const firstBatch = campaignLeads.slice(0, batchSize);
+            logger.info({ campaignId, imported: campaignLeads.length }, '✅ Leads stored successfully. Awaiting dispatcher.');
 
-            for (const lead of firstBatch) {
-                if (this.workflowEngine) {
-                    // Delay between leads to avoid spam detection
-                    await this.delay(campaign.delay_between_leads || 5000);
-                    this.workflowEngine.processLead({
-                        ...lead,
-                        campaigns: campaign
-                    }).catch(e => logger.error({ error: e.message }, 'Workflow trigger failed'));
-                }
+            // 4. Trigger one immediate dispatch run to provide instant feedback for the first batch
+            if (campaign.auto_engage && campaign.status === 'active' && this.outboundDispatcherService) {
+                // We use setTimeout to not block the webhook response
+                setTimeout(() => {
+                    this.outboundDispatcherService.dispatchAll().catch(e => {
+                        logger.error({ err: e.message }, 'Immediate dispatch failed');
+                    });
+                }, 1000);
             }
 
-            logger.info({
-                campaignId,
-                triggered: firstBatch.length,
-                remaining: campaignLeads.length - firstBatch.length
-            }, '✅ Auto-engagement batch started');
-
         } catch (err) {
-            logger.error({ campaignId, error: err.message }, 'Auto-engagement failed');
+            logger.error({ campaignId, error: err.message }, 'Manual lead import failed');
         }
     }
 

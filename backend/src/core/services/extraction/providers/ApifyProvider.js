@@ -13,8 +13,8 @@ class ApifyProvider extends ScraperProvider {
     async scrape(url, options = {}) {
         logger.info({ url }, 'Starting scraping via Apify');
 
-        // Fetch API Key System-Wide (or User specific if userId provided in opts)
-        const token = await this.settingsService.getProviderKey(options.userId || null, 'apify'); // Assuming 'apify' key mapping exists
+        // Fetch API Key from System Settings (global, managed by admin)
+        const token = await this.settingsService.getApifyToken();
         if (!token) throw new Error('Apify Token not configured in System Settings');
 
         this.client = new ApifyClient({ token }); // Create client on demand or cache it

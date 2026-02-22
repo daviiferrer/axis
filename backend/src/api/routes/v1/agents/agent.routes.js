@@ -19,7 +19,6 @@ function createAgentRouter(agentController) {
     router.delete('/:id', rbac(Resources.AGENT, Actions.DELETE), (req, res) => agentController.deleteAgent(req, res));
 
     router.post('/chat', rbac(Resources.AGENT, Actions.READ), (req, res) => agentController.chat(req, res));
-    router.post('/graph-chat', rbac(Resources.AGENT, Actions.READ), (req, res) => agentController.graphChat(req, res));
 
     return router;
 }

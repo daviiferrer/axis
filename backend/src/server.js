@@ -198,6 +198,10 @@ async function bootstrap() {
     // 7. Start Engine & Server
     await controllers.workflowEngine.start();
 
+    // Start Outbound Dispatcher (Rate Limit Controller)
+    const outboundDispatcher = container.resolve('outboundDispatcherService');
+    outboundDispatcher.start();
+
     // Health check moved to top
 
 
@@ -222,6 +226,10 @@ async function bootstrap() {
                 logger.warn({ error: err.message }, '⚠️ Queue shutdown error');
             }
         }
+
+        // Stop Outbound Dispatcher
+        const outboundDispatcher = container.resolve('outboundDispatcherService');
+        outboundDispatcher.stop();
 
         await container.dispose();
         logger.info('✅ Graceful shutdown complete');

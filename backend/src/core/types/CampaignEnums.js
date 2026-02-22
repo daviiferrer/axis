@@ -307,7 +307,7 @@ const RecoveryStrategyEnum = {
 // 14. NODE GOAL ENUMS (What the node wants to achieve)
 // ============================================================================
 const NodeGoalEnum = {
-    QUALIFY_LEAD: 'QUALIFY_LEAD',           // Fill BANT/SPIN slots
+    QUALIFY_LEAD: 'QUALIFY_LEAD',           // Fill defined dynamic slots
     CLOSE_SALE: 'CLOSE_SALE',               // Close the deal
     SCHEDULE_MEETING: 'SCHEDULE_MEETING',   // Schedule a meeting/call
     HANDLE_OBJECTION: 'HANDLE_OBJECTION',   // Handle objection

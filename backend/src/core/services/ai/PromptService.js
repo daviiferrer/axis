@@ -55,25 +55,28 @@ REGRAS: 1)Sem dados suficientes? NÃO chame. 2)Se chamar, omita "response"/"crm_
         const dna = resolvedDna?.raw || (typeof agent?.dna_config === 'string' ? JSON.parse(agent.dna_config) : agent?.dna_config) || {};
         const identity = dna.identity || {};
         const voice = dna.brand_voice || {};
+        const customContext = dna.business_context?.custom_context || "";
         const roleKey = nodeConfig?.data?.role || identity.role || agent?.role || 'DEFAULT';
-        const resolvedCompanyName = nodeConfig?.data?.company_context?.name || campaign?.company_name || 'Nossa Empresa';
 
-        if (!resolvedCompanyName || resolvedCompanyName === 'NOT_CONFIGURED') {
-            logger.warn({ nodeId: nodeConfig?.id, agentId: agent?.id }, '⚠️ COMPANY: não configurado.');
-        }
+        // Identity resolution: Keep as metadata, mission will refine usage
+        const agentName = identity.name || agent?.name || 'Assistente';
+        const resolvedCompanyName = dna.business_context?.company_name || nodeConfig?.data?.company_context?.name || campaign?.company_name || 'Nossa Empresa';
 
         const roleBlueprint = getRoleBlueprint(roleKey, {
-            agent, campaign, product,
+            agent: { ...agent, name: agentName },
+            campaign, product,
             company: { name: resolvedCompanyName },
             customPlaybook: nodeDirective || ''
         });
 
-        return `<agent_dna>
+        return `<persona_dna priority="high">
+IDENTIDADE E PERSONALIDADE PERMANENTE — Sua "alma" e modo de agir.
 ${roleBlueprint}
-NOME:${agent?.name} | ROLE:${identity.role || agent?.role || 'Assistant'} | EMPRESA:${resolvedCompanyName}
+${customContext ? `<background_knowledge>\n${customContext}\n</background_knowledge>` : ''}
+NOME:${agentName} | ROLE:${identity.role || agent?.role || 'Assistant'} | EMPRESA:${resolvedCompanyName}
 TOM:${[agent?.tone, ...(voice.tone || [])].filter(Boolean).join(',') || 'Professional'} | PERSONALIDADE:${agent?.personality || dna.behavior?.personality || 'Helpful'} | IDIOMA:${agent?.language_code || agent?.language || 'pt-BR'}
 ${voice.prohibited_words?.length ? `PALAVRAS PROIBIDAS: ${voice.prohibited_words.join(', ')}` : ''}
-</agent_dna>`;
+</persona_dna>`;
     }
 
     #buildPersonaRefreshLayer(agent, campaign, nodeConfig, nodeDirective, turnCount) {
@@ -83,8 +86,10 @@ ${voice.prohibited_words?.length ? `PALAVRAS PROIBIDAS: ${voice.prohibited_words
             (turnCount === REFRESH_THRESHOLD || (turnCount - REFRESH_THRESHOLD) % REFRESH_INTERVAL === 0);
         if (!needsRefresh) return '';
 
-        const agentName = agent?.name || 'Assistente';
-        const companyName = nodeConfig?.data?.company_context?.name || campaign?.company_name || 'Nossa Empresa';
+        const dna = (typeof agent?.dna_config === 'string' ? JSON.parse(agent.dna_config) : agent?.dna_config) || {};
+        const identity = dna.identity || {};
+        const agentName = identity.name || agent?.name || 'Assistente';
+        const companyName = dna.business_context?.company_name || nodeConfig?.data?.company_context?.name || campaign?.company_name || 'Nossa Empresa';
         return `<persona_refresh turn="${turnCount}">
 Siga seu objetivo estabelecido. Mantenha consistência com o que já disse e com seu nível de formalidade.
 Mantenha consistência. Não contradiga o que já disse. Continue no mesmo nível de formalidade.
@@ -98,9 +103,9 @@ Mantenha consistência. Não contradiga o que já disse. Continue no mesmo níve
         const dna = agent?.dna_config || {};
         const identity = dna.identity || {};
         const compliance = dna.compliance || {};
-        const agentName = agent?.name || identity.name || 'Assistente';
+        const agentName = identity.name || agent?.name || (nodeDirective ? "" : 'Assistente');
         const agentRole = identity.role || agent?.role || 'Atendimento';
-        const companyName = nodeConfig?.data?.company_context?.name || campaign?.company_name || 'Nossa Empresa';
+        const companyName = dna.business_context?.company_name || nodeConfig?.data?.company_context?.name || campaign?.company_name || (nodeDirective ? "" : 'Nossa Empresa');
         const industry = nodeConfig?.data?.industry_vertical || campaign?.industry_taxonomy?.primary || 'Geral';
         const industryVertical = nodeConfig?.data?.industry_vertical || 'generic';
         const valueProposition = nodeConfig?.data?.company_context?.value_proposition || '';
@@ -110,13 +115,6 @@ Mantenha consistência. Não contradiga o que já disse. Continue no mesmo níve
             ? "MODO LEITURA: crm_actions proibido."
             : "Pode sugerir atualizações via crm_actions.";
         const tone = agent?.tone_vector || { formality: 3, humor: 2, enthusiasm: 3 };
-
-        let productSection = '';
-        if (product && (product.name || product.label) && !hasPlaybook) {
-            productSection = `<product>${product.name || product.label} | R$${product.price || 'consulta'} | ${product.mainBenefit || product.description || ''} | ${product.differentials?.join(',') || ''}</product>`;
-        } else if (campaign?.description && !hasPlaybook) {
-            productSection = `<product>${campaign.description}</product>`;
-        }
 
         let objectionSection = '';
         if (objectionPlaybook?.length > 0) {
@@ -131,18 +129,13 @@ Mantenha consistência. Não contradiga o que já disse. Continue no mesmo níve
         if (hasPlaybook) {
             const hasXmlTags = /<[^>]+>/.test(nodeDirective);
             if (hasXmlTags) {
-                playbookSection = `<playbook priority="CRITICAL">${nodeDirective}</playbook>`;
+                playbookSection = `<mission priority="CRITICAL">${nodeDirective}</mission>`;
             } else {
-                playbookSection = `<playbook priority="CRITICAL">
-ROTEIRO DE REFERÊNCIA — NÃO copie palavra por palavra. ENTENDA a intenção e REESCREVA com seu DNA (tom, estilo, brevidade).
+                playbookSection = `<mission priority="CRITICAL">
+OBJETIVO ATUAL — Execute esta missão mantendo sua personalidade e estilo definidos no seu DNA.
 <script>${nodeDirective}</script>
-</playbook>`;
+</mission>`;
             }
-        }
-
-        let methodologySection = '';
-        if (methodology?.framework) {
-            methodologySection = `<methodology>${methodology.framework}: ${methodology.steps?.map(s => s.name).join(' → ') || ''}</methodology>`;
         }
 
         const sentimentScore = lead?.last_sentiment || 0.5;
@@ -160,9 +153,7 @@ COMPLIANCE:${compliance.legal_rules?.join('; ') || 'Respeite leis locais.'} | ${
 ${emotionalAdjustment}
 ${scopeWarning}
 TOM: formalidade:${tone.formality}/5 humor:${tone.humor}/5 entusiasmo:${tone.enthusiasm}/5
-${productSection}
 <icp>setor:${icp.industries?.[0] || campaign?.industry_taxonomy?.primary || 'Geral'} | dores:${icp.painPoints?.join(',') || ''}</icp>
-${methodologySection}
 ${playbookSection}
 ${ragContext ? `<rag>${ragContext}</rag>` : ''}
 ${objectionSection}
@@ -239,7 +230,8 @@ Priorize ACOLHER o lead antes de seguir o script.
         const slotEntries = { lead_name: lead?.name || null };
         const slotInstructions = [];
 
-        for (const slotItem of criticalSlots) {
+        const safeSlots = Array.isArray(criticalSlots) ? criticalSlots.slice(0, 20) : [];
+        for (const slotItem of safeSlots) {
             const slotName = typeof slotItem === 'string' ? slotItem : slotItem?.name;
             if (!slotName || slotName === 'lead_name') continue;
 

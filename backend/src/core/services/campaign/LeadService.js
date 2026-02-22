@@ -156,6 +156,62 @@ class LeadService {
     }
 
     /**
+     * Specialized import for Apify Prospects
+     */
+    async importProspects(userId, items, runId, campaignId = null) {
+        if (!items || items.length === 0) return { count: 0 };
+
+        logger.info({ userId, runId, count: items.length }, 'Importing prospects from Apify');
+
+        // Normalize items for the leads table
+        const prospects = items.map(item => this.normalizeProspectItem(item, userId, runId, campaignId));
+
+        // Insert into leads table
+        const { data, error } = await this.supabase
+            .from('leads')
+            .upsert(prospects, {
+                onConflict: 'campaign_id, phone',
+                ignoreDuplicates: true
+            })
+            .select();
+
+        if (error) {
+            logger.error({ error: error.message }, 'Failed to import prospects');
+            throw error;
+        }
+
+        return { count: data ? data.length : 0 };
+    }
+
+    /**
+     * Normalizes a raw Apify item into a Lead record
+     */
+    normalizeProspectItem(item, userId, runId, campaignId) {
+        // Clean phone number (keep only digits)
+        const rawPhone = item.phone || item.phoneNumber || '';
+        const phone = rawPhone.replace(/\D/g, '');
+
+        return {
+            campaign_id: campaignId,
+            phone: phone,
+            name: item.title || item.name || item.fullName || 'Desconhecido',
+            status: 'new',
+            source: 'imported',
+            custom_fields: {
+                apify_run_id: runId,
+                website: item.website || item.url || '',
+                address: item.address || '',
+                category: item.category || '',
+                rating: item.stars || item.rating || null,
+                reviews: item.reviewsCount || item.reviews || null,
+                raw_source: 'apify_gmaps'
+            },
+            node_state: {},
+            created_at: new Date().toISOString()
+        };
+    }
+
+    /**
      * Get real-time stats of where leads are in the flow.
      * Returns { nodeId: count }
      */

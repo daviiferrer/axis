@@ -176,6 +176,52 @@ class GeminiClient {
 
 
 
+    /**
+     * Sanitizes chat history for Gemini SDK requirements.
+     * 1. Maps 'assistant' role to 'model'
+     * 2. Ensures history starts with a 'user' message
+     * 3. Ensures strictly alternating roles (user -> model -> user)
+     * 4. Merges consecutive messages of the same role
+     */
+    _sanitizeHistory(history) {
+        if (!history || !Array.isArray(history) || history.length === 0) return [];
+
+        const sanitized = [];
+        let nextExpectedRole = 'user';
+
+        for (const msg of history) {
+            // Map roles
+            const geminiRole = (msg.role === 'assistant' || msg.role === 'model') ? 'model' : 'user';
+
+            // Gemini REQUIRES history to start with 'user'.
+            // If the AI started the conversation (first msg is 'model'), 
+            // we prepend a virtual user message to maintain context without breaking the SDK.
+            if (sanitized.length === 0 && geminiRole !== 'user') {
+                sanitized.push({
+                    role: 'user',
+                    parts: [{ text: '[SISTEMA: Início da conversa]' }]
+                });
+                nextExpectedRole = 'model';
+            }
+
+            if (geminiRole === nextExpectedRole) {
+                sanitized.push({
+                    role: geminiRole,
+                    parts: msg.parts || [{ text: msg.content || '' }]
+                });
+                nextExpectedRole = geminiRole === 'user' ? 'model' : 'user';
+            } else if (sanitized.length > 0) {
+                // Merge same-role consecutive messages (user, user) or (model, model)
+                const last = sanitized[sanitized.length - 1];
+                const newText = msg.content || msg.parts?.[0]?.text || '';
+                if (newText) {
+                    last.parts[0].text = (last.parts[0].text || '') + '\n' + newText;
+                }
+            }
+        }
+        return sanitized;
+    }
+
     async _rawGenerateContent(modelName, systemInstruction, history, options = {}) {
         const start = performance.now();
         const model = await this._ensureClient(modelName, '_rawGenerateContent', options);
@@ -187,9 +233,13 @@ class GeminiClient {
             ...options
         });
 
-        const chat = genModel.startChat({ history });
+        // Gemini history constraints
+        const sanitizedHistory = this._sanitizeHistory(history);
         const lastMessage = history[history.length - 1];
-        const result = await chat.sendMessage(lastMessage.parts);
+        const lastParts = lastMessage.parts || [{ text: lastMessage.content || '' }];
+
+        const chat = genModel.startChat({ history: sanitizedHistory });
+        const result = await chat.sendMessage(lastParts);
         const response = result.response;
         const usage = response.usageMetadata || {};
 
@@ -204,7 +254,6 @@ class GeminiClient {
         logger.info({ metrics }, 'Gemini generation completed');
         response._metrics = metrics;
 
-        // BILLING & LOGGING HOOK
         if (options.companyId || options.userId) {
             this._handleBilling(metrics, { companyId: options.companyId, isComplex: true });
             this._logUsage(metrics, options);
@@ -264,9 +313,12 @@ class GeminiClient {
             ...options
         });
 
-        const chat = genModel.startChat({ history });
+        const sanitizedHistory = this._sanitizeHistory(history);
         const lastMessage = history[history.length - 1];
-        const result = await chat.sendMessageStream(lastMessage.parts);
+        const lastParts = lastMessage.parts || [{ text: lastMessage.content || '' }];
+
+        const chat = genModel.startChat({ history: sanitizedHistory });
+        const result = await chat.sendMessageStream(lastParts);
         const originalStream = result.stream;
 
         result.stream = (async function* () {

@@ -22,27 +22,19 @@ const NodePrompts = {
 <node_goal id="qualify_lead" priority="HIGH">
     SEU OBJETIVO PRINCIPAL: QUALIFICAR ESTE LEAD.
     
-    ═══ O QUE DESCOBRIR (BANT/SPIN) ═══
-    1. NEED (Necessidade): Qual problema/dor motivou o contato?
-    2. BUDGET (Orçamento): Tem verba? Qual faixa de investimento?
-    3. AUTHORITY (Autoridade): Decide sozinho ou precisa consultar?
-    4. TIMELINE (Timing): É urgente ou pode esperar?
+    ═══ O QUE DESCOBRIR ═══
+    Sua missão é preencher os Slots (informações) listados na seção <slots>.
     
     ═══ COMPORTAMENTO ═══
     - Faça perguntas ABERTAS e naturais
     - UMA pergunta por vez - não interrogue
     - Escute ANTES de apresentar solução
-    - Anote mentalmente cada slot preenchido
-    - NÃO force venda prematura
-    
-    ═══ TÉCNICAS ═══
-    - SPIN: Situação → Problema → Implicação → Necessidade
-    - Espelhe a linguagem do lead
-    - Valide entendimento antes de avançar
+    - Marque mentalmente cada slot preenchido com base na fala do lead
+    - NÃO force venda prematura sem qualificar primeiro
     
     ═══ SAÍDA ═══
-    - Qualificado → Agendar reunião ou próximo passo
-    - Desqualificado → Encerrar educadamente com porta aberta
+    - Slots preenchidos → Avançar para o CTA ou próximo passo
+    - Lead desqualificado → Encerrar educadamente com porta aberta
 </node_goal>`,
 
         CLOSE_SALE: `
@@ -509,8 +501,8 @@ const NodePrompts = {
     
     ═══ ABORDAGEM ═══
     - Tom consultivo e analítico
-    - Faça perguntas investigativas (SPIN)
-    - Demonstre expertise com insights
+    - Faça perguntas investigativas para entender o desafio
+    - Demonstre expertise com insights relevantes
     - Proponha diagnóstico inicial
     
     ═══ PRÓXIMO PASSO ═══

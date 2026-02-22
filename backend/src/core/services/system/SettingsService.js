@@ -366,6 +366,15 @@ class SettingsService {
         const settings = await this.getSettings(userId);
         return settings?.lmnt_api_key || null;
     }
+
+    /**
+     * Get Apify API token (GLOBAL — from system_settings only).
+     * This is an infrastructure key managed by admin, not per-user.
+     */
+    async getApifyToken() {
+        const settings = await this.getSettings();
+        return settings?.apify_token || null;
+    }
 }
 
 module.exports = SettingsService;

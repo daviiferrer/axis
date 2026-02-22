@@ -5,10 +5,9 @@ const logger = require('../../../shared/Logger').createModuleLogger('agent-contr
 const LlmFactory = require('../../../core/factories/LlmFactory');
 
 class AgentController {
-    constructor({ agentService, llmFactory, agentGraphEngine, voiceService }) {
+    constructor({ agentService, llmFactory, voiceService }) {
         this.agentService = agentService;
         this.llmFactory = llmFactory;
-        this.agentGraphEngine = agentGraphEngine;
         this.voiceService = voiceService;
     }
 
@@ -132,23 +131,7 @@ class AgentController {
         }
     }
 
-    async graphChat(req, res) {
-        try {
-            const { messages, contextData, model } = req.body;
-            logger.info({ model: model || 'default' }, '🧠 Starting Agentic Workflow');
 
-            const result = await this.agentGraphEngine.run(messages, contextData, model);
-
-            const lastMessage = result.messages[result.messages.length - 1];
-            res.json({
-                response: JSON.parse(lastMessage.content),
-                state: result
-            });
-        } catch (error) {
-            logger.error({ error: error.message }, 'Graph Agent Error');
-            res.status(500).json({ error: 'Graph Execution Failed', details: error.message });
-        }
-    }
 
     /**
      * Voice Enrollment (Cloning) via TTS Provider.

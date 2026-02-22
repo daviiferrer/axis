@@ -255,7 +255,7 @@ export function NodeExpansionOverlay({
                                 </div>
 
                                 <TabsContent value="config" className="flex-1 min-h-0 m-0 focus-visible:ring-0">
-                                    <ScrollArea className="h-full">
+                                    <ScrollArea className="h-full max-h-[calc(85vh-190px)]">
                                         {isAgentType ? (
                                             <div className="h-full">
                                                 <AgentWizard
@@ -274,17 +274,17 @@ export function NodeExpansionOverlay({
                                 </TabsContent>
 
                                 <TabsContent value="leads" className="flex-1 min-h-0 m-0 focus-visible:ring-0 flex flex-col">
-                                    <ScrollArea className="flex-1">
+                                    <ScrollArea className="flex-1 max-h-[calc(85vh-190px)]">
                                         <div className="p-6">
                                             {/* Summary Stats */}
                                             <div className="flex gap-4 mb-6">
                                                 <div className="flex-1 p-4 rounded-2xl bg-blue-50/50 border border-blue-100">
                                                     <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-1">Passando</p>
-                                                    <p className="text-2xl font-black text-blue-900">{node.data?.activeLeads || 0}</p>
+                                                    <p className="text-2xl font-black text-blue-900">{Number(node.data?.activeLeads) || 0}</p>
                                                 </div>
                                                 <div className="flex-1 p-4 rounded-2xl bg-red-50/50 border border-red-100">
                                                     <p className="text-[10px] font-bold text-red-600 uppercase tracking-widest mb-1">Falhas</p>
-                                                    <p className="text-2xl font-black text-red-900">{node.data?.errorLeads || 0}</p>
+                                                    <p className="text-2xl font-black text-red-900">{Number(node.data?.errorLeads) || 0}</p>
                                                 </div>
                                             </div>
 

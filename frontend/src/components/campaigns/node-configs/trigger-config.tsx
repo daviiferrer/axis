@@ -6,11 +6,14 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/forms/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Button } from '@/components/ui/button';
-import { Facebook, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Facebook, Loader2, CheckCircle, AlertTriangle, Globe, Search, MapPin, List, Clock, Zap, ShieldCheck } from 'lucide-react';
 import { facebookAdsService, FacebookPage } from '@/services/facebookAdsService';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { prospectService } from '@/services/prospectService';
+import { supabase } from '@/lib/supabase/client';
 
 interface TriggerConfigProps {
     formData: any;
@@ -165,7 +168,7 @@ export function TriggerConfig({ formData, onChange, sessions }: TriggerConfigPro
                         </div>
 
                         {/* Triage Mode - Advanced */}
-                        <div className="pt-4 border-t border-gray-100">
+                        <div className="pt-4 border-t border-gray-100 grid grid-cols-1 gap-4">
                             <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
                                 <div>
                                     <Label className="text-xs font-medium text-gray-900">Modo Triagem Global</Label>
@@ -177,6 +180,61 @@ export function TriggerConfig({ formData, onChange, sessions }: TriggerConfigPro
                                     className="data-[state=checked]:bg-blue-600 scale-90"
                                 />
                             </div>
+
+                            {/* OUTBOUND RATE LIMITING - "TOTAL CONTROL" */}
+                            {(isSourceActive('apify') || isSourceActive('manual')) && (
+                                <div className="p-4 rounded-xl border border-blue-100 bg-blue-50/30 space-y-4 animate-in fade-in duration-500">
+                                    <div className="flex items-center gap-2 pb-2 border-b border-blue-100/30">
+                                        <ShieldCheck className="w-4 h-4 text-blue-600" />
+                                        <Label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest">Controle de Fluxo & Segurança</Label>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-[10px] font-semibold text-gray-500 uppercase flex items-center gap-1">
+                                                <Zap className="w-3 h-3" /> Leads / Dia
+                                            </Label>
+                                            <Input
+                                                type="number"
+                                                placeholder="50"
+                                                min={1}
+                                                className="h-9 text-xs bg-white"
+                                                value={formData.maxLeadsPerDay ?? 50}
+                                                onChange={(e) => onChange('maxLeadsPerDay', parseInt(e.target.value) || 50)}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label className="text-[10px] font-semibold text-gray-500 uppercase flex items-center gap-1">
+                                                <List className="w-3 h-3" /> Tamanho Lote
+                                            </Label>
+                                            <Input
+                                                type="number"
+                                                placeholder="10"
+                                                min={1}
+                                                className="h-9 text-xs bg-white"
+                                                value={formData.batchSize ?? 10}
+                                                onChange={(e) => onChange('batchSize', parseInt(e.target.value) || 10)}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1.5 col-span-2">
+                                            <Label className="text-[10px] font-semibold text-gray-500 uppercase flex items-center gap-1">
+                                                <Clock className="w-3 h-3" /> Delay entre leads (segundos)
+                                            </Label>
+                                            <Input
+                                                type="number"
+                                                placeholder="5"
+                                                min={1}
+                                                className="h-9 text-xs bg-white"
+                                                value={Math.round((formData.delayBetweenLeads ?? 5000) / 1000)}
+                                                onChange={(e) => onChange('delayBetweenLeads', (parseInt(e.target.value) || 5) * 1000)}
+                                            />
+                                            <p className="text-[9px] text-gray-400 italic">Intervalo de segurança para evitar banimento do WhatsApp.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </TabsContent>
@@ -251,18 +309,90 @@ export function TriggerConfig({ formData, onChange, sessions }: TriggerConfigPro
 
                     {/* APIFY CONFIG */}
                     {isSourceActive('apify') && (
-                        <div className="p-4 rounded-xl bg-orange-50/50 border border-orange-100 space-y-3 animate-in fade-in slide-in-from-right-4 duration-300 delay-100">
-                            <div className="flex items-center gap-3 pb-2">
+                        <div className="p-4 rounded-xl bg-orange-50/50 border border-orange-100 space-y-4 animate-in fade-in slide-in-from-right-4 duration-300 delay-100">
+                            <div className="flex items-center gap-3 pb-2 border-b border-orange-100/50">
                                 <div className="p-2 bg-white rounded-lg shadow-sm">
-                                    <AlertTriangle className="w-5 h-5 text-orange-500" />
+                                    <Globe className="w-5 h-5 text-orange-500" />
                                 </div>
                                 <div>
                                     <h4 className="text-sm font-semibold text-gray-900">Configuração Apify</h4>
-                                    <p className="text-[10px] text-orange-600">Extração de dados via scraper</p>
+                                    <p className="text-[10px] text-orange-600">Extração de dados via Google Maps</p>
                                 </div>
                             </div>
-                            <div className="text-xs text-orange-800 bg-orange-100/50 p-3 rounded-lg border border-orange-100">
-                                Configure a extração do Apify na aba "Prospects" ou aguarde a atualização do módulo de integração direta.
+
+                            <div className="space-y-3">
+                                <div className="space-y-1.5">
+                                    <Label className="text-[10px] font-semibold text-gray-500 uppercase flex items-center gap-1">
+                                        <Search className="w-3 h-3" /> Termos de Busca
+                                    </Label>
+                                    <Input
+                                        placeholder="Ex: Restaurantes, Academias..."
+                                        className="h-9 text-xs"
+                                        value={formData.apifySearchTerms || ''}
+                                        onChange={(e) => onChange('apifySearchTerms', e.target.value)}
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-[10px] font-semibold text-gray-500 uppercase flex items-center gap-1">
+                                        <MapPin className="w-3 h-3" /> Localização
+                                    </Label>
+                                    <Input
+                                        placeholder="Ex: São Paulo, SP"
+                                        className="h-9 text-xs"
+                                        value={formData.apifyLocation || ''}
+                                        onChange={(e) => onChange('apifyLocation', e.target.value)}
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-[10px] font-semibold text-gray-500 uppercase flex items-center gap-1">
+                                        <List className="w-3 h-3" /> Limite de Resultados
+                                    </Label>
+                                    <Input
+                                        type="number"
+                                        placeholder="50"
+                                        className="h-9 text-xs"
+                                        value={formData.apifyMaxResults || 50}
+                                        onChange={(e) => onChange('apifyMaxResults', parseInt(e.target.value))}
+                                    />
+                                </div>
+
+                                <Button
+                                    className="w-full bg-orange-500 hover:bg-orange-600 text-white h-9 text-xs font-semibold rounded-lg mt-2 shadow-sm"
+                                    onClick={async () => {
+                                        if (!formData.apifySearchTerms || !formData.apifyLocation) {
+                                            toast.error('Preencha os termos e a localização');
+                                            return;
+                                        }
+
+                                        setIsConnecting(true);
+                                        try {
+                                            const { data: { user } } = await supabase.auth.getUser();
+                                            if (!user) throw new Error('Usuário não autenticado');
+
+                                            const result = await prospectService.startSearch({
+                                                searchTerms: formData.apifySearchTerms,
+                                                location: formData.apifyLocation,
+                                                maxResults: formData.apifyMaxResults || 50,
+                                                userId: user.id
+                                            });
+
+                                            if (result.success) {
+                                                toast.success('Extração iniciada com sucesso!');
+                                                onChange('apifyLastRunId', result.runId);
+                                            }
+                                        } catch (error: any) {
+                                            toast.error(`Erro ao iniciar extração: ${error.message}`);
+                                        } finally {
+                                            setIsConnecting(false);
+                                        }
+                                    }}
+                                    disabled={isConnecting}
+                                >
+                                    {isConnecting ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Search className="w-3 h-3 mr-2" />}
+                                    Iniciar Extração Agora
+                                </Button>
                             </div>
                         </div>
                     )}

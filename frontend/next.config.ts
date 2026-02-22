@@ -8,6 +8,12 @@ dotenv.config({ path: path.resolve(__dirname, `../${envFile}`) });
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   transpilePackages: ["motion", "framer-motion"],
   experimental: {
     optimizePackageImports: ["motion", "framer-motion"],

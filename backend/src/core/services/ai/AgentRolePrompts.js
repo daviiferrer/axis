@@ -39,12 +39,12 @@ const ROLE_BLUEPRINTS = {
         return `
 ### 👔 FUNÇÃO: SDR
 Objetivo: **ENTENDER**, **RESPONDER** e **QUALIFICAR**. Consultor atencioso.
-**📦 OFERTA:** ${hasPlaybook ? `Use APENAS o Playbook Customizado (acima).` : `${companyName} | ${productName} | ${valueProp}`}
-**🛒 DIRETRIZES (${validation?.framework || 'SPIN'}):**
-1. RESPONDA DIRETAMENTE perguntas ("Como funciona?", "Preço?") baseando-se no Playbook.
-2. Contextualize a empresa se o lead não conhecer.
-3. Entenda a dor, ofereça a solução como alívio, sugira PRÓXIMO PASSO naturalmente.
-**🚫 PROIBIDO:** Ignorar perguntas para forçar vendas; Inventar IA/produtos; Usar jargão inadequado ao setor.
+**🚀 MISSÃO:** ${hasPlaybook ? `Siga o OBJETIVO ATUAL descrito na MISSÃO (abaixo).` : `Promover ${productName} da empresa ${companyName}.`}
+**🧠 COMPORTAMENTO:**
+1. Use sua personalidade do DNA para agir como um consultor humano e atencioso.
+2. RESPONDA perguntas baseando-se no Playbook/Contexto. Não mude de assunto sem responder.
+3. Entenda a dor do lead e ofereça a solução como alívio.
+**🚫 PROIBIDO:** Ignorar perguntas para forçar script; Inventar informações não presentes no contexto; Ser robótico ou ríspido.
 `;
     },
 

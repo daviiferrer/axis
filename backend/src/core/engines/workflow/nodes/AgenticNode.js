@@ -203,7 +203,25 @@ class AgenticNode extends AgentNode {
             }
         }
 
-        // 3. Build Prompt (Sandwich Pattern)
+        // 3. Resolve Context from Graph
+        let product = nodeConfig.data?.product || null;
+        let methodology = null;
+        const objectionPlaybook = [];
+
+        if (graph?.nodes) {
+            // Global Objection Playbooks (Keep for objection handling context)
+            graph.nodes.filter(n => n.type === 'objection').forEach(obj => {
+                if (obj.data) {
+                    objectionPlaybook.push({
+                        label: obj.data.label,
+                        objectionType: obj.data.objectionType,
+                        responses: obj.data.responses || []
+                    });
+                }
+            });
+        }
+
+        // 4. Build Prompt (Sandwich Pattern)
         // Ensure campaign context is adequate
         const campaignContext = {
             ...campaign,
@@ -220,12 +238,15 @@ class AgenticNode extends AgentNode {
             lead, chatHistory: history, emotionalAdjustment,
             nodeDirective: nodeConfig.data?.instruction_override || nodeConfig.data?.systemPrompt,
             scopePolicy: nodeConfig.data?.scope_policy || 'READ_ONLY',
-            product: nodeConfig.data?.product, // <--- Product context from node
+            product, // <--- Resolved from graph or node
+            methodology, // <--- Resolved from graph
+            objectionPlaybook, // <--- Resolved from graph
             dna, // Pass DNA to prompt builder (physics, linguistics, padVector)
             nodeConfig, // <--- Node objectives (goal, criticalSlots, cta - NOT identity)
             canaryToken, // <--- Security token for injection detection
             turnCount,   // <--- For persona refresh mechanism
-            ragContext   // <--- RAG context from hybrid search
+            ragContext,   // <--- RAG context from hybrid search
+            strategy_graph: graph // <--- Backwards compatibility
         };
 
         let aiResult;
@@ -405,6 +426,14 @@ class AgenticNode extends AgentNode {
                     }
                 }
             }
+
+            // === STRUCTURAL NORMALIZATION (Protect against AI Hallucinations) ===
+            response.crm_actions = response.crm_actions || [];
+            if (!Array.isArray(response.crm_actions)) {
+                response.crm_actions = typeof response.crm_actions === 'object' ? [response.crm_actions] : [];
+            }
+
+            response.qualification_slots = response.qualification_slots || {};
 
             // === TOOL CALL INTERCEPTION ===
             if (response?.tool_call) {
@@ -843,8 +872,9 @@ class AgenticNode extends AgentNode {
         }
 
         // 9. Determine Next Action (EXIT if done)
-        if (response.ready_to_close || slotsSatisfied || response.conversation_ended) {
-            logger.info({ leadId: lead.id }, '✅ Ending Node Conversation Loop (ready to close or slots filled)');
+        const hasCrmAction = response.crm_actions && response.crm_actions.length > 0;
+        if (response.ready_to_close || slotsSatisfied || response.conversation_ended || hasCrmAction) {
+            logger.info({ leadId: lead.id, hasCrmAction }, '✅ Ending Node Conversation Loop (ready to close, slots filled, or CRM action triggered)');
             return {
                 status: NodeExecutionStateEnum.EXITED,
                 edge: 'default',

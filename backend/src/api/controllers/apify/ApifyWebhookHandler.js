@@ -9,8 +9,8 @@ const LeadTransformerService = require('../../../core/services/extraction/LeadTr
 const logger = require('../../../shared/Logger').createModuleLogger('apify-webhook');
 
 class ApifyWebhookHandler {
-    constructor({ supabaseClient, triggerService, settingsService }) {
-        this.supabase = supabaseClient;
+    constructor({ supabase, triggerService, settingsService }) {
+        this.supabase = supabase;
         this.triggerService = triggerService;
         this.settingsService = settingsService;
         this.client = null; // Lazy initialized
@@ -18,16 +18,14 @@ class ApifyWebhookHandler {
     }
 
     /**
-     * Lazy initialize ApifyClient with token from database
+     * Get ApifyClient using the global system API token
      */
     async getClient() {
-        if (!this.client) {
-            const token = await this.settingsService.getProviderKey(null, 'apify');
-            if (token) {
-                this.client = new ApifyClient({ token });
-            }
+        const token = await this.settingsService.getApifyToken();
+        if (!token) {
+            throw new Error('Apify API Token not configured in system settings');
         }
-        return this.client;
+        return new ApifyClient({ token });
     }
 
     /**
@@ -68,7 +66,7 @@ class ApifyWebhookHandler {
         const { actorRunId, defaultDatasetId } = eventData;
 
         try {
-            // 1. Get run metadata from database
+            // 1. Get run metadata from database (includes user_id for API token)
             const { data: runMeta, error: metaError } = await this.supabase
                 .from('extraction_runs')
                 .select('*')
@@ -80,16 +78,12 @@ class ApifyWebhookHandler {
                 return;
             }
 
-            const { campaign_id, actor_key } = runMeta;
+            const { campaign_id, actor_key, user_id } = runMeta;
 
             logger.info({ runId: actorRunId, campaignId: campaign_id }, 'Processing successful run');
 
-            // 2. Download dataset
+            // 2. Download dataset (using global Apify token)
             const client = await this.getClient();
-            if (!client) {
-                logger.error({ runId: actorRunId }, 'ApifyClient not initialized - missing API token');
-                return;
-            }
             const dataset = await client.dataset(defaultDatasetId).listItems();
             const rawItems = dataset.items;
 
@@ -102,20 +96,7 @@ class ApifyWebhookHandler {
             const existingPhones = await this.getExistingPhones(campaign_id);
             const { unique, duplicates } = this.transformer.deduplicate(normalized, existingPhones);
 
-            // 5. Save to database
-            if (unique.length > 0) {
-                const { error: insertError } = await this.supabase
-                    .from('prospects')
-                    .insert(unique);
-
-                if (insertError) {
-                    logger.error({ error: insertError.message }, 'Failed to insert prospects');
-                } else {
-                    logger.info({ inserted: unique.length }, 'Prospects saved');
-                }
-            }
-
-            // 6. Update run status
+            // 5. Update run status with results
             await this.supabase
                 .from('extraction_runs')
                 .update({
@@ -130,7 +111,8 @@ class ApifyWebhookHandler {
                 })
                 .eq('run_id', actorRunId);
 
-            // 7. Trigger auto-engagement if leads are ready
+            // 6. Delegate lead insertion + engagement to TriggerService
+            // (single source of truth — avoids duplicate inserts)
             if (this.triggerService && unique.length > 0) {
                 await this.triggerService.onNewLeadsImported(campaign_id, unique);
             }
@@ -152,11 +134,14 @@ class ApifyWebhookHandler {
         const { actorRunId } = eventData;
 
         try {
+            // Get user_id from run metadata for API token
+            const { data: runMeta } = await this.supabase
+                .from('extraction_runs')
+                .select('user_id')
+                .eq('run_id', actorRunId)
+                .single();
+
             const client = await this.getClient();
-            if (!client) {
-                logger.error({ runId: actorRunId }, 'ApifyClient not initialized - missing API token');
-                return;
-            }
             const run = await client.run(actorRunId).get();
 
             await this.supabase
@@ -180,7 +165,7 @@ class ApifyWebhookHandler {
      */
     async getExistingPhones(campaignId) {
         const { data, error } = await this.supabase
-            .from('prospects')
+            .from('leads')
             .select('phone')
             .eq('campaign_id', campaignId)
             .not('phone', 'is', null);

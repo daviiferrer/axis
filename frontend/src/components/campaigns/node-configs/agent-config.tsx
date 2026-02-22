@@ -551,15 +551,24 @@ function WritingTab({ dna, updateDna }: any) {
                 <Switch checked={dna.linguistics?.intentional_typos || false}
                     onCheckedChange={(c) => updateDna('linguistics', 'intentional_typos', c)} />
             </div>
-            <div className="space-y-1">
-                <Label className="text-xs text-gray-500">Latência base (ms)</Label>
-                <Input type="number" value={dna.chronemics?.base_latency_ms || 1500}
-                    onChange={e => updateDna('chronemics', 'base_latency_ms', parseInt(e.target.value))} className="h-8 text-xs" />
+            <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                    <Label className="text-[10px] text-gray-400 uppercase font-bold">Velocidade (WPM)</Label>
+                    <Input type="number" value={dna.chronemics?.wpm || 45}
+                        onChange={e => updateDna('chronemics', 'wpm', parseInt(e.target.value))} className="h-9 text-xs bg-white" />
+                    <p className="text-[9px] text-gray-400">Palavras por minuto</p>
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-[10px] text-gray-400 uppercase font-bold">Leitura (ms)</Label>
+                    <Input type="number" value={dna.chronemics?.read_ms || 1500}
+                        onChange={e => updateDna('chronemics', 'read_ms', parseInt(e.target.value))} className="h-9 text-xs bg-white" />
+                    <p className="text-[9px] text-gray-400">Tempo p/ ler conversa</p>
+                </div>
             </div>
             <div className="space-y-1">
-                <Label className="text-xs text-gray-500">Limite de caracteres por msg</Label>
+                <Label className="text-[10px] text-gray-400 uppercase font-bold">Limite de caracteres por msg</Label>
                 <Input type="number" value={dna.linguistics?.max_chars || 300}
-                    onChange={e => updateDna('linguistics', 'max_chars', parseInt(e.target.value))} className="h-8 text-xs" />
+                    onChange={e => updateDna('linguistics', 'max_chars', parseInt(e.target.value))} className="h-9 text-xs bg-white" />
             </div>
         </div>
     );

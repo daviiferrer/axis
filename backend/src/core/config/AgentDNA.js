@@ -60,15 +60,8 @@ const Identity = {
 
 // --- 8. Sales & Qualification ---
 const SalesMethodology = {
-    Framework: { SPIN: 'SPIN', BANT: 'BANT', GPCT: 'GPCT', MEDDIC: 'MEDDIC' },
-    QualificationSlots: {
-        NEED: 'need',
-        BUDGET: 'budget',
-        AUTHORITY: 'authority',
-        TIMELINE: 'timeline',
-        SOLUTION: 'solution',
-        TIMING: 'timing'
-    }
+    Framework: { DYNAMIC: 'DYNAMIC' },
+    QualificationSlots: {}
 };
 
 // --- 9. Industry Verticals (Business Context) ---
@@ -197,24 +190,34 @@ function resolveDNA(dnaConfig) {
 
     // 1. Resolve Physics (Chronemics)
     const latencyEnum = config.chronemics?.latency_profile || 'MODERATE';
+    const baseLatency = _LATENCY_MAP[latencyEnum];
+
+    // Priority: Custom Numeric Values > Enum Mapping
+    const typing = {
+        wpm: config.chronemics?.wpm || config.chronemics?.typing_speed_wpm || baseLatency.wpm,
+        read_ms: config.chronemics?.read_ms || config.chronemics?.reading_speed_ms || config.chronemics?.base_latency_ms || baseLatency.read_ms,
+        variance: baseLatency.variance
+    };
 
     // Support both canonical path (chronemics.burstiness) and direct path (physics.burstiness)
-    // Direct path is used by agents stored in DB with their own physics config
-    let burstinessConfig = _BURSTINESS_MAP['MEDIUM']; // Default to MEDIUM for more human behavior
+    let burstinessConfig = _BURSTINESS_MAP['MEDIUM'];
 
     if (config.physics?.burstiness?.enabled !== undefined) {
-        // Direct physics config from DB (preferred)
         burstinessConfig = config.physics.burstiness;
-        logger.debug({ burstinessConfig }, 'Using direct physics.burstiness');
     } else if (config.chronemics?.burstiness) {
-        // Canonical enum path
         const burstEnum = config.chronemics.burstiness;
-        burstinessConfig = _BURSTINESS_MAP[burstEnum] || _BURSTINESS_MAP['MEDIUM'];
-        logger.debug({ burstEnum, burstinessConfig }, 'Resolved from chronemics');
+        const baseBurst = _BURSTINESS_MAP[burstEnum] || _BURSTINESS_MAP['MEDIUM'];
+
+        // Priority: Custom Numeric Values > Enum Mapping
+        burstinessConfig = {
+            ...baseBurst,
+            max_chunk: config.chronemics?.max_chunk || baseBurst.max_chunk,
+            ratio: config.chronemics?.ratio || baseBurst.ratio
+        };
     }
 
     const physics = {
-        typing: _LATENCY_MAP[latencyEnum],
+        typing,
         burstiness: burstinessConfig
     };
 
